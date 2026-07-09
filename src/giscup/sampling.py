@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from math import ceil
 
-from giscup.geometry import segment_length
+from giscup.geometry import ring_edges, segment_length
 from giscup.models import BoundarySample, Building
 
 
@@ -32,18 +32,35 @@ def get_profile(name: str) -> SamplingProfile:
 
 
 def sample_building_boundary(
-    building: Building, spacing: float, min_samples_per_building: int, start_id: int = 0
+    building: Building,
+    spacing: float,
+    min_samples_per_building: int,
+    start_id: int = 0,
+    include_interiors: bool = True,
 ) -> list[BoundarySample]:
-    """Generate midpoint-weighted exterior boundary samples for one building."""
+    """Generate midpoint-weighted boundary samples for one building.
+
+    By default this samples every Shapely boundary ring, including interior
+    rings. That keeps represented sample weight consistent with
+    ``Building.perimeter == polygon.length`` for defensive hole handling.
+    Official GIS Cup data is expected to be hole-free, but the sample brief
+    notes one hole-containing polygon, so denominator and witnesses must agree.
+    """
     raw: list[tuple[int, float, object, object]] = []
     total_segments = 0
-    for edge_index, (p0, p1) in enumerate(building.exterior_edges):
-        length = segment_length(p0, p1)
-        if length <= 0:
-            continue
-        n = max(1, int(ceil(length / spacing)))
-        raw.append((edge_index, length, p0, p1))
-        total_segments += n
+    rings = [building.exterior_edges]
+    if include_interiors:
+        rings.extend(ring_edges(ring) for ring in building.interiors)
+    edge_index = 0
+    for edges in rings:
+        for p0, p1 in edges:
+            length = segment_length(p0, p1)
+            if length <= 0:
+                continue
+            n = max(1, int(ceil(length / spacing)))
+            raw.append((edge_index, length, p0, p1))
+            total_segments += n
+            edge_index += 1
 
     scale = max(1.0, min_samples_per_building / total_segments) if total_segments else 1.0
     samples: list[BoundarySample] = []

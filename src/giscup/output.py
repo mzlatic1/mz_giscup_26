@@ -16,6 +16,11 @@ def format_float(value: float) -> str:
 
 def format_solution_block(solution: Solution) -> str:
     """Format one three-line GIS Cup subproblem block."""
+    if len(solution.antenna_points) != solution.k:
+        raise ValueError(
+            f"solution for (tau={solution.tau}, k={solution.k}) has "
+            f"{len(solution.antenna_points)} antenna points"
+        )
     points = ", ".join(f"({format_float(x)}, {format_float(y)})" for x, y in solution.antenna_points)
     claimed = ", ".join(str(v) for v in solution.claimed_building_ids)
     return f"({solution.tau}, {solution.k})\n{points}\n{claimed}"

@@ -23,11 +23,19 @@ def greedy_select(
     end-to-end reference implementation that can be replaced by cached/lazy
     greedy variants.
     """
+    if k <= 0:
+        raise ValueError(f"k must be positive; got {k}")
+    if max_candidates is not None and max_candidates < k:
+        raise ValueError(f"max_candidates ({max_candidates}) must be at least k ({k})")
+
     pool = candidates[:max_candidates] if max_candidates else candidates
+    if len(pool) < k:
+        raise ValueError(f"candidate pool contains {len(pool)} candidates, fewer than required k={k}")
+
     selected: list[Candidate] = []
     visible: set[int] = set()
     remaining = list(pool)
-    for _ in range(min(k, len(remaining))):
+    for _ in range(k):
         best_idx = -1
         best_new: set[int] = set()
         best_score = -1
@@ -40,7 +48,7 @@ def greedy_select(
                 best_new = new_ids
                 best_score = score
         if best_idx < 0:
-            break
+            raise RuntimeError("greedy selection failed to identify a next candidate")
         selected.append(remaining.pop(best_idx))
         visible |= best_new
     return selected, visible

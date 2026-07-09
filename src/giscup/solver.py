@@ -23,16 +23,29 @@ def solve_one(
     max_candidates: int | None = None,
     visibility_strategy: str = "hybrid",
     claim_margin: float = 0.005,
+    candidate_spacing: float = 25.0,
 ) -> Solution:
     """Solve one GIS Cup subproblem with the current baseline pipeline."""
+    if not (0 < tau <= 1):
+        raise ValueError(f"tau must be in (0, 1], got {tau}")
+    if k <= 0:
+        raise ValueError(f"k must be positive, got {k}")
+    if max_candidates is not None and max_candidates < k:
+        raise ValueError(f"max_candidates ({max_candidates}) must be at least k ({k})")
+    if optimizer != "greedy":
+        raise ValueError(
+            f"optimizer {optimizer!r} is not implemented in the current scaffold; "
+            "use 'greedy' until lazy/stochastic/hybrid optimizers are implemented"
+        )
+
     start = perf_counter()
     buildings, info = load_buildings(input_path)
     profile = get_profile(sampling_profile)
     samples = sample_boundaries(buildings, profile)
-    candidates = generate_boundary_candidates(buildings, mode=candidate_mode)
+    candidates = generate_boundary_candidates(
+        buildings, mode=candidate_mode, candidate_spacing=candidate_spacing
+    )
     blocker_index = BlockerIndex.from_buildings(buildings)
-    if optimizer not in {"greedy", "lazy-greedy", "stochastic-greedy", "hybrid"}:
-        raise ValueError(f"Unsupported optimizer {optimizer!r}")
     selected, visible = greedy_select(
         candidates,
         samples,
@@ -57,6 +70,7 @@ def solve_one(
         "config": {
             "sampling_profile": sampling_profile,
             "candidate_mode": candidate_mode,
+            "candidate_spacing": candidate_spacing,
             "optimizer": optimizer,
             "max_candidates": max_candidates,
             "visibility_strategy": visibility_strategy,
@@ -65,4 +79,12 @@ def solve_one(
         "runtime_seconds": {"total": perf_counter() - start},
         "warnings": [],
     }
-    return Solution(tau=tau, k=k, antenna_points=[c.point for c in selected], claimed_building_ids=claimed, diagnostics=diagnostics)
+    if len(selected) != k:
+        raise RuntimeError(f"internal solver error: selected {len(selected)} antennas for k={k}")
+    return Solution(
+        tau=tau,
+        k=k,
+        antenna_points=[c.point for c in selected],
+        claimed_building_ids=claimed,
+        diagnostics=diagnostics,
+    )

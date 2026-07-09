@@ -20,7 +20,9 @@ solver:
   candidate_mode: hybrid
   candidate_spacing: 25.0
   max_candidates: 50000
-  optimizer: lazy-greedy
+  # Current scaffold implementation supports only greedy. Lazy/stochastic/hybrid
+  # optimizers remain roadmap items until implemented and tested.
+  optimizer: greedy
   random_seed: 2026
   visibility_strategy: hybrid
   perimeter_mode: all-boundaries

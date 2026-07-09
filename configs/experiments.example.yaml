@@ -2,16 +2,17 @@ experiments:
   - name: balanced_lazy_default
     sampling_profile: balanced
     candidate_mode: hybrid
-    optimizer: lazy-greedy
+    optimizer: greedy
     max_candidates: 50000
   - name: accurate_k50
     sampling_profile: accurate
     candidate_mode: visibility_probe
-    optimizer: lazy-greedy
+    optimizer: greedy
     max_candidates: 150000
   - name: stochastic_k1000
     sampling_profile: balanced
     candidate_mode: hybrid
-    optimizer: stochastic-greedy
+    # Placeholder for future stochastic-greedy support; use greedy until implemented.
+    optimizer: greedy
     max_candidates: 80000
     stochastic_sample_size: 2048

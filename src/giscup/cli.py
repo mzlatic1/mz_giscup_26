@@ -37,6 +37,7 @@ def cmd_solve_one(args: argparse.Namespace) -> None:
         max_candidates=args.max_candidates,
         visibility_strategy=args.visibility_strategy,
         claim_margin=args.claim_margin,
+        candidate_spacing=args.candidate_spacing,
     )
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
     Path(args.output).write_text(format_solution_file([solution]), encoding="utf-8")
@@ -58,6 +59,7 @@ def cmd_solve_all(args: argparse.Namespace) -> None:
                 max_candidates=args.max_candidates,
                 visibility_strategy=args.visibility_strategy,
                 claim_margin=args.claim_margin,
+                candidate_spacing=args.candidate_spacing,
             )
             solutions.append(solution)
             diagnostics[f"tau_{tau}_k_{k}"] = solution.diagnostics
@@ -67,7 +69,14 @@ def cmd_solve_all(args: argparse.Namespace) -> None:
 
 
 def cmd_validate_output(args: argparse.Namespace) -> None:
-    result = validate_solution_file(args.input, args.solution, eps=args.eps)
+    result = validate_solution_file(
+        args.input,
+        args.solution,
+        eps=args.eps,
+        sampling_profile=args.sampling_profile,
+        visibility_strategy=args.visibility_strategy,
+        claim_margin=args.claim_margin,
+    )
     print(json.dumps({"ok": result.ok, "errors": result.errors, "warnings": result.warnings}, indent=2))
     if not result.ok:
         raise SystemExit(1)
@@ -103,6 +112,8 @@ def build_parser() -> argparse.ArgumentParser:
     validate_p.add_argument("--solution", required=True)
     validate_p.add_argument("--eps", type=float, default=1e-7)
     validate_p.add_argument("--sampling-profile", default="accurate")
+    validate_p.add_argument("--visibility-strategy", default="hybrid")
+    validate_p.add_argument("--claim-margin", type=float, default=0.0)
     validate_p.set_defaults(func=cmd_validate_output)
     return parser
 
@@ -110,6 +121,7 @@ def build_parser() -> argparse.ArgumentParser:
 def _add_solver_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--input", required=True)
     parser.add_argument("--candidate-mode", default="basic")
+    parser.add_argument("--candidate-spacing", type=float, default=25.0)
     parser.add_argument("--sampling-profile", default="balanced")
     parser.add_argument("--optimizer", default="greedy")
     parser.add_argument("--max-candidates", type=int)

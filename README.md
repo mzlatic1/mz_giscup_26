@@ -4,6 +4,18 @@
 
 > Project scratch context: `/mnt/c/Users/marko/OneDrive/Documents/SIGSPATIAL_2026`, also known in this project as the **OneDrive Parent Folder**.
 
+## Fast Codex Startup
+
+For future Codex sessions, prefer the compact startup docs in `docs/` before reading this full README:
+
+1. `docs/codex-startup-brief.md`
+2. `docs/competition-reference.md`
+3. `docs/codebase-map.md`
+4. `docs/session-state.md`
+5. `docs/context-maintenance.md` when ending a session or editing docs
+
+Use `docs/original_implementation_brief.md` as the preserved full source brief when deeper detail is needed. At the end of each Codex session, update the compact `/docs` layer according to `docs/context-maintenance.md` so future sessions do not need to reconstruct state from chat history.
+
 ## Repository Status
 
 This initial commit establishes the professional project scaffold, documentation, CLI entry points, data models, geometry/visibility primitives, sampling and candidate-generation modules, baseline optimization interfaces, validation helpers, tests, and final-output formatting conventions. It intentionally favors maintainable, testable foundations over premature competition tuning.
@@ -40,7 +52,15 @@ mz_giscup_26/
     README.md                  # Dataset placement and provenance instructions
     .gitkeep
   docs/
-    original_implementation_brief.md
+    README.md                         # Compact-doc index and startup read order
+    codex-startup-brief.md            # Fast session startup context
+    competition-reference.md          # Official rule/date/scoring summary
+    codebase-map.md                   # Module/command/test/limitation summary
+    session-state.md                  # Latest validation and next-step handoff
+    context-maintenance.md            # Required session-start/session-end docs contract
+    agent-roles-brief.md              # Agent routing summary
+    research-synthesis-brief.md       # Compact research digest
+    original_implementation_brief.md  # Preserved full initial brief
   outputs/
     .gitkeep
     cache/.gitkeep             # Visibility/cache outputs; ignored by Git
@@ -68,6 +88,8 @@ mz_giscup_26/
     test_geometry.py
     test_output_format.py
     test_sampling.py
+    test_solver.py
+    test_validate.py
     test_visibility.py
 ```
 
@@ -119,7 +141,7 @@ python -m giscup.cli solve-one \
   --diagnostics outputs/diag_tau_0.5_k_500.json \
   --candidate-mode hybrid \
   --sampling-profile balanced \
-  --optimizer lazy-greedy
+  --optimizer greedy
 ```
 
 Solve all nine sample-style combinations:
@@ -148,7 +170,7 @@ python -m giscup.cli validate-output \
 - The default perimeter mode uses Shapely polygon length (`all-boundaries`) to handle the sample anomaly with one hole; exterior-only mode is exposed for future evaluator alignment.
 - The baseline code discretizes continuous boundary coverage into weighted boundary samples. Dense validation and conservative claim margins are recommended before final submissions.
 - Visibility predicates are strategy-based (`relate`, `negative_buffer`, `hybrid`) because boundary degeneracies are important for official correctness.
-- The initial solver is intentionally simple and deterministic. Future phases should add cached visibility matrices, bitset acceleration, stochastic/lazy greedy improvements, local search, and multi-start experiments.
+- The initial solver is intentionally simple and deterministic. The currently implemented optimizer is `greedy`; future phases should add cached visibility matrices, bitset acceleration, stochastic/lazy greedy improvements, local search, and multi-start experiments.
 
 ## Development Roadmap
 
@@ -1598,4 +1620,3 @@ Findings:
 Result:
 
 - Final specification is ready for Codex CLI.
-
