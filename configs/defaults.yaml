@@ -1,0 +1,31 @@
+dataset:
+  input: data/GIS-cup-sample-dataset.geojson
+  id_property: id
+
+sampling_profiles:
+  fast:
+    spacing: 20.0
+    min_samples_per_building: 4
+  balanced:
+    spacing: 10.0
+    min_samples_per_building: 8
+  accurate:
+    spacing: 5.0
+    min_samples_per_building: 16
+  final:
+    spacing: 2.5
+    min_samples_per_building: 24
+
+solver:
+  candidate_mode: hybrid
+  candidate_spacing: 25.0
+  max_candidates: 50000
+  optimizer: lazy-greedy
+  random_seed: 2026
+  visibility_strategy: hybrid
+  perimeter_mode: all-boundaries
+  claim_margin: 0.005
+
+sample_subproblems:
+  taus: [0.25, 0.5, 0.75]
+  ks: [50, 500, 1000]

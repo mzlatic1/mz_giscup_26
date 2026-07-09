@@ -1,0 +1,18 @@
+name: mz-giscup-26
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - shapely>=2.0
+  - geopandas>=0.14
+  - pyogrio>=0.7
+  - numpy>=1.26
+  - scipy>=1.11
+  - tqdm>=4.66
+  - joblib>=1.3
+  - bitarray>=2.9
+  - orjson>=3.9
+  - pytest>=8
+  - pip
+  - pip:
+      - -e .

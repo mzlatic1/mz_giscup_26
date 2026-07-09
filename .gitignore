@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Local data and generated artifacts
+/data/*.geojson
+/data/*.json
+/data/*.gpkg
+/data/*.fgb
+/data/*.parquet
+/data/*.zip
+!/data/README.md
+!/data/.gitkeep
+/outputs/*
+!/outputs/.gitkeep
+!/outputs/cache/
+!/outputs/cache/.gitkeep
+
+# Logs and notebooks
+*.log
+.ipynb_checkpoints/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

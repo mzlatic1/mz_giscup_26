@@ -1,0 +1,127 @@
+"""Command-line interface for the GIS Cup solver."""
+
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+from typing import Any
+
+from giscup.diagnostics import dataset_summary
+from giscup.io import load_buildings
+from giscup.output import format_solution_file
+from giscup.solver import solve_one
+from giscup.validate import validate_solution_file
+
+
+def _write_json(path: str | None, payload: Any) -> None:
+    if path is None:
+        return
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    Path(path).write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def cmd_inspect(args: argparse.Namespace) -> None:
+    buildings, info = load_buildings(args.input, id_property=args.id_property)
+    print(json.dumps(dataset_summary(buildings, info), indent=2, sort_keys=True))
+
+
+def cmd_solve_one(args: argparse.Namespace) -> None:
+    solution = solve_one(
+        input_path=args.input,
+        tau=args.tau,
+        k=args.k,
+        sampling_profile=args.sampling_profile,
+        candidate_mode=args.candidate_mode,
+        optimizer=args.optimizer,
+        max_candidates=args.max_candidates,
+        visibility_strategy=args.visibility_strategy,
+        claim_margin=args.claim_margin,
+    )
+    Path(args.output).parent.mkdir(parents=True, exist_ok=True)
+    Path(args.output).write_text(format_solution_file([solution]), encoding="utf-8")
+    _write_json(args.diagnostics, solution.diagnostics)
+
+
+def cmd_solve_all(args: argparse.Namespace) -> None:
+    solutions = []
+    diagnostics = {}
+    for tau in args.taus:
+        for k in args.ks:
+            solution = solve_one(
+                input_path=args.input,
+                tau=tau,
+                k=k,
+                sampling_profile=args.sampling_profile,
+                candidate_mode=args.candidate_mode,
+                optimizer=args.optimizer,
+                max_candidates=args.max_candidates,
+                visibility_strategy=args.visibility_strategy,
+                claim_margin=args.claim_margin,
+            )
+            solutions.append(solution)
+            diagnostics[f"tau_{tau}_k_{k}"] = solution.diagnostics
+    Path(args.output).parent.mkdir(parents=True, exist_ok=True)
+    Path(args.output).write_text(format_solution_file(solutions), encoding="utf-8")
+    _write_json(args.diagnostics, diagnostics)
+
+
+def cmd_validate_output(args: argparse.Namespace) -> None:
+    result = validate_solution_file(args.input, args.solution, eps=args.eps)
+    print(json.dumps({"ok": result.ok, "errors": result.errors, "warnings": result.warnings}, indent=2))
+    if not result.ok:
+        raise SystemExit(1)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="giscup", description="ACM SIGSPATIAL 2026 GIS Cup solver")
+    sub = parser.add_subparsers(required=True)
+
+    inspect_p = sub.add_parser("inspect", help="Inspect an input building-footprint dataset")
+    inspect_p.add_argument("--input", required=True)
+    inspect_p.add_argument("--id-property", default="id")
+    inspect_p.set_defaults(func=cmd_inspect)
+
+    solve_one_p = sub.add_parser("solve-one", help="Solve one (tau, k) subproblem")
+    _add_solver_args(solve_one_p)
+    solve_one_p.add_argument("--tau", type=float, required=True)
+    solve_one_p.add_argument("--k", type=int, required=True)
+    solve_one_p.add_argument("--output", required=True)
+    solve_one_p.add_argument("--diagnostics")
+    solve_one_p.set_defaults(func=cmd_solve_one)
+
+    solve_all_p = sub.add_parser("solve-all", help="Solve all requested tau/k combinations")
+    _add_solver_args(solve_all_p)
+    solve_all_p.add_argument("--taus", type=float, nargs="+", required=True)
+    solve_all_p.add_argument("--ks", type=int, nargs="+", required=True)
+    solve_all_p.add_argument("--output", required=True)
+    solve_all_p.add_argument("--diagnostics")
+    solve_all_p.set_defaults(func=cmd_solve_all)
+
+    validate_p = sub.add_parser("validate-output", help="Validate official-format solution output")
+    validate_p.add_argument("--input", required=True)
+    validate_p.add_argument("--solution", required=True)
+    validate_p.add_argument("--eps", type=float, default=1e-7)
+    validate_p.add_argument("--sampling-profile", default="accurate")
+    validate_p.set_defaults(func=cmd_validate_output)
+    return parser
+
+
+def _add_solver_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--input", required=True)
+    parser.add_argument("--candidate-mode", default="basic")
+    parser.add_argument("--sampling-profile", default="balanced")
+    parser.add_argument("--optimizer", default="greedy")
+    parser.add_argument("--max-candidates", type=int)
+    parser.add_argument("--visibility-strategy", default="hybrid")
+    parser.add_argument("--claim-margin", type=float, default=0.005)
+
+
+def main(argv: list[str] | None = None) -> None:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    args.func(args)
+
+
+if __name__ == "__main__":
+    main()
