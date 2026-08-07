@@ -39,7 +39,9 @@ Full detail: `docs/reference/geometry-and-scoring-rules.md`, `docs/competition-r
 - Preserve holes in loaded geometries and include them in obstacle geometry, even though the
   official page says footprints have none. The sample contains one hole-bearing polygon.
 - Never overwrite source data. Derived output goes under `outputs/` or a named scratch path.
-  (`data/**` is write-denied in `.claude/settings.json`.)
+  `.claude/settings.json` denies `Write`/`Edit` on `data/**`, but that guard covers only those two
+  tools — a shell redirect, `cp`, or a `--output data/...` flag can still write there. Treat the
+  deny rule as a backstop, not a guarantee; the rule you actually follow is this bullet.
 
 ## Honesty about implementation state
 

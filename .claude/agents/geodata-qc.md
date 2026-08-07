@@ -31,8 +31,10 @@ match `polygon.length`.
 
 ## Data safety
 
-Never mutate official raw data. `data/**` is write-denied at the harness level. Write derived data
-and reports under `outputs/`. Recommend safe derived-data locations rather than in-place edits.
+Never mutate official raw data. `Write`/`Edit` on `data/**` are denied in `.claude/settings.json`,
+but that does not cover shell writes — a redirect, `cp`, or an `--output data/...` flag still
+lands there. Do not rely on the deny rule; write derived data and reports under `outputs/` and
+recommend safe derived-data locations rather than in-place edits.
 
 Useful entry point: `giscup inspect --input <geojson>` (see `src/giscup/diagnostics.py`).
 

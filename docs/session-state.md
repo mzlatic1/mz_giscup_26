@@ -66,9 +66,15 @@ Session of 2026-08-06 — Codex to Claude Code migration:
 - `docs/codex-startup-brief.md` → `docs/startup-brief.md`; Codex wording stripped from all live
   docs (the archival `original_implementation_brief.md` keeps its original text deliberately).
 - Added `/startup`, `/wrapup`, `/solve` slash commands.
-- Added `.claude/settings.json`: allow-list for routine commands, **write-deny on `data/**`**
-  enforcing source-data immutability at the harness level, and a `SessionStart` hook that injects
-  this file into every new session.
+- Added `.claude/settings.json`: allow-list for routine read-only commands, `Write`/`Edit` deny on
+  `data/**` (a backstop only — it does not cover shell writes), and a `SessionStart` hook that
+  injects this file into every new session.
+- Hardened `.claude/settings.json` after a security review flagged three issues in the first
+  version: `Bash(python -m pytest:*)` was arbitrary code execution via wildcard args;
+  `giscup solve-one/solve-all:*` and `python -m giscup.cli:*` could write anywhere via `--output`,
+  bypassing the `data/**` deny; and the deny listed only absolute paths, so relative spellings
+  slipped through. Allow-list is now exact-match for anything that executes or writes, and the
+  deny covers absolute plus relative forms.
 - Added `.claude/skills/giscup-output-format/` — auto-triggering submission-format rules.
 - `geospft-critique` now has no write tools, making its independence structural.
 

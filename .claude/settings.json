@@ -2,14 +2,14 @@
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
     "allow": [
-      "Bash(python -m pytest:*)",
-      "Bash(python -m compileall:*)",
-      "Bash(python -m giscup.cli:*)",
+      "Bash(python -m pytest)",
+      "Bash(python -m pytest -q)",
+      "Bash(python -m pytest -ra)",
+      "Bash(python -m compileall src tests scripts)",
+      "Bash(python -m compileall -q src tests scripts)",
+      "Bash(giscup --help)",
       "Bash(giscup inspect:*)",
       "Bash(giscup validate-output:*)",
-      "Bash(giscup solve-one:*)",
-      "Bash(giscup solve-all:*)",
-      "Bash(giscup --help)",
       "Bash(ruff check:*)",
       "Bash(ruff format --check:*)",
       "Bash(mypy:*)",
@@ -24,7 +24,11 @@
     ],
     "deny": [
       "Write(//home/markolinux/projects/sigspatial_26/data/**)",
-      "Edit(//home/markolinux/projects/sigspatial_26/data/**)"
+      "Edit(//home/markolinux/projects/sigspatial_26/data/**)",
+      "Write(data/**)",
+      "Edit(data/**)",
+      "Write(./data/**)",
+      "Edit(./data/**)"
     ]
   },
   "hooks": {
