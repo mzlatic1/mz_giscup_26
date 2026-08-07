@@ -92,8 +92,32 @@ Earlier sessions:
 - Made sampling include interior rings to match Shapely perimeter.
 - Added tests for solver, validation, output formatting, and hole sampling.
 
+## Feasibility gate (run `/rehearsal`)
+
+**Status 2026-08-06: FAIL by ~5e8x.** Measured on a full-scale synthetic stand-in
+(12,860 buildings, 138,077 samples, 160,198 candidates) against a 20 h / 8-core budget:
+
+| variant | checks (all 9) | time |
+|---|---|---|
+| current: hybrid, no cache, no cull | 1.03e14 | 666,236 days |
+| relate, cached, no cull | 2.21e10 | 53 days |
+| relate, cached, radius cull 200 m | 1.31e08 | **10.3 min** |
+| relate, cached, radius cull 400 m | 5.24e08 | **1.0 h** |
+
+Throughput is dominated by blockers per STRtree query, which scales with segment
+length: unbounded ~1,400 blockers at ~600 checks/s; under 200 m ~7 blockers at
+~26,500 checks/s. The visibility matrix is ~99.985% empty; median visible distance
+~91-130 m (small-sample, indicative only).
+
+**The viable route: `relate` + per-candidate caching + radius cull.** Compute the
+matrix once, reuse across all nine subproblems. Caveat: the cull is a heuristic
+that can drop real sight lines, and the synthetic data has no street topology —
+choose a generous radius and verify near-threshold buildings without the cull.
+
 ## Next recommended actions
 
+0. **Build the radius-culled cached visibility matrix.** This is the highest-priority
+   work in the project; nothing about objective shaping matters until the gate passes.
 1. **Add the official sample dataset under `data/`** — released 2026-03-31 and not yet present
    locally. Nearly all remaining work is blocked on it; every validation so far is against a
    synthetic GeoJSON.

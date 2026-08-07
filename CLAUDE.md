@@ -43,6 +43,32 @@ Full detail: `docs/reference/geometry-and-scoring-rules.md`, `docs/competition-r
   tools — a shell redirect, `cp`, or a `--output data/...` flag can still write there. Treat the
   deny rule as a backstop, not a guarantee; the rule you actually follow is this bullet.
 
+## Competition posture — read before choosing what to work on
+
+**One submission. No score feedback. Ever.** Test data 2026-08-15, deadline
+2026-08-16. There is no leaderboard, no daily slots, no partial score, no retry.
+Scoring is relative (`team score / best submitted score`, summed over 9 subproblems),
+so a subproblem that does not finish scores ~0.
+
+These rules exist because the ROGII Kaggle competition was lost to exactly these
+mistakes (top 20%, no medal, gap 3x the range of every lever being tuned):
+
+1. **Prove feasibility before improving quality.** Run `/rehearsal`. Until it reads
+   PASS, feasibility work outranks everything else. A better objective on a solver
+   that cannot finish scores zero. As of 2026-08-06 the gate reads FAIL by ~5e8x.
+2. **Size a lever against the gap before investing in it.** State the lever's
+   best-case range and compare it to the distance you need to cover. ROGII spent
+   three sessions tuning a knob whose entire range was 1/16 of the gap. If the
+   best case cannot close the gap, it is the wrong lever — say so and stop.
+3. **Treat 2026-08-15 as a rehearsal deadline, not a start date.** Anything not
+   proven end-to-end at full scale before then will not work on the day.
+4. **Every performance constant must be measured, not assumed.** Extrapolating
+   from a small test case is how the sparsity figure in this project was wrong by
+   190x and the throughput figure by 11x. Re-measure at full scale; state the
+   sample size when the estimate is noisy.
+5. **Local validation is a rejection framework, not a score estimator.** It can
+   tell you something is broken. It cannot tell you what you will score.
+
 ## Honesty about implementation state
 
 Only the `greedy` optimizer exists. Do not describe `lazy-greedy`, `stochastic-greedy`, or
@@ -51,7 +77,8 @@ modes must raise. `docs/codebase-map.md` holds the current limitation list; keep
 
 ## Session contract
 
-- **Start:** run `/startup`, or read `docs/startup-brief.md`, `docs/competition-reference.md`,
+- **Start:** run `/startup`, then `/rehearsal` if any solver code changed since the last
+  gate run. Or read `docs/startup-brief.md`, `docs/competition-reference.md`,
   `docs/codebase-map.md`, and `docs/session-state.md` before drilling into long-form sources.
   `README.md` and `docs/original_implementation_brief.md` are archival, not startup reads.
 - **End:** run `/wrapup`. It applies `docs/context-maintenance.md` and iterates until a

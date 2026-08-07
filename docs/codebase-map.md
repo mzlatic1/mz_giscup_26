@@ -55,7 +55,20 @@ CLAUDE.md                                    # auto-loaded project rules
 .claude/agents/*.md                          # 8 self-contained subagents
 .claude/commands/{startup,wrapup,solve}.md   # session rituals and subproblem runner
 .claude/skills/giscup-output-format/         # non-negotiable submission-format rules
+.claude/commands/rehearsal.md                # feasibility gate
 ```
+
+## Feasibility tooling
+
+```text
+scripts/make_synthetic_dataset.py  # full-scale stand-in matching documented sample stats
+scripts/rehearse.py                # measures throughput/sparsity, PASS/FAIL vs budget
+```
+
+`data/` has no official dataset yet, so all scaling work runs against the synthetic
+stand-in. It reproduces documented aggregate statistics only — no real street
+topology, and the large-building tail is absent. Never use it for solution-quality
+claims.
 
 ## Implemented CLI
 

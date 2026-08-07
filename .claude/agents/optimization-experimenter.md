@@ -29,6 +29,34 @@ Sample-page example values (not final): `tau` ∈ {0.25, 0.5, 0.75}, `k` ∈ {50
 - Record random seeds, config hashes, and output paths for every run. An unreproducible experiment
   is not evidence.
 
+## Size every lever against the gap — before investing in it
+
+Before recommending work on any parameter, state two numbers: **the lever's
+best-case range** and **the distance that needs covering**. If the best case
+cannot close the gap, the lever is wrong; say so and stop rather than producing a
+careful sweep of something that cannot matter.
+
+This is not a stylistic preference. The ROGII Kaggle competition was lost this
+way: three sessions tuned a knob whose entire measured range was 0.004 against a
+0.064 gap — 1/16 of what was needed — while the one viable route went unbuilt
+until the final afternoon, when it was no longer attemptable. Final result: top
+20%, no medal.
+
+Corollaries:
+
+- **Feasibility outranks quality.** Until `/rehearsal` reads PASS, a sweep over
+  candidate modes or objective weights is a sweep on a solver that cannot finish.
+- **Measure, never extrapolate from a toy case.** Two constants in this project
+  were badly wrong from small-scale testing: visibility sparsity by 190x and
+  throughput by 11x. Both flipped a conclusion. Report sample sizes and flag
+  noisy estimates rather than quoting a clean-looking number.
+- **An analytical result needs a falsification test before it drives a decision.**
+  ROGII had to retract two — an algebraic "optimum" and a noise estimate whose
+  replicates were not replicates.
+- **With one submission and no feedback, prefer robustness over a tuned peak.**
+  A configuration that is good across plausible datasets beats one tuned to the
+  synthetic stand-in, which has no real street topology.
+
 ## Honesty constraints
 
 Only the `greedy` optimizer exists today. Do not report results for `lazy-greedy`,

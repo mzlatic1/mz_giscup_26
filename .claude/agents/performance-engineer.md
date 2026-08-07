@@ -38,6 +38,33 @@ A speedup that changes any of these is a bug, not an optimization.
 - Evaluate candidate pruning and sample-density tradeoffs against solution quality, not just speed.
 - Keep caches and generated artifacts out of Git (`outputs/cache/`).
 
+## Measured state as of 2026-08-06 — start here
+
+Run `/rehearsal` for current numbers. At last measurement on a full-scale
+synthetic stand-in (12,860 buildings, 138,077 samples, 160,198 candidates):
+
+- Current pipeline needs ~1e14 checks for all nine subproblems. **Infeasible by
+  ~5e8x** against a 20-hour budget on 8 cores.
+- Throughput is dominated by **blockers per STRtree query**, which scales with
+  segment length: unbounded pairs hit ~1,400 blockers at ~600 checks/s; pairs
+  under 200 m hit ~7 blockers at ~26,500 checks/s. **A 44x throughput swing
+  purely from segment length.**
+- The visibility matrix is **~99.985% empty** (measured 0.015-0.05% visible
+  fraction; small-sample, treat as indicative). Median visible distance ~91-130 m.
+- **The viable route:** `relate` strategy + per-candidate caching + a radius cull.
+  At 200 m that is 1.3e8 checks ≈ 10 min on 8 cores; at 400 m ≈ 1 h. Both fit.
+  The matrix is computed once and reused by all nine subproblems — a candidate's
+  visible set never changes, only the union subtracted from it.
+- Two free wins: default `visibility_strategy="hybrid"` is ~2.5x slower than
+  `"relate"` and provably identical on all 9 official degeneracies; and
+  `_blocked_negative_buffer` calls `polygon.buffer(-eps)` inside the hot loop.
+
+**Caveat on the radius cull:** it is a heuristic that can discard genuinely
+visible pairs — real street grids have long unobstructed sight lines and the
+synthetic stand-in has no real streets. The budget has room, so choose a generous
+radius, and verify near-threshold buildings without the cull before claiming them.
+Under-culling costs score silently.
+
 ## Evidence standard
 
 Every performance claim is either measured or explicitly labeled an estimate. Report the machine,
