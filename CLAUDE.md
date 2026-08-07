@@ -77,12 +77,20 @@ modes must raise. `docs/codebase-map.md` holds the current limitation list; keep
 
 ## Session contract
 
-- **Start:** run `/startup`, then `/rehearsal` if any solver code changed since the last
-  gate run. Or read `docs/startup-brief.md`, `docs/competition-reference.md`,
-  `docs/codebase-map.md`, and `docs/session-state.md` before drilling into long-form sources.
-  `README.md` and `docs/original_implementation_brief.md` are archival, not startup reads.
-- **End:** run `/wrapup`. It applies `docs/context-maintenance.md` and iterates until a
-  documentation pass yields no changes. Work is not done until that no-change pass is reported.
+**When Marko says "start session"** — or "start", "begin session", "let's start", or anything
+clearly meaning the same — that is a request to run the `/startup` command. Do it immediately,
+before anything else, without asking for confirmation. `/startup` loads the compact context set,
+reads `docs/task-board.md`, recreates the task list, and reports state plus next actions.
+
+**When Marko says "wrap", "close out", "pause", or "hand off"** — run `/wrapup`. It applies
+`docs/context-maintenance.md` and iterates until a documentation pass yields no changes. Work is
+not done until that no-change pass is reported. Never commit, push, or delete during wrap-up
+without explicit approval.
+
+Manual equivalents, if a command is unavailable: read `docs/startup-brief.md`,
+`docs/competition-reference.md`, `docs/codebase-map.md`, `docs/session-state.md`, and
+`docs/task-board.md`. `README.md` and `docs/original_implementation_brief.md` are archival — not
+startup reads. Run `/rehearsal` if solver code changed since the last gate run.
 
 ## Commands
 

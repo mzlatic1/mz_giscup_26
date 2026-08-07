@@ -15,6 +15,7 @@ Read the smallest useful context set first:
 3. `docs/competition-reference.md`
 4. `docs/codebase-map.md`
 5. `docs/session-state.md`
+6. `docs/task-board.md`
 
 Then drill down only if the task requires it:
 
@@ -32,7 +33,8 @@ wherever facts changed:
 
 | If this changed | Update |
 |---|---|
-| Current status, latest tests, next steps, uncommitted state | `docs/session-state.md` |
+| Current status, latest tests, uncommitted state | `docs/session-state.md` |
+| Task list: anything started, finished, discovered, or reprioritised | `docs/task-board.md` |
 | Project identity, source-of-truth order, major objective, agent routing, immediate priorities | `docs/startup-brief.md` |
 | Official competition rules, dates, format, scoring, or verified official clarifications | `docs/competition-reference.md` |
 | File layout, implemented commands, tests, known limitations, validation status | `docs/codebase-map.md` |

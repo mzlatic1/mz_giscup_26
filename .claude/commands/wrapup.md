@@ -11,9 +11,13 @@ allowed-tools: Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(pytho
 
 ## What changed this session
 
-!`git status --short`
+!`git status --short || true; git status --porcelain | grep -q . || echo '(working tree clean)'`
 
-!`git diff --stat HEAD`
+!`git diff --stat HEAD || true; git diff --quiet HEAD && echo '(no uncommitted changes)'`
+
+Commits this session:
+
+!`git log --oneline -8`
 
 ## Your task
 

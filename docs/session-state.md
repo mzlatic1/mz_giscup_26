@@ -1,137 +1,134 @@
 # Current Session State
 
-This document captures the current operational state so future sessions can avoid rereading long history.
+Operational state so the next session starts without rereading history.
+Task list lives in `docs/task-board.md`. Say **"start session"** and `/startup` handles the rest.
+
+Last session: **2026-08-06**. Working tree clean, all work committed and pushed.
+
+## The one thing that matters
+
+**The solver cannot finish a single subproblem.** The feasibility gate reads **FAIL by ~5e8x**.
+Until `/rehearsal` reads PASS, feasibility work outranks everything else — a better objective on a
+solver that cannot finish scores zero.
+
+Next action: **task #1** in the task board (switch default visibility strategy to `relate`), which
+unblocks **#2**, the radius-culled cached visibility matrix. #2 is the blocker for the project.
+
+**9 days to test-data release (2026-08-15); submission 2026-08-16.** One shot, no score feedback
+ever. Treat Aug 15 as a rehearsal deadline, not a start date.
 
 ## Repository
 
 - Local root: `/home/markolinux/projects/sigspatial_26`
-- Remote: `https://github.com/mzlatic1/mz_giscup_26.git`
-- Main branch has the scaffold, compact docs, and agents pushed.
-- Harness: Claude Code. The Codex layer (`AGENTS.md`, `.agents/`, `.codex/`) was fully migrated on
-  2026-08-06 and no longer exists; recover it from git history before commit `b4a7353` if ever needed.
+- Remote: `https://github.com/mzlatic1/mz_giscup_26.git`, branch `main`
+- Harness: Claude Code. The Codex layer (`AGENTS.md`, `.agents/`, `.codex/`) was migrated
+  2026-08-06 and no longer exists; recover from git history before `b4a7353` if ever needed.
+- Head: `ee51eef`. Preceding: `6403ab6`, `be6d66b`, `b4a7353`, `050f95a`.
 
 ## Environment
 
-Project Conda env exists:
-
 ```bash
-conda activate mz-giscup-26
+conda activate mz-giscup-26      # Python 3.11; required for all work
 ```
 
-Known installed/tested stack:
+Installed and exercised: Shapely, GeoPandas, pyogrio, NumPy, SciPy, pytest, bitarray, orjson,
+editable `mz-giscup-26`. **`ruff` and `mypy` are NOT installed** despite being configured in
+`pyproject.toml` — `pip install -e .[dev]` if lint is needed.
 
-- Python 3.11
-- Shapely
-- GeoPandas
-- pyogrio
-- NumPy
-- SciPy
-- pytest
-- bitarray
-- orjson
-- editable `mz-giscup-26`
+## Data situation — read before trusting any number
 
-## Latest validation
+`data/` contains **no dataset**. The official sample (released 2026-03-31) was never added locally
+and the test data does not exist until 2026-08-15.
 
-Run 2026-08-06 in Conda env `mz-giscup-26`, after the Claude Code migration:
+All scaling work therefore runs against a synthetic stand-in:
 
 ```bash
-python -m compileall src tests scripts   # OK
-python -m pytest -q                      # 18 passed in 0.79s
+python scripts/make_synthetic_dataset.py --output outputs/synthetic_full.geojson
 ```
 
-The migration changed no source code, so this result is unchanged from the prior session and
-confirms no regression.
+`outputs/synthetic_full.geojson` exists on disk (5.1 MB, git-ignored, regenerable — deterministic
+under `--seed 20260806`). It matches the documented sample statistics within a few percent, but has
+**no real street topology** and **omits the large-building tail**. Real grids have long
+unobstructed sight corridors it cannot produce, so the measured visible-distance range is very
+likely an underestimate. Never use it for solution-quality claims.
 
-Additional context QA passed: required compact docs exist and are non-empty; every repo-relative
-path referenced by `CLAUDE.md`, `.claude/agents/*.md`, `.claude/commands/*.md`, and the compact
-docs resolves; `.claude/settings.json` parses; every agent's `name:` matches its filename.
+## Latest validation — run 2026-08-06 in `mz-giscup-26`
 
-Synthetic CLI smoke tests passed:
+```bash
+python -m compileall -q src tests scripts   # OK
+python -m pytest -q                         # 18 passed in 0.29s
+giscup inspect --input outputs/synthetic_full.geojson   # OK, CRS EPSG:32611 preserved
+python scripts/rehearse.py --input outputs/synthetic_full.geojson --cores 8   # FAIL (expected)
+```
 
-- `giscup inspect`
-- `giscup solve-one` + `validate-output`
-- `giscup solve-all` + `validate-output`
+Context QA passed: every repo-relative path referenced by `CLAUDE.md`, `.claude/agents/*.md`,
+`.claude/commands/*.md` and the compact docs resolves; `.claude/settings.json` parses; each agent's
+`name:` matches its filename.
 
-## Recent applied fixes
+No source code was changed this session — the 18-test result is unchanged from the prior session
+and confirms no regression.
 
-Session of 2026-08-06 — Codex to Claude Code migration:
+## Feasibility gate — measured 2026-08-06
 
-- `AGENTS.md` → `CLAUDE.md`, rewritten as a compact auto-loaded rule file.
-- `.agents/*.yaml` + `.codex/agents/*.md` → self-contained `.claude/agents/*.md`. Each agent's
-  markdown body is now its whole system prompt; no startup reads required.
-- `.codex/{project-context,geometry-and-scoring-rules,development-workflow,research-papers,research-synthesis}.md`
-  → `docs/reference/`. `.codex/repo-map.md` and `.codex/session-handoff.md` deleted as duplicates
-  of `docs/codebase-map.md` and this file.
-- `docs/codex-startup-brief.md` → `docs/startup-brief.md`; Codex wording stripped from all live
-  docs (the archival `original_implementation_brief.md` keeps its original text deliberately).
-- Added `/startup`, `/wrapup`, `/solve` slash commands.
-- Added `.claude/settings.json`: allow-list for routine read-only commands, `Write`/`Edit` deny on
-  `data/**` (a backstop only — it does not cover shell writes), and a `SessionStart` hook that
-  injects this file into every new session.
-- Hardened `.claude/settings.json` after a security review flagged three issues in the first
-  version: `Bash(python -m pytest:*)` was arbitrary code execution via wildcard args;
-  `giscup solve-one/solve-all:*` and `python -m giscup.cli:*` could write anywhere via `--output`,
-  bypassing the `data/**` deny; and the deny listed only absolute paths, so relative spellings
-  slipped through. Allow-list is now exact-match for anything that executes or writes, and the
-  deny covers absolute plus relative forms.
-- Added `.claude/skills/giscup-output-format/` — auto-triggering submission-format rules.
-- `geospft-critique` now has no write tools, making its independence structural.
+Full-scale synthetic (12,860 buildings, 138,077 samples, 160,198 candidates), 20 h / 8-core budget:
 
-Earlier sessions:
+| variant | checks (all 9) | time | |
+|---|---|---|---|
+| current: hybrid, no cache, no cull | 1.03e14 | 666,236 days | FAIL |
+| relate, cached, no cull | 2.21e10 | 53 days | FAIL |
+| relate, cached, radius cull 200 m | 1.31e08 | **10.3 min** | PASS |
+| relate, cached, radius cull 400 m | 5.24e08 | **1.0 h** | PASS |
 
-- Created compact `/docs` startup set.
-- Added `docs/context-maintenance.md` so sessions read compact docs at startup and update `/docs` at closeout.
-- Updated project rules, agents, root `README.md`, and compact docs to enforce `/docs` maintenance.
-- Created/updated project agents.
-- Added research registry/source credibility metadata.
-- Fixed validator empty-line and malformed-header behavior.
-- Added sampled claim validation.
-- Enforced exact `k` in solver/output paths.
-- Made unimplemented optimizers explicit errors.
-- Made sampling include interior rings to match Shapely perimeter.
-- Added tests for solver, validation, output formatting, and hole sampling.
+Throughput is dominated by **blockers per STRtree query**, which scales with segment length:
+unbounded ~1,401 blockers at ~605 checks/s; ≤200 m ~7 blockers at ~26,539 checks/s — a 44x swing
+from segment length alone. Visibility matrix is ~99.985% empty; median visible distance ~91–130 m
+(small-sample; treat as indicative).
 
-## Feasibility gate (run `/rehearsal`)
+**The viable route:** `relate` + per-candidate caching + a radius cull, matrix computed once and
+reused across all nine subproblems. Choose the radius **generously** — the budget has slack and
+under-culling loses score silently.
 
-**Status 2026-08-06: FAIL by ~5e8x.** Measured on a full-scale synthetic stand-in
-(12,860 buildings, 138,077 samples, 160,198 candidates) against a 20 h / 8-core budget:
+## Two corrections made this session
 
-| variant | checks (all 9) | time |
-|---|---|---|
-| current: hybrid, no cache, no cull | 1.03e14 | 666,236 days |
-| relate, cached, no cull | 2.21e10 | 53 days |
-| relate, cached, radius cull 200 m | 1.31e08 | **10.3 min** |
-| relate, cached, radius cull 400 m | 5.24e08 | **1.0 h** |
+Numbers derived from a small test grid earlier in the session were wrong, both optimistic, both
+conclusion-flipping. Recorded because the rule they produced now lives in `CLAUDE.md`:
 
-Throughput is dominated by blockers per STRtree query, which scales with segment
-length: unbounded ~1,400 blockers at ~600 checks/s; under 200 m ~7 blockers at
-~26,500 checks/s. The visibility matrix is ~99.985% empty; median visible distance
-~91-130 m (small-sample, indicative only).
+| | claimed | measured at full scale | error |
+|---|---|---|---|
+| visibility throughput | 6,045 checks/s | 549–605 checks/s | 11x |
+| visibility sparsity | 2.85% visible | 0.015–0.05% visible | 190x |
 
-**The viable route: `relate` + per-candidate caching + radius cull.** Compute the
-matrix once, reuse across all nine subproblems. Caveat: the cull is a heuristic
-that can drop real sight lines, and the synthetic data has no street topology —
-choose a generous radius and verify near-threshold buildings without the cull.
+Cause: a long segment's bbox in a 5 km domain intersects ~1,400 buildings — invisible on a
+900-building test. **Measure at full scale; never extrapolate from a toy case.**
 
-## Next recommended actions
+## Session log
 
-0. **Build the radius-culled cached visibility matrix.** This is the highest-priority
-   work in the project; nothing about objective shaping matters until the gate passes.
-1. **Add the official sample dataset under `data/`** — released 2026-03-31 and not yet present
-   locally. Nearly all remaining work is blocked on it; every validation so far is against a
-   synthetic GeoJSON.
-2. Run `giscup inspect` on the sample and compare stats against
-   `docs/original_implementation_brief.md`; use the `geodata-qc` agent.
-3. Phase 4 — performance: visibility cache, bitset integration, candidate pruning. Current direct
-   recomputation will not scale to `k=1000` on full-size data.
-4. Phase 5 — replace the raw newly-visible-sample greedy objective with a threshold-aware one.
-   The scored objective is *serviced building count*, not visible perimeter; the current objective
-   optimizes the wrong thing.
-5. Implement real `lazy-greedy` / `stochastic-greedy`, or remove the names from configs.
-6. Fill in the `scripts/compare_configs.py` and `scripts/profile_visibility.py` placeholders.
+**2026-08-06 — Codex to Claude Code migration, security hardening, feasibility gate.**
 
-## Hard deadline
+- `AGENTS.md` → `CLAUDE.md`; `.agents/*.yaml` + `.codex/agents/*.md` → self-contained
+  `.claude/agents/*.md`; `.codex/*.md` → `docs/reference/`; `docs/codex-startup-brief.md` →
+  `docs/startup-brief.md`. `.codex/repo-map.md` and `.codex/session-handoff.md` deleted as
+  duplicates. Codex wording stripped from live docs; the archival brief keeps its original text.
+- Added `/startup`, `/wrapup`, `/solve`, `/rehearsal`, and the `giscup-output-format` skill.
+- `.claude/settings.json`: allow-list, `Write`/`Edit` deny on `data/**`, `SessionStart` hook.
+  Hardened after a security review found 3 issues — wildcard `pytest` was arbitrary code
+  execution, `giscup solve-*` could write anywhere via `--output` and defeat the deny, and the
+  deny matched only absolute paths. The deny is a **backstop, not a guarantee**: it does not cover
+  shell writes.
+- `geospft-critique` has no write tools, making its independence structural.
+- Added `scripts/make_synthetic_dataset.py` and `scripts/rehearse.py`.
+- Encoded the ROGII lessons as rules and gates (`CLAUDE.md` posture section, agent rules, session
+  memory). ROGII finished top 20% / no medal with the gap ~3x the range of every lever being
+  tuned; the four failure modes were dead knobs, the winning route found too late, blind local
+  validation, and lessons written down but never re-applied.
 
-Test dataset released **2026-08-15**; submission due **2026-08-16**. That is a ~24-hour window,
-so the solve pipeline must be fully automated and performance-tested *before* Aug 15.
+## Known limitations carried forward
+
+- Only `greedy` exists. `lazy-greedy` / `stochastic-greedy` / `hybrid` correctly raise — never
+  describe them as working.
+- Greedy objective is raw newly-visible-sample count, not serviced-building count (task #6).
+- Validation path has the same complexity bug as the solver (task #7).
+- Candidate "pruning" modes only add candidates; they prune nothing (task #9).
+- `configs/defaults.yaml` is not wired into the CLI.
+- `scripts/compare_configs.py` and `scripts/profile_visibility.py` are placeholders.
+- Hole-perimeter asymmetry between sampling and candidate generation (task #11).

@@ -43,6 +43,7 @@ docs/session-state.md            # latest validation, environment, next steps
 docs/context-maintenance.md      # mandatory startup/closeout docs-maintenance contract
 docs/research-synthesis-brief.md # compact research digest
 docs/agent-roles-brief.md        # compact agent routing
+docs/task-board.md               # durable task list with dependencies
 docs/reference/                  # deep-detail drill-down (project context, geometry
                                  #   and scoring rules, dev workflow, research registry)
 ```

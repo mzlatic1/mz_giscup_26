@@ -8,8 +8,9 @@ drill down only when needed. Run `/startup` to load the whole default set at onc
 1. `docs/startup-brief.md` — compressed project state and rules.
 2. `docs/competition-reference.md` — official GIS Cup constraints and scoring.
 3. `docs/codebase-map.md` — repository structure, implemented features, commands, and known gaps.
-4. `docs/session-state.md` — current environment, validation status, and next steps.
-5. `docs/context-maintenance.md` — required read/update contract when ending a session or editing docs.
+4. `docs/session-state.md` — current environment, validation status, and the one thing that matters.
+5. `docs/task-board.md` — the durable task list, with dependencies.
+6. `docs/context-maintenance.md` — required read/update contract when ending a session or editing docs.
 
 ## Task-specific drill-down
 
