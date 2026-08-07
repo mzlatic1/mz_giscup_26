@@ -42,7 +42,7 @@ Implementation impact:
 - Keep multiple predicate strategies in `src/giscup/visibility.py`.
 - Test every official degeneracy before optimizing performance.
 - Consider exact/robust predicates or controlled epsilon strategies if Shapely predicates disagree with expected semantics.
-- Add robust-predicate research before implementing any custom non-GEOS predicate; Shewchuk-style adaptive predicates are now listed as a P1 candidate in `.codex/research-papers.md`.
+- Add robust-predicate research before implementing any custom non-GEOS predicate; Shewchuk-style adaptive predicates are now listed as a P1 candidate in `docs/reference/research-papers.md`.
 
 ### Discretization
 

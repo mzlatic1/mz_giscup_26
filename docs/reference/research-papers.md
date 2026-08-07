@@ -8,7 +8,7 @@ Status values:
 - `read`: inspected from an accessible primary/source page or PDF and summarized into project context.
 - `access-limited`: source page found, but full text was blocked, paywalled, or otherwise not available in this environment.
 - `to-read`: credible candidate source recommended for future synthesis.
-- `synthesized`: durable project-specific synthesis recorded in `.codex/research-synthesis.md`.
+- `synthesized`: durable project-specific synthesis recorded in `docs/reference/research-synthesis.md`.
 - `superseded`: kept for history but no longer a primary source.
 - `removed`: no longer recommended; explain why in notes.
 
@@ -85,4 +85,4 @@ Source types:
 - The registry is complete relative to the original README seed list as of the July 2026 resynthesis.
 - `access-limited` entries should not drive implementation details until full text or a reliable secondary summary is obtained.
 - Keep wireless/radio papers as P2 background only; official GIS Cup scoring is geometric direct visibility, not propagation strength.
-- Move long summaries into `.codex/research-synthesis.md`.
+- Move long summaries into `docs/reference/research-synthesis.md`.

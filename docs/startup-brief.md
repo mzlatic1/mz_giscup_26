@@ -1,4 +1,4 @@
-# Codex Startup Brief — mz_giscup_26
+# Startup Brief — mz_giscup_26
 
 Use this as the first project document in future sessions. It compresses the current state, rules, agents, codebase, and next steps.
 
@@ -10,7 +10,7 @@ Use this as the first project document in future sessions. It compresses the cur
 - GitHub remote: `https://github.com/mzlatic1/mz_giscup_26.git`
 - Scratch folder / OneDrive Parent Folder: `/mnt/c/Users/marko/OneDrive/Documents/SIGSPATIAL_2026`
 - Preserved full build brief: `docs/original_implementation_brief.md`
-- Context maintenance rule: read compact `/docs` at session start; update `docs/session-state.md` and affected compact docs at session end per `docs/context-maintenance.md`.
+- Context maintenance rule: run `/startup` at session start and `/wrapup` at session end, per `docs/context-maintenance.md`.
 
 ## Source-of-truth hierarchy
 
@@ -97,14 +97,20 @@ All agents must end with iterative QA/QC until the final pass yields no changes.
 
 ## Immediate next priorities
 
-1. Commit/push current docs/agent/code fixes when approved.
-2. Add official sample dataset under `data/` when available locally.
-3. Run `giscup inspect` on sample and compare with documented stats.
-4. Improve visibility performance: cache, bitsets, candidate pruning.
-5. Replace raw-sample greedy objective with threshold-aware weighted objective.
-6. Add true lazy/stochastic greedy and local search.
-7. Build final packaging/audit workflow.
+1. Add the official sample dataset under `data/` — released 2026-03-31, still absent locally.
+   Most remaining work is blocked on it.
+2. Run `giscup inspect` on the sample and compare with documented stats (`geodata-qc`).
+3. Improve visibility performance: cache, bitsets, candidate pruning (`performance-engineer`).
+4. Replace the raw-sample greedy objective with a threshold-aware weighted objective — the scored
+   quantity is serviced-building count, not visible perimeter.
+5. Add true lazy/stochastic greedy and local search.
+6. Build the final packaging/audit workflow (`submission-packager`).
+
+## Deadline
+
+Test dataset **2026-08-15**, submission due **2026-08-16** — roughly a 24-hour window. The
+nine-subproblem solve pipeline must be automated and performance-proven before Aug 15.
 
 ## Session closeout rule
 
-Before ending a session, apply `docs/context-maintenance.md`. Update the compact docs that changed, especially `docs/session-state.md`, and repeat QA/QC until the final documentation pass yields no changes.
+Run `/wrapup` before ending a session. It applies `docs/context-maintenance.md`, updates the compact docs that changed — especially `docs/session-state.md` — and repeats QA/QC until the final documentation pass yields no changes.

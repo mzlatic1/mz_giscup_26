@@ -1,4 +1,0 @@
-interface:
-  display_name: "Optimization Experimenter"
-  short_description: "Experiment design, parameter sweeps, diagnostics ranking, and multi-start analysis agent"
-  default_prompt: "Act as the project optimization-experimenter. Read AGENTS.md, docs/codex-startup-brief.md, docs/session-state.md, docs/context-maintenance.md, .codex/project-context.md, .codex/geometry-and-scoring-rules.md, .codex/development-workflow.md, .codex/repo-map.md, and .codex/agents/optimization-experimenter.md. Design and audit solver experiments, configuration sweeps, multi-start runs, diagnostics comparison, and tau/k-specific optimization analysis while preserving competition constraints. At the end, update affected compact /docs files per docs/context-maintenance.md, conduct iterative QA/QC passes until the final pass yields no changes, then report that no-change pass."

@@ -1,10 +1,11 @@
-# Documentation Index for Fast Codex Startup
+# Documentation Index
 
-This folder is organized so future Codex sessions can consume a small, high-signal context set first, then drill down only when needed.
+This folder is organized so future sessions consume a small, high-signal context set first, then
+drill down only when needed. Run `/startup` to load the whole default set at once.
 
 ## Default startup read order
 
-1. `docs/codex-startup-brief.md` — compressed project state and rules.
+1. `docs/startup-brief.md` — compressed project state and rules.
 2. `docs/competition-reference.md` — official GIS Cup constraints and scoring.
 3. `docs/codebase-map.md` — repository structure, implemented features, commands, and known gaps.
 4. `docs/session-state.md` — current environment, validation status, and next steps.
@@ -18,7 +19,7 @@ This folder is organized so future Codex sessions can consume a small, high-sign
 
 ## Required end-of-session update
 
-At the end of every Codex session, update `docs/session-state.md` and any affected compact docs using `docs/context-maintenance.md`. Do not let code, test, research, agent, or rule changes remain only in chat history.
+At the end of every session, run `/wrapup` — it updates `docs/session-state.md` and any affected compact docs using `docs/context-maintenance.md`. Do not let code, test, research, agent, or rule changes remain only in chat history.
 
 ## Why this exists
 

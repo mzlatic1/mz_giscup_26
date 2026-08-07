@@ -7,7 +7,7 @@
 - GitHub remote: `https://github.com/mzlatic1/mz_giscup_26.git`
 - Primary language: Python 3.11+
 - Project type: geospatial computational geometry / optimization solver
-- Compact startup document: `docs/codex-startup-brief.md`
+- Compact startup document: `docs/startup-brief.md`
 
 ## Scratch and External Context
 

@@ -51,4 +51,4 @@ Total score is the sum over all 9 subproblems. Optimize each `(tau, k)` combinat
 
 ## Documentation Maintenance
 
-If official geometry, visibility, precision, or scoring rules change or are clarified, update `docs/competition-reference.md`, `docs/codex-startup-brief.md`, and `docs/session-state.md` before ending the session. Follow `docs/context-maintenance.md` and repeat QA/QC until the final documentation pass yields no changes.
+If official geometry, visibility, precision, or scoring rules change or are clarified, update `docs/competition-reference.md`, `docs/startup-brief.md`, and `docs/session-state.md` before ending the session. Follow `docs/context-maintenance.md` and repeat QA/QC until the final documentation pass yields no changes.

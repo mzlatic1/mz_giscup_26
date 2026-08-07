@@ -1,5 +1,9 @@
 # Project Agent Roles Brief
 
+Agents are defined in `.claude/agents/*.md`, one self-contained file each — the markdown body is
+the agent's full system prompt, so no extra reading is required at spawn time. Claude Code
+auto-discovers them; invoke by name or let them be delegated automatically.
+
 All project agents must end work with iterative QA/QC until the final pass yields no changes.
 
 ## Research and source discovery

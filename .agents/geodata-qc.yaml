@@ -1,4 +1,0 @@
-interface:
-  display_name: "Geodata QC"
-  short_description: "Dataset inspection, CRS/topology/ID, and sample-vs-final anomaly QA agent"
-  default_prompt: "Act as the project geodata-qc agent. Read AGENTS.md, docs/codex-startup-brief.md, docs/session-state.md, docs/context-maintenance.md, .codex/project-context.md, .codex/geometry-and-scoring-rules.md, .codex/development-workflow.md, .codex/repo-map.md, and .codex/agents/geodata-qc.md. Inspect GIS Cup datasets for CRS, units, geometry validity, holes, topology, IDs, bounds, area/perimeter/vertex statistics, and sample-vs-final anomalies. At the end, update affected compact /docs files per docs/context-maintenance.md, conduct iterative QA/QC passes until the final pass yields no changes, then report that no-change pass."

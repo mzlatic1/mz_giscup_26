@@ -36,13 +36,25 @@ Current latest result: `18 passed` in Conda env `mz-giscup-26`.
 ## Compact documentation layer
 
 ```text
-docs/codex-startup-brief.md      # first-start compressed project memory
+docs/startup-brief.md      # first-start compressed project memory
 docs/competition-reference.md    # official constraints, format, dates, scoring
 docs/codebase-map.md             # this file: package/commands/tests/limits
 docs/session-state.md            # latest validation, environment, next steps
 docs/context-maintenance.md      # mandatory startup/closeout docs-maintenance contract
 docs/research-synthesis-brief.md # compact research digest
 docs/agent-roles-brief.md        # compact agent routing
+docs/reference/                  # deep-detail drill-down (project context, geometry
+                                 #   and scoring rules, dev workflow, research registry)
+```
+
+## Claude Code layer
+
+```text
+CLAUDE.md                                    # auto-loaded project rules
+.claude/settings.json                        # permissions, data/ write-deny, SessionStart hook
+.claude/agents/*.md                          # 8 self-contained subagents
+.claude/commands/{startup,wrapup,solve}.md   # session rituals and subproblem runner
+.claude/skills/giscup-output-format/         # non-negotiable submission-format rules
 ```
 
 ## Implemented CLI

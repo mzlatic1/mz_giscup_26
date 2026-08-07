@@ -4,17 +4,17 @@
 
 > Project scratch context: `/mnt/c/Users/marko/OneDrive/Documents/SIGSPATIAL_2026`, also known in this project as the **OneDrive Parent Folder**.
 
-## Fast Codex Startup
+## Fast Startup
 
-For future Codex sessions, prefer the compact startup docs in `docs/` before reading this full README:
+Run `/startup`. It loads the compact startup docs in `docs/`, which are preferable to this full README:
 
-1. `docs/codex-startup-brief.md`
+1. `docs/startup-brief.md`
 2. `docs/competition-reference.md`
 3. `docs/codebase-map.md`
 4. `docs/session-state.md`
 5. `docs/context-maintenance.md` when ending a session or editing docs
 
-Use `docs/original_implementation_brief.md` as the preserved full source brief when deeper detail is needed. At the end of each Codex session, update the compact `/docs` layer according to `docs/context-maintenance.md` so future sessions do not need to reconstruct state from chat history.
+Use `docs/original_implementation_brief.md` as the preserved full source brief when deeper detail is needed. At the end of each session, run `/wrapup` to update the compact `/docs` layer according to `docs/context-maintenance.md` so future sessions do not need to reconstruct state from chat history.
 
 ## Repository Status
 
@@ -37,7 +37,7 @@ Given building footprints `B`, a service threshold `tau`, and a number of antenn
 
 ```text
 mz_giscup_26/
-  AGENTS.md                    # Project-local Codex/session rules
+  CLAUDE.md                    # Project rules, auto-loaded every session
   README.md                    # Detailed competition and implementation documentation
   LICENSE                      # Current rights statement
   pyproject.toml               # Python package metadata and tool config
@@ -45,6 +45,12 @@ mz_giscup_26/
   requirements.txt             # Pip-compatible dependency list
   .gitignore                   # Generated artifacts/data exclusions
   .gitattributes               # Text normalization and GIS large-file hints
+  .claude/
+    settings.json              # Permissions, data/ write-deny, SessionStart hook
+    agents/                    # 8 project subagents (see docs/agent-roles-brief.md)
+    commands/                  # /startup, /wrapup, /solve
+    skills/
+      giscup-output-format/    # Non-negotiable submission-format rules
   configs/
     defaults.yaml              # Default solver, sampling, and validation parameters
     experiments.example.yaml   # Example multi-start/tuning experiment grid
@@ -53,7 +59,7 @@ mz_giscup_26/
     .gitkeep
   docs/
     README.md                         # Compact-doc index and startup read order
-    codex-startup-brief.md            # Fast session startup context
+    startup-brief.md                  # Fast session startup context
     competition-reference.md          # Official rule/date/scoring summary
     codebase-map.md                   # Module/command/test/limitation summary
     session-state.md                  # Latest validation and next-step handoff
@@ -61,6 +67,12 @@ mz_giscup_26/
     agent-roles-brief.md              # Agent routing summary
     research-synthesis-brief.md       # Compact research digest
     original_implementation_brief.md  # Preserved full initial brief
+    reference/                        # Deep-detail drill-down layer
+      project-context.md              # Repository identity and engineering priorities
+      geometry-and-scoring-rules.md   # Legality, visibility, precision, scoring detail
+      development-workflow.md         # Checks, env setup, smoke tests, phase plan
+      research-papers.md              # Paper registry with status and credibility
+      research-synthesis.md           # Durable research synthesis
   outputs/
     .gitkeep
     cache/.gitkeep             # Visibility/cache outputs; ignored by Git

@@ -50,17 +50,17 @@ When committing or pushing:
 
 ## Required Documentation Maintenance
 
-At the end of every session, before the final response:
+At the end of every session, before the final response (`/wrapup` performs these steps):
 
 1. Read `docs/context-maintenance.md`.
 2. Update `docs/session-state.md` with current validation status, working-tree status, and next recommended actions.
 3. Update any affected compact docs:
-   - `docs/codex-startup-brief.md` for major project-state or priority changes.
+   - `docs/startup-brief.md` for major project-state or priority changes.
    - `docs/competition-reference.md` for official-rule/date/format changes.
    - `docs/codebase-map.md` for layout, command, test, implementation, or limitation changes.
    - `docs/research-synthesis-brief.md` for research implications.
    - `docs/agent-roles-brief.md` for agent roster or role changes.
-4. If persistent Codex-only implementation context changed, update `.codex/session-handoff.md` and the relevant `.codex/*.md` file.
+4. If durable reference context changed, update the relevant file under `docs/reference/`.
 5. Repeat the documentation QA/QC pass until the final pass yields no changes.
 
 ## Phase Plan

@@ -1,6 +1,6 @@
 # Research Synthesis Brief
 
-This is the compact research digest. Full registry: `.codex/research-papers.md`. Durable synthesis: `.codex/research-synthesis.md`.
+This is the compact research digest. Full registry: `docs/reference/research-papers.md`. Durable synthesis: `docs/reference/research-synthesis.md`.
 
 ## Core framing
 
