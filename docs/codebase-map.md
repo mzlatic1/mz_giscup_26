@@ -34,12 +34,14 @@ tests/test_sampling.py
 tests/test_solver.py
 tests/test_solver_matrix.py      # solve_one fast path, cross-subproblem reuse
 tests/test_validate.py
+tests/test_exact_coverage.py     # grid-free coverage vs analytic + brute-force truth
 tests/test_validate_scaling.py   # BoundaryIndex + culled scan equivalence
+tests/test_verify.py             # two-sided band selection, recover/drop
 tests/test_visibility.py
-tests/test_visibility_strategy.py  # relate default, degeneracy agreement, erosion safety
+tests/test_visibility_strategy.py  # official predicate, degeneracies, relate default
 ```
 
-Current latest result: `113 passed` in Conda env `mz-giscup-26` (2026-08-07).
+Current latest result: `122 passed` in Conda env `mz-giscup-26` (2026-08-08).
 
 ## Compact documentation layer
 
@@ -94,20 +96,24 @@ Full-scale runs need the matrix, which is opt-in and never implied:
 
 ```bash
 giscup solve-all --input <geojson> --taus 0.25 0.5 0.75 --ks 50 500 1000 \
-    --visibility-radius 400 --cache-dir outputs/cache --matrix-workers 8 --output <txt>
-giscup validate-output --input <geojson> --solution <txt> \
-    --sampling-profile accurate --validation-radius 400
+    --visibility-radius 400 --cache-dir outputs/cache --matrix-workers 8 \
+    --verify-band 0.10 --verify-max-buildings 2000 --output <txt>
+giscup validate-output --input <geojson> --solution <txt>
 ```
+
+`--verify-band` re-measures buildings near `tau` with exact interval coverage, recovering ones the
+cull forfeited and dropping ones the sampled grid inflated. `validate-output` checks claims
+exactly by default (`exact_claims`), so it needs no profile or radius.
 
 Without `--visibility-radius` the solver recomputes visibility every greedy iteration and will
 not finish at full scale. Culling only ever *removes* visible pairs, so it under-reports coverage:
 safe for validation (rejects, never wrongly accepts) but a silent score loss for the solver.
 
-Currently implemented solver optimizer:
+Currently implemented solver optimizer: **`greedy` only**. The other optimizer names were
+deleted 2026-08-08 (#10) rather than left as roadmap markers, so there is nothing to imply.
 
-- `greedy` only.
-
-Do not imply `lazy-greedy`, `stochastic-greedy`, or `hybrid` are implemented until code and tests exist.
+Visibility strategy: **`relate` only** — the exact official predicate. `negative_buffer` and
+`hybrid` were deleted 2026-08-08 (#10).
 
 ## Important correctness fixes already applied
 
@@ -122,9 +128,12 @@ Do not imply `lazy-greedy`, `stochastic-greedy`, or `hybrid` are implemented unt
 
 - Greedy objective is still raw newly visible sample count, not serviced-building count (task #6).
 - Candidate pruning modes only add candidates; they prune nothing (task #9).
-- Continuous coverage is approximated by weighted samples; final validation should be denser and conservative.
 - The cull radius is a heuristic: it discards genuinely visible pairs beyond the radius and loses
-  score with no feedback. The un-culled verification pass (task #3) is not built yet.
+  score with no feedback. The near-threshold verification pass exists (#3a), but the radius itself
+  has not been calibrated against measured coverage beyond 400 m (#3b).
+- Greedy still optimizes on the sampled matrix. That is deliberate — it is a search heuristic, not
+  the scored quantity — but it means the objective and the claim decision measure different things.
+- No official dataset: every figure is measured against the synthetic stand-in (#5).
 
 ## Resolved since 2026-08-07
 

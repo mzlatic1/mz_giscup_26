@@ -19,7 +19,6 @@ solution quality — but see #13 before trusting any threshold decision.
 
 | # | Task |
 |---|---|
-| 5 | Obtain the official sample dataset into `data/`; re-validate every measured claim |
 
 ## Gated on feasibility
 
@@ -93,6 +92,59 @@ of a 20 h window — so choose the radius **generously**, not at the measured p9
 **Verification pass: DONE 2026-08-07** — see `src/giscup/verify.py`. **Radius calibration: still
 open** — measuring how much coverage lives beyond 400 m needs the full-scale matrix, which was
 still building. Until that runs, 400 m is a judgment call, not a calibrated number.
+
+### 3b — Cull radius calibration  (MEASURED 2026-08-08 on official data)
+
+Measured on the real sample (40 probe candidates, `balanced` profile):
+
+| radius | neighbours/candidate | visible/candidate | gain vs previous |
+|---|---|---|---|
+| 200 m | 993 | 21.5 | — |
+| 400 m | 3,635 | 27.7 | +29.0% |
+| 800 m | 12,559 | 30.0 | +8.3% |
+| 1600 m | 41,517 | 30.5 | +1.6% |
+
+**400 m captures ~91% of all visible pairs; 800 m captures ~98%.** The chosen 400 m radius
+therefore discards roughly **9% of real visibility** — more than the synthetic stand-in suggested,
+exactly as predicted, because real street grids have long unobstructed corridors it could not
+reproduce.
+
+**Open decision for Marko.** 800 m would cut the loss from ~9% to ~2% at 3.5x the pairs, so a
+~6.4 h matrix build instead of 110 min. The measured gate leaves room: 6.4 h matrix + ~1.3 h greedy
+= 7.7 h against a 20 h budget, still passing with 2.6x headroom. The board's own guidance is
+"choose the radius **generously** — under-culling loses score silently", and this is the first
+measurement that quantifies the loss. Not actioned unilaterally because 400 m was Marko's explicit
+call, taken before this data existed.
+
+**Mitigation already in place.** The verification pass no longer inherits the solver's cull. It
+re-measures at `visibility_radius x verify_radius_factor` (default 2.0), so a 400 m solve verifies
+against 800 m. `--verify-radius-factor 0` makes it fully unbounded.
+
+### 5 — Official sample dataset  (DONE 2026-08-08)
+
+Downloaded from `https://sigspatial2026.sigspatial.org/img/GIS-cup-sample-dataset.geojson` —
+public, no registration. Now at `data/GIS-cup-sample-dataset.geojson` (6.3 MB, git-ignored).
+
+**Every documented statistic matches exactly:**
+
+| statistic | documented | measured |
+|---|---|---|
+| buildings | 12,860 | 12,860 |
+| exterior vertices | 78,727 | 78,727 |
+| total perimeter | 858,973 m | 858,973.22 m |
+| hole-bearing polygons | 1 | 1 |
+| CRS | EPSG:32611 | EPSG:32611 |
+
+Real vs synthetic at `balanced`: 133,417 samples (vs 138,077) and 157,454 candidates (vs 160,198)
+— within 3%. Domain 4,946 x 4,264 m vs 4,975 x 4,263 m.
+
+**Where the synthetic misled:** it omitted the large-building tail. Real max perimeter is
+**1,066 m** and max area **17,957 m²**; the synthetic had neither. And real visibility reaches
+further, which is what makes the 400 m cull cost ~9% rather than the ~2% the synthetic implied.
+
+All performance figures recorded before 2026-08-08 were measured on the synthetic stand-in. The
+matrix in `outputs/cache` is for the SYNTHETIC dataset; a real-data matrix has a different cache
+key and must be built before any real-data solve.
 
 ### 4 — Gate reads PASS  (DONE 2026-08-07)
 
@@ -379,6 +431,8 @@ Prevents a false capability claim at submission time.
 
 | Date | Task | Evidence |
 |---|---|---|
+| 2026-08-08 | #5 — official sample dataset obtained and verified | `data/GIS-cup-sample-dataset.geojson`. Every documented statistic matches exactly (12,860 / 78,727 / 858,973.22 m / 1 hole / EPSG:32611). Revealed the synthetic omitted the large-building tail (real max perimeter 1,066 m). |
+| 2026-08-08 | #3a — verification pass no longer inherits the solver's cull | `--verify-radius-factor` (default 2.0). A 400 m solve now verifies at 800 m, so the pass corrects the blind spot instead of sharing it. |
 | 2026-08-08 | #10 — dead names removed | Deleted the `negative_buffer` and `hybrid` visibility strategies (one predicate remains, the official one), the unimplemented optimizer names, `scripts/compare_configs.py`, `scripts/profile_visibility.py`, and `configs/defaults.yaml`. 122 tests pass. `MatrixSpec.eps` deliberately retained — dropping it would have changed the cache key and thrown away the 110-minute matrix build. |
 | 2026-08-08 | #13 — exact interval coverage | `src/giscup/exact_coverage.py` + 15 tests. Agrees with converged brute force to 4 dp (0.7537 vs 0.7538) at 6.2 ms for two buildings. Corrected the 2026-08-07 "does not converge" claim — it does converge, at ~0.5 m. Fixed a relative-tolerance bug that silently voided vertical edges at UTM magnitudes. |
 | 2026-08-07 | #2 — radius-culled cached visibility matrix | `d7b9f6d` + build. 2.77 GB, 9,844,991 visible pairs, 110.8 min on 8 cores, key `18912a76…`. Reused across all nine subproblems. |

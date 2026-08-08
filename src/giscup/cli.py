@@ -43,6 +43,7 @@ def cmd_solve_one(args: argparse.Namespace) -> None:
         matrix_workers=args.matrix_workers,
         verify_band=args.verify_band,
         verify_max_buildings=args.verify_max_buildings,
+        verify_radius_factor=args.verify_radius_factor,
     )
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
     Path(args.output).write_text(format_solution_file([solution]), encoding="utf-8")
@@ -70,6 +71,7 @@ def cmd_solve_all(args: argparse.Namespace) -> None:
                 matrix_workers=args.matrix_workers,
                 verify_band=args.verify_band,
                 verify_max_buildings=args.verify_max_buildings,
+                verify_radius_factor=args.verify_radius_factor,
             )
             solutions.append(solution)
             diagnostics[f"tau_{tau}_k_{k}"] = solution.diagnostics
@@ -175,6 +177,16 @@ def _add_solver_args(parser: argparse.ArgumentParser) -> None:
             "Re-measure buildings whose coverage lands in [tau*(1-band), tau*(1+band)) with the "
             "exact un-culled predicate: recovers buildings the radius cull forfeited and drops "
             "overclaims the in-sample grid inflated. Expensive; opt-in."
+        ),
+    )
+    parser.add_argument(
+        "--verify-radius-factor",
+        type=float,
+        default=2.0,
+        help=(
+            "Verification re-measures using visibility-radius x this factor, so it does not "
+            "inherit the solver's blind spot. 0 means unbounded (exact but slow). Measured on "
+            "the official sample: 400 m captures ~91%% of visible pairs, 800 m ~98%%."
         ),
     )
     parser.add_argument(

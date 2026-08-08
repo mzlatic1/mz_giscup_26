@@ -32,6 +32,7 @@ def solve_one(
     verify_band: float | None = None,
     verify_max_buildings: int | None = None,
     verify_profile: str = "accurate",
+    verify_radius_factor: float = 2.0,
 ) -> Solution:
     """Solve one GIS Cup subproblem.
 
@@ -115,7 +116,15 @@ def solve_one(
             claim_margin=claim_margin,
             strategy=visibility_strategy,
             verify_profile=get_profile(verify_profile),
-            exact_radius=visibility_radius,
+            # Deliberately WIDER than the solver's cull. Measured on the official
+            # sample: a 400 m cull captures ~91% of visible pairs, 800 m ~98%. If the
+            # verification pass reused the solver's radius it would inherit the exact
+            # blind spot it exists to correct.
+            exact_radius=(
+                visibility_radius * verify_radius_factor
+                if visibility_radius is not None and verify_radius_factor > 0
+                else None
+            ),
         )
         verification_info = {
             "band": verify_band,
@@ -146,6 +155,7 @@ def solve_one(
             "claim_margin": claim_margin,
             "visibility_radius": visibility_radius,
             "verify_band": verify_band,
+            "verify_radius_factor": verify_radius_factor,
         },
         "runtime_seconds": {"total": perf_counter() - start},
         "warnings": [],
