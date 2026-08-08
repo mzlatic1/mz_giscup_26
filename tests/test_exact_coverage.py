@@ -194,3 +194,31 @@ def test_coverage_by_building_matches_single_building_calls():
     bulk = exact_coverage_by_building([0, 1], points, [b0, b1], index)
     assert bulk[0] == pytest.approx(exact_building_coverage(b0, points, index))
     assert bulk[1] == pytest.approx(exact_building_coverage(b1, points, index))
+
+
+def test_collinear_antenna_still_finds_blockers():
+    """A degenerate (a, p0, p1) triangle must not silently hide every blocker.
+
+    When the antenna is exactly collinear with the edge the triangle has no area and
+    buffer(0) erases it, leaving the STRtree query empty. The bounding-box fallback
+    keeps the blocker search honest.
+    """
+    x, y = 500_000.0, 3_700_000.0
+    wall = make_building(0, Polygon([(x, y + 2), (x + 20, y + 2), (x + 20, y + 4), (x, y + 4)]))
+    blocker = make_building(1, Polygon([(x - 6, y), (x - 4, y), (x - 4, y + 6), (x - 6, y + 6)]))
+    index = BlockerIndex.from_buildings([wall, blocker])
+
+    # Antenna exactly collinear with the wall's bottom edge, behind the blocker.
+    a = (x - 10.0, y + 2.0)
+    intervals = visible_intervals_on_edge(a, (x, y + 2), (x + 20, y + 2), index)
+    covered = sum(hi - lo for lo, hi in intervals)
+    assert covered == pytest.approx(0.0), "the blocker straddles the sight ray and must hide the edge"
+
+
+def test_collinear_antenna_with_clear_line_sees_the_whole_edge():
+    x, y = 500_000.0, 3_700_000.0
+    wall = make_building(0, Polygon([(x, y + 2), (x + 20, y + 2), (x + 20, y + 4), (x, y + 4)]))
+    index = BlockerIndex.from_buildings([wall])
+    a = (x - 10.0, y + 2.0)
+    intervals = visible_intervals_on_edge(a, (x, y + 2), (x + 20, y + 2), index)
+    assert sum(hi - lo for lo, hi in intervals) == pytest.approx(1.0)

@@ -3,11 +3,14 @@
 Why this replaces sampling for claim decisions
 ----------------------------------------------
 `sampling.py` estimates coverage by testing segment midpoints and crediting each
-segment's whole weight to that single verdict. Refining the grid moves sample points
-across visibility boundaries, so the estimate **oscillates instead of converging** --
-measured at up to 0.07 on one building. Any footprint within ~0.05 of `tau` is
-therefore unclassifiable by sampling at any density we can afford, which is larger
-than any usable claim margin.
+segment's whole weight to that single verdict. That estimate *does* converge to the
+true value, but only at ~0.5 m spacing -- far finer than any profile in use. At the
+densities actually available (`accurate` 5 m, `final` 2.5 m) it carries errors up to
+0.03 and moves non-monotonically, which misclassifies any footprint within ~0.03 of
+`tau`. That is larger than any usable claim margin.
+
+Exact coverage reaches the converged answer directly, and measured on the mini dataset
+it is *faster* than the sampling density needed to match it.
 
 The official rules define coverage continuously: "the ratio of the length of visible
 segments on the boundary to the total perimeter", a segment being visible when every
@@ -37,7 +40,7 @@ deliberately permissive rather than trying to identify only true silhouette vert
 from __future__ import annotations
 
 import numpy as np
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, box
 
 from giscup.models import Building, PointLike
 from giscup.visibility import BlockerIndex, is_visible
@@ -110,10 +113,22 @@ def visible_intervals_on_edge(
     if float(np.hypot(p1[0] - p0[0], p1[1] - p0[1])) <= DEGENERATE_EDGE_LENGTH:
         return []
 
-    # Only blockers meeting the triangle (a, p0, p1) can affect this edge.
-    region = Polygon([(float(a[0]), float(a[1])), tuple(p0), tuple(p1)])
-    if not region.is_valid:  # collinear a/p0/p1 gives a degenerate triangle
+    # Only blockers meeting the triangle (a, p0, p1) can affect this edge, and the
+    # triangle is far tighter than a bounding box for a distant antenna.
+    ax, ay = float(a[0]), float(a[1])
+    region = Polygon([(ax, ay), tuple(p0), tuple(p1)])
+    if not region.is_valid:
         region = region.buffer(0)
+    if region.is_empty:
+        # `a` is exactly collinear with the edge, so the triangle has no area and
+        # buffer(0) erases it. Fall back to the bounding box, which is a superset:
+        # extra blockers only add breakpoints that split an interval into pieces
+        # carrying the same verdict. Rare, so the wider query costs nothing in
+        # aggregate, and it removes any dependence on reasoning about whether a
+        # collinear antenna can see part of an edge but not the rest.
+        xs = (ax, float(p0[0]), float(p1[0]))
+        ys = (ay, float(p0[1]), float(p1[1]))
+        region = box(min(xs), min(ys), max(xs), max(ys))
     vertices = _blocker_vertices(blocker_index, region)
 
     cuts = [0.0, 1.0]

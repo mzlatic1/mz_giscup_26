@@ -67,6 +67,14 @@ Generate exact boundary-derived coordinates wherever possible rather than genera
 Do not snap final coordinates outside an explicit, deliberate repair step — snapping after
 formatting reintroduces the precision problem above.
 
+**There is exactly one sanctioned repair step, and it is required.** Antenna candidates at edge
+midpoints are computed as `(p0 + p1) / 2`, which at EPSG:32611 magnitudes lands ~1e-10 m off the
+true edge and **inside the footprint 37% of the time**. Such a point passes the legality check
+above (1e-10 ≪ 1e-8), but an evaluator computing *visibility* against the raw polygon would see
+nothing from it. `output.nudge_off_interior` moves emitted antennas just outside, by ~1e-9 m,
+and `solve_one` applies it **before** verification so we verify what we emit. Vertex candidates
+are untouched — they are copied verbatim from the source data and are already exact.
+
 ## Claimed serviced IDs
 
 A building may be claimed only when it is genuinely serviced:
@@ -77,14 +85,28 @@ A building may be claimed only when it is genuinely serviced:
 - Visibility is blocked **only** by a segment intersecting a building **interior**. Tangency,
   vertex contact, and boundary-only contact do not block. A segment crossing the interior of its
   own building does block.
+- **The interior test carries a tolerance of `INTERIOR_TOLERANCE = 1e-6` m** and must. Sample and
+  candidate points are interpolated, and at projected-CRS magnitudes they land an ULP off the edge
+  — inside the polygon about half the time. Tested against the raw polygon, such a point is
+  invisible from *everything*, which once made 32% of all samples permanently unseeable and
+  depressed every coverage figure by a third. Blocking therefore requires penetrating more than a
+  micrometre into the interior. See `docs/task-board.md` #14.
 
-Coverage is approximated by weighted boundary samples, so a claim near `tau` may be an artifact of
-sample placement. **Validate at a denser sampling profile than you solved with**, and apply a
-conservative claim margin:
+**Claims are decided by exact interval coverage, not by sampling** (task #13). `exact_coverage.py`
+computes visible sub-intervals analytically per edge, so there is no grid and no density to tune.
+Sampling *does* converge, but only at ~0.5 m spacing — at the profiles actually in use it carries
+±0.03 error and moves non-monotonically, enough to misclassify anything within 0.03 of `tau`.
+
+`validate-output` checks claims exactly by default (`exact_claims=True`), so it needs no profile
+and no radius:
 
 ```bash
-giscup validate-output --input <geojson> --solution <txt> --sampling-profile accurate
+giscup validate-output --input <geojson> --solution <txt>
 ```
+
+The solver's near-threshold verification pass (`--verify-band`) re-measures the same way, and
+deliberately at a **wider** radius than the solver's cull so it corrects that blind spot rather
+than sharing it.
 
 Overclaiming is worse than underclaiming — an unsupported claim risks the whole block's
 credibility, while an unclaimed serviced building costs only that one building.
