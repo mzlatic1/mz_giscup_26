@@ -198,6 +198,24 @@ class VisibilityMatrix:
         unpacked = np.unpackbits(covered.view(np.uint8), bitorder="little")
         return np.flatnonzero(unpacked[: self.n_samples])
 
+    def marginal_gains_masked(
+        self, covered: np.ndarray, active: np.ndarray, chunk: int = GAIN_CHUNK
+    ) -> np.ndarray:
+        """Newly visible sample count, counting only samples set in `active`.
+
+        The threshold-aware objective (task #6) uses this to stop rewarding coverage
+        of buildings that already clear `tau`: their samples are cleared from
+        `active`, so re-covering them scores nothing. Cost is identical to
+        `marginal_gains` -- one extra AND per word.
+        """
+        keep = ~np.asarray(covered, dtype=np.uint64) & np.asarray(active, dtype=np.uint64)
+        gains = np.empty(self.n_candidates, dtype=np.int64)
+        for lo in range(0, self.n_candidates, chunk):
+            hi = min(lo + chunk, self.n_candidates)
+            block = np.asarray(self.bits[lo:hi]) & keep
+            gains[lo:hi] = np.bitwise_count(block).sum(axis=1, dtype=np.int64)
+        return gains
+
     def marginal_gains(self, covered: np.ndarray, chunk: int = GAIN_CHUNK) -> np.ndarray:
         """Newly visible sample count for every candidate, given `covered`.
 

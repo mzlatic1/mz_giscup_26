@@ -111,6 +111,97 @@ def greedy_select_matrix(
     return selected, set(matrix.covered_sample_ids(covered).tolist())
 
 
+def greedy_select_threshold(
+    matrix: VisibilityMatrix,
+    candidates: list[Candidate],
+    samples: list[BoundarySample],
+    buildings: list[Building],
+    tau: float,
+    k: int,
+    max_candidates: int | None = None,
+) -> tuple[list[Candidate], set[int]]:
+    """Greedy selection that stops paying for buildings already over `tau`.
+
+    The scored quantity is serviced *buildings*, not covered samples. Once a building
+    clears `tau`, further coverage of it is worth nothing, but the baseline objective
+    keeps buying it -- which spreads antennas thinly instead of concentrating them
+    where they can flip a building.
+
+    The exact form of this is `sum_b min(visible_weight_b, tau * perimeter_b)`, which
+    is submodular. Evaluating it per candidate per iteration needs a segmented sum
+    over every candidate and is far too slow at 157k candidates. This implements its
+    dominant term: samples of serviced buildings are cleared from an `active` mask, so
+    gain becomes `popcount(row & ~covered & active)` -- the same cost as the baseline.
+
+    When every building in reach is serviced the mask empties; selection then falls
+    back to raw newly-covered count so that exactly `k` legal antennas are still
+    returned.
+    """
+    if k <= 0:
+        raise ValueError(f"k must be positive; got {k}")
+    if max_candidates is not None and max_candidates < k:
+        raise ValueError(f"max_candidates ({max_candidates}) must be at least k ({k})")
+    if matrix.n_candidates != len(candidates) or matrix.n_samples != len(samples):
+        raise ValueError(
+            f"visibility matrix does not match the pool: matrix is "
+            f"{matrix.n_candidates} candidates x {matrix.n_samples} samples, "
+            f"got {len(candidates)} x {len(samples)}"
+        )
+    pool_size = min(max_candidates, len(candidates)) if max_candidates else len(candidates)
+    if pool_size < k:
+        raise ValueError(f"candidate pool contains {pool_size} candidates, fewer than required k={k}")
+
+    # Sample -> building, and the weight each sample contributes to its building.
+    building_index = {b.id: i for i, b in enumerate(buildings)}
+    owner = np.fromiter((building_index[s.building_id] for s in samples), dtype=np.int64, count=len(samples))
+    weight = np.fromiter((s.weight for s in samples), dtype=np.float64, count=len(samples))
+    need = np.array([b.perimeter * tau for b in buildings], dtype=np.float64)
+
+    covered = matrix.empty_covered()
+    taken = np.zeros(matrix.n_candidates, dtype=bool)
+    selected: list[Candidate] = []
+
+    # Every sample starts active; samples of serviced buildings are switched off.
+    all_active = np.frombuffer(
+        np.packbits(np.ones(matrix.words * 64, dtype=np.uint8), bitorder="little").tobytes(),
+        dtype=np.uint64,
+    ).copy()
+    active = all_active.copy()
+
+    for _ in range(k):
+        gains = matrix.marginal_gains_masked(covered, active)
+        if pool_size < matrix.n_candidates:
+            gains[pool_size:] = -1
+        gains[taken] = -1
+        if gains.max() <= 0:
+            # Nothing left to gain under the mask; fall back to raw coverage so we
+            # still emit exactly k legal antennas.
+            gains = matrix.marginal_gains(covered)
+            if pool_size < matrix.n_candidates:
+                gains[pool_size:] = -1
+            gains[taken] = -1
+        best = int(np.argmax(gains))
+        if gains[best] < 0:
+            raise RuntimeError("greedy selection failed to identify a next candidate")
+        taken[best] = True
+        matrix.add_to_covered(covered, best)
+        selected.append(candidates[best])
+
+        # Recompute which buildings are serviced, and deactivate their samples.
+        covered_ids = matrix.covered_sample_ids(covered)
+        got = np.bincount(owner[covered_ids], weights=weight[covered_ids], minlength=len(buildings))
+        serviced = got >= need
+        if serviced.any():
+            still = ~serviced[owner]
+            packed = np.packbits(
+                np.concatenate([still, np.zeros(matrix.words * 64 - len(still), dtype=bool)]),
+                bitorder="little",
+            )
+            active = np.frombuffer(packed.tobytes(), dtype=np.uint64).copy()
+
+    return selected, set(matrix.covered_sample_ids(covered).tolist())
+
+
 def score_visible_set(
     visible: set[int], samples: list[BoundarySample], buildings: list[Building], tau: float) -> int:
     coverage = coverage_by_building(visible, samples, buildings)
