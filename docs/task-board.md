@@ -224,7 +224,34 @@ and correct any figure that moved.
 `data/**` is write-denied for `Write`/`Edit` but **not** for shell writes — place the file
 deliberately and let nothing overwrite it.
 
-### 6 — Threshold-aware objective  (blocked on #4)
+### 6 — Threshold-aware objective  ← NOW THE BIGGEST LEVER
+
+**Sized 2026-08-08 on official data, k=500, before investing** (CLAUDE.md rule 2):
+
+| tau | serviced | within 0.05 below | within 0.10 below | upper-bound upside |
+|---|---|---|---|---|
+| 0.25 | 5,533 | 1,510 | 2,587 | +47% |
+| 0.50 | 859 | 393 | 930 | +108% |
+| 0.75 | **13** | 8 | 66 | **+508%** |
+
+Coverage distribution at k=500 is heavily bottom-weighted: 11,071 of 12,860 buildings sit below
+0.4, and only 20 reach 0.7 or above.
+
+**At `tau=0.75, k=500` the solver services 13 buildings out of 12,860 while 66 sit within 0.10 of
+the line.** The objective maximises newly-visible *samples*, which spreads coverage thinly rather
+than concentrating it to push specific buildings over the threshold. At high tau that is close to
+pathological. Scoring is relative per subproblem, so three of the nine are currently near-worthless.
+
+This is the opposite of a dead knob: the lever's range dwarfs the gap. **Do this before #9.**
+
+Treat the percentages as upper bounds — they assume every near-threshold building flips at zero
+cost to any other, which no real objective achieves.
+
+**Related and larger:** the synthetic stand-in gave 1,581 claims at `tau=0.75, k=500`; real data
+gives **13**. A ~100x gap, from 2.5x sparser visibility compounding through the threshold. No
+score expectation set on synthetic results survives.
+
+### 6 — Threshold-aware objective  (original framing)
 
 `optimize.greedy_select` scores `len(new_ids)` — raw newly visible sample count — and accepts
 `tau` and `buildings` without using either. The scored quantity is serviced **building** count at
