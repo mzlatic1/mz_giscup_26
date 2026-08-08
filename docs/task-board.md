@@ -95,19 +95,28 @@ still building. Until that runs, 400 m is a judgment call, not a calibrated numb
 
 ### 3b — Cull radius calibration  (MEASURED 2026-08-08 on official data)
 
-Measured on the real sample (40 probe candidates, `balanced` profile):
+**Re-measured 2026-08-08 on CORRECT visibility** (post-#14; the first curve ran on the broken
+predicate). 40 probe candidates, official dataset, `balanced`:
 
-| radius | neighbours/candidate | visible/candidate | gain vs previous |
-|---|---|---|---|
-| 200 m | 993 | 21.5 | — |
-| 400 m | 3,635 | 27.7 | +29.0% |
-| 800 m | 12,559 | 30.0 | +8.3% |
-| 1600 m | 41,517 | 30.5 | +1.6% |
+| radius | neighbours/candidate | visible/candidate | gain | captured | probe cost |
+|---|---|---|---|---|---|
+| 200 m | 993 | 48.3 | — | 70.9% | 2 s |
+| 400 m | 3,635 | 62.0 | +28.5% | 91.1% | 8 s |
+| 800 m | 12,559 | 67.1 | +8.1% | **98.5%** | 51 s |
+| 1600 m | 41,517 | 68.1 | +1.5% | 100.0% | 417 s |
 
-**400 m captures ~91% of all visible pairs; 800 m captures ~98%.** The chosen 400 m radius
-therefore discards roughly **9% of real visibility** — more than the synthetic stand-in suggested,
-exactly as predicted, because real street grids have long unobstructed corridors it could not
-reproduce.
+*(broken-predicate values were 21.5 / 27.7 / 30.0 / 30.5 — absolute visibility roughly doubled
+after the fix, but the **shape held**: 400 m captured 91% then and 91.1% now. I had flagged this
+curve as void; the relative conclusion in fact survived.)*
+
+**400 m discards ~9% of real visibility; 800 m discards ~1.5%.** Cost scales with
+neighbours/candidate: 800 m is 3.45x the pairs of 400 m, 1600 m is 11.4x.
+
+| radius | est. matrix build (12 workers) | + greedy | total | verdict |
+|---|---|---|---|---|
+| 400 m | 1.7 h *(measured)* | 1.3 h | ~3.7 h | leaves 16 h spare |
+| **800 m** | ~5.7 h | 1.3 h | **~7.5 h** | **recommended under "robust over runtime"** |
+| 1600 m | ~19 h | 1.3 h | ~20 h+ | blows the budget for +1.5% |
 
 **DECIDED 2026-08-08 (Marko): "whatever produced better results."** Being taken as a measurement
 rather than an assumption — both radii are being built on the official dataset so the nine-block
