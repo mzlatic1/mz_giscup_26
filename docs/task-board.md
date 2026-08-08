@@ -233,30 +233,52 @@ and correct any figure that moved.
 `data/**` is write-denied for `Write`/`Edit` but **not** for shell writes — place the file
 deliberately and let nothing overwrite it.
 
-### 6 — Threshold-aware objective  ← NOW THE BIGGEST LEVER
+### 6 — Threshold-aware objective  — BUILT, MEASURED, NOT ADOPTED
 
-**Sized on official data at k=500, before investing** (CLAUDE.md rule 2). The first sizing, taken
-2026-08-08 morning, was **void** — it ran on the pre-#14 matrix that hid a third of all visibility.
-Re-measured after the fix:
+**Sized first** (CLAUDE.md rule 2), on official data at k=500, post-#14:
 
-| tau | serviced (k=500) | ceiling | within 0.10 below | upper-bound upside | *(void figure)* |
+| tau | serviced (k=500) | ceiling | within 0.10 below | upper-bound upside |
+|---|---|---|---|---|
+| 0.25 | 8,818 | 12,860 | 1,382 | +15.7% |
+| 0.50 | 4,578 | 12,860 | 1,881 | +41.1% |
+| 0.75 | 1,312 | 12,860 | 999 | +76.1% |
+
+The ceiling is 12,860 at every tau — every building is serviceable in principle, and 100.0% of
+samples are visible from at least one candidate. The constraint is purely how the `k` budget is
+allocated.
+
+**Then built the safest form and measured it.** `optimize.greedy_select_threshold` clears samples
+of already-serviced buildings from an `active` mask, so gain is
+`popcount(row & ~covered & active)` — the dominant term of the submodular capped objective
+`sum_b min(visible_weight_b, tau * perimeter_b)`, at unchanged iteration cost.
+
+| tau | k | baseline | threshold | delta | gain |
 |---|---|---|---|---|---|
-| 0.25 | 8,818 | 12,860 | 1,382 | +15.7% | *5,533 / +47%* |
-| 0.50 | 4,578 | 12,860 | 1,881 | +41.1% | *859 / +108%* |
-| 0.75 | 1,312 | 12,860 | 999 | **+76.1%** | *13 / +508%* |
+| 0.25 | 50 | 1,652 | 1,659 | +7 | +0.4% |
+| 0.50 | 50 | 390 | 394 | +4 | +1.0% |
+| 0.75 | 50 | 28 | 28 | 0 | +0.0% |
+| 0.25 | 500 | 8,818 | **9,384** | **+566** | **+6.4%** |
+| 0.50 | 500 | 4,578 | 4,591 | +13 | +0.3% |
+| 0.75 | 500 | 1,312 | **1,298** | **−14** | **−1.1%** |
 
-**The #14 fix alone delivered 101x at tau=0.75** (13 → 1,312 serviced). No objective tuning could
-have approached that. Sizing the lever first is what stopped a session being spent optimising
-allocation while a third of the boundary was invisible.
+**Verdict: NOT adopted as the default.** One real win, four neutrals, and a regression at
+`tau=0.75, k=500` — exactly where the upper bound was largest. Scoring is per-subproblem, so a
+gain in one block does not pay for a loss in another.
 
-**The ceiling is now 12,860 at every tau** — every building is serviceable in principle, and
-100.0% of samples are visible from at least one candidate (5 of 133,417 unseen, genuine
-occlusions). The constraint is no longer geometry; it is purely how the `k` budget is allocated,
-which is exactly what a threshold-aware objective governs.
+**Why it fails at high tau.** The mask deactivates serviced buildings, pushing greedy *outward*
+toward the many unserviced ones. But at `tau=0.75` a building needs three-quarters of its
+perimeter, so winning requires **concentrating** effort. The mask spreads it — the same failure it
+was built to cure, relocated. At low tau buildings tip over cheaply, so redirecting away from
+satisfied ones genuinely finds new wins; hence +6.4% at 0.25 and −1.1% at 0.75.
 
-**Verdict: worth building, largest at high tau**, where nearly as many buildings sit within 0.10 of
-the line as are currently serviced. Treat the percentages as upper bounds — they assume every
-near-threshold building flips at zero cost to any other, which no real objective achieves.
+**Where the remaining headroom actually is:** weight buildings *near* the threshold and abandon
+ones far below it — the opposite move, and the higher-variance option set aside earlier. The
+building-level mask also never caps *within* a building, so a footprint at 0.74 still contributes
+every sample at full weight; the finer form needs the segmented sum the mask avoids.
+
+`greedy_select_threshold` is kept, tested, and available. It is not wired into `solve_one`.
+Re-run this comparison once the 800 m matrix exists — the poor showing may partly be an artifact
+of the tighter radius.
 
 ### 6 — Threshold-aware objective  (original framing)
 
