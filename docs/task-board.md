@@ -226,30 +226,28 @@ deliberately and let nothing overwrite it.
 
 ### 6 — Threshold-aware objective  ← NOW THE BIGGEST LEVER
 
-**Sized 2026-08-08 on official data, k=500, before investing** (CLAUDE.md rule 2):
+**Sized on official data at k=500, before investing** (CLAUDE.md rule 2). The first sizing, taken
+2026-08-08 morning, was **void** — it ran on the pre-#14 matrix that hid a third of all visibility.
+Re-measured after the fix:
 
-| tau | serviced | within 0.05 below | within 0.10 below | upper-bound upside |
-|---|---|---|---|---|
-| 0.25 | 5,533 | 1,510 | 2,587 | +47% |
-| 0.50 | 859 | 393 | 930 | +108% |
-| 0.75 | **13** | 8 | 66 | **+508%** |
+| tau | serviced (k=500) | ceiling | within 0.10 below | upper-bound upside | *(void figure)* |
+|---|---|---|---|---|---|
+| 0.25 | 8,818 | 12,860 | 1,382 | +15.7% | *5,533 / +47%* |
+| 0.50 | 4,578 | 12,860 | 1,881 | +41.1% | *859 / +108%* |
+| 0.75 | 1,312 | 12,860 | 999 | **+76.1%** | *13 / +508%* |
 
-Coverage distribution at k=500 is heavily bottom-weighted: 11,071 of 12,860 buildings sit below
-0.4, and only 20 reach 0.7 or above.
+**The #14 fix alone delivered 101x at tau=0.75** (13 → 1,312 serviced). No objective tuning could
+have approached that. Sizing the lever first is what stopped a session being spent optimising
+allocation while a third of the boundary was invisible.
 
-**At `tau=0.75, k=500` the solver services 13 buildings out of 12,860 while 66 sit within 0.10 of
-the line.** The objective maximises newly-visible *samples*, which spreads coverage thinly rather
-than concentrating it to push specific buildings over the threshold. At high tau that is close to
-pathological. Scoring is relative per subproblem, so three of the nine are currently near-worthless.
+**The ceiling is now 12,860 at every tau** — every building is serviceable in principle, and
+100.0% of samples are visible from at least one candidate (5 of 133,417 unseen, genuine
+occlusions). The constraint is no longer geometry; it is purely how the `k` budget is allocated,
+which is exactly what a threshold-aware objective governs.
 
-This is the opposite of a dead knob: the lever's range dwarfs the gap. **Do this before #9.**
-
-Treat the percentages as upper bounds — they assume every near-threshold building flips at zero
-cost to any other, which no real objective achieves.
-
-**Related and larger:** the synthetic stand-in gave 1,581 claims at `tau=0.75, k=500`; real data
-gives **13**. A ~100x gap, from 2.5x sparser visibility compounding through the threshold. No
-score expectation set on synthetic results survives.
+**Verdict: worth building, largest at high tau**, where nearly as many buildings sit within 0.10 of
+the line as are currently serviced. Treat the percentages as upper bounds — they assume every
+near-threshold building flips at zero cost to any other, which no real objective achieves.
 
 ### 6 — Threshold-aware objective  (original framing)
 
