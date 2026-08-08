@@ -180,7 +180,7 @@ def main(argv: list[str] | None = None) -> int:
 
     variants: list[tuple[str, float, float]] = [
         (
-            "current: hybrid, no cache, no cull",
+            "legacy: hybrid, no cache, no cull",
             sum(k * n_c * n_s for k in KS) * len(TAUS),
             hybrid_rate * args.cores,
         ),
@@ -217,7 +217,15 @@ def main(argv: list[str] | None = None) -> int:
     current_ok = verdicts[0][1]
     fitting = [(n, s) for n, ok, s in verdicts if ok]
     print()
-    if current_ok:
+    if args.measured_radius is not None:
+        # The analytic model above describes the LEGACY path (hybrid, no cache, no
+        # cull) -- the default before 2026-08-07. It is kept as a reference point for
+        # how large the original gap was. When --measured-radius is given, the
+        # measured gate below is the authority and sets the exit code.
+        print("ANALYTIC MODEL above describes the LEGACY path and is a reference point only.")
+        print("The MEASURED GATE below is authoritative and sets the exit code.")
+        rc = 0
+    elif current_ok:
         print("VERDICT: PASS — the pipeline as written fits the budget.")
         rc = 0
     elif fitting:

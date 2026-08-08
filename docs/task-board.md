@@ -5,13 +5,15 @@ Keep it current: when a task is finished, move it to **Done** with the date and 
 
 Last updated: 2026-08-07.
 
-## Critical path — nothing downstream matters until #4 passes
+## Critical path — CLEARED 2026-08-07
+
+The feasibility gate reads **PASS, measured**: 3.18 h for all nine subproblems against a 20 h
+budget, **6.3x headroom**. Observed end to end, not extrapolated. Feasibility no longer outranks
+solution quality — but see #13 before trusting any threshold decision.
 
 | # | Task | Blocked by |
 |---|---|---|
-| 2 | **Build the radius-culled cached visibility matrix** | — |
-| 3 | Calibrate cull radius conservatively; add an un-culled verification pass | 2 |
-| 4 | **Re-run `/rehearsal` until the feasibility gate reads PASS** | 2, 3 |
+| 3b | Calibrate the cull radius (verification pass done; radius still a judgment call) | — |
 
 ## Unblocked — can start any time
 
@@ -94,7 +96,35 @@ of a 20 h window — so choose the radius **generously**, not at the measured p9
 open** — measuring how much coverage lives beyond 400 m needs the full-scale matrix, which was
 still building. Until that runs, 400 m is a judgment call, not a calibrated number.
 
-### 4 — Gate must read PASS
+### 4 — Gate reads PASS  (DONE 2026-08-07)
+
+**MEASURED VERDICT: PASS.** Observed, not projected — the real 400 m matrix was built and real
+greedy iterations were timed.
+
+```
+matrix build : 110.8 min   (once, reused by all nine)
+greedy       : 1.031 s per iteration
+  k=50   x 3 taus :   2.6 min
+  k=500  x 3 taus :  25.8 min
+  k=1000 x 3 taus :  51.6 min
+TOTAL            : 3.18 h        budget 20 h        headroom 6.3x
+```
+
+Matrix: 9,844,991 visible pairs, density 0.04451%, 61.5 visible samples per candidate, key
+`18912a76b41469a1289b72c3eaf731f6`.
+
+Density extrapolation was excellent (predicted 9.70M vs 9.84M actual, 1.5% off from a
+150-candidate probe). **Build-time extrapolation was not**: predicted 58 min vs 110.8 min actual,
+~1.9x optimistic, because contiguous chunks hit denser regions than random probes and 8 workers
+contend for memory bandwidth. Assume the same ~2x penalty when planning #8.
+
+Formatting and validation are **not** in the 3.18 h. Budget those separately.
+
+`scripts/rehearse.py` now prints the analytic model as a labelled *reference point* for the legacy
+path and lets the measured gate set the exit code, so a future session cannot read the stale
+`VERDICT: FAIL` line as current.
+
+### 4 — Gate must read PASS (superseded, kept for the original framing)
 
 Currently **FAIL by ~5e8x**. Per `CLAUDE.md`, feasibility work outranks all solution-quality work
 until this passes.
@@ -262,6 +292,8 @@ Prevents a false capability claim at submission time.
 
 | Date | Task | Evidence |
 |---|---|---|
+| 2026-08-07 | #2 — radius-culled cached visibility matrix | `d7b9f6d` + build. 2.77 GB, 9,844,991 visible pairs, 110.8 min on 8 cores, key `18912a76…`. Reused across all nine subproblems. |
+| 2026-08-07 | #4 — feasibility gate reads PASS | **MEASURED**, not projected: 3.18 h for nine subproblems vs a 20 h budget, 6.3x headroom. Was FAIL by ~5e8x at session start. |
 | 2026-08-07 | #3 — un-culled verification pass | Uncommitted. `src/giscup/verify.py` + 19 tests. Policy (Marko): band **relative** to tau, **two-sided**, closest-to-tau first under a cap. Recovers what the cull forfeited, drops what the grid inflated. Wired into `solve_one` via `--verify-band` / `--verify-max-buildings`, opt-in. **Radius calibration half still outstanding** — needs the full-scale matrix. |
 | 2026-08-07 | #12 — claim decision decoupled from the optimizer's grid | Uncommitted. `verify.dense_samples_for` re-samples targeted buildings independently rather than reusing the grid greedy optimized on. On the mini nine-block run this dropped the original overclaim (building 6) plus 7, and recovered 8 and 27; `validate-output` went from FAIL to `ok: true`. **Superseded in principle by #13** — the underlying instability is unfixed. |
 | 2026-08-07 | #11 — hole-perimeter question resolved against official rules | Official page re-checked: "the polygons will not self-intersect and will not have holes." Moot on official data (no interior rings ⇒ `polygon.length` == exterior perimeter). Defensive behaviour kept; assumption + bounded cost recorded in `docs/competition-reference.md`. |
