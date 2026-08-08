@@ -113,6 +113,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--cache-dir", default="outputs/cache")
     parser.add_argument("--greedy-probe-iterations", type=int, default=5)
+    parser.add_argument(
+        "--verify-buildings", type=int, default=2000,
+        help="Buildings re-verified per subproblem, for the verification cost line.",
+    )
     args = parser.parse_args(argv)
 
     print("=" * 78)
@@ -166,8 +170,14 @@ def main(argv: list[str] | None = None) -> int:
         label = f"<= {radius:.0f} m" if radius else "unbounded"
         print(f"  {label:>12s} {blockers:16.1f} {rate:12,.0f}")
 
-    hybrid_pairs = _sample_pairs(candidates, samples, None, rng, min(args.probe_pairs, 600))
-    hybrid_rate, _ = measure_throughput(index, hybrid_pairs, "hybrid")
+    # The legacy variant below is a historical reference point: it models the
+    # pre-2026-08-07 default (hybrid, no cache, no cull) to show how large the
+    # original gap was. `hybrid` was deleted in #10, so its rate can no longer be
+    # measured directly. It was measured at 1.16-1.40x slower than `relate` before
+    # removal; 1.3x is used here. This figure is illustrative only and never sets
+    # the verdict.
+    LEGACY_HYBRID_SLOWDOWN = 1.3
+    hybrid_rate = rate_by_radius[None] / LEGACY_HYBRID_SLOWDOWN
 
     print(f"\nbudget       : {args.budget_hours:.1f} h across {args.cores} core(s)")
 
@@ -251,6 +261,7 @@ def main(argv: list[str] | None = None) -> int:
             cache_dir=args.cache_dir,
             budget_s=budget_s,
             greedy_probe_iterations=args.greedy_probe_iterations,
+            verify_buildings=args.verify_buildings,
         )
 
     print("\nReminder (see memory: rogii-lessons-that-transfer): measure a lever's best-case")
@@ -269,6 +280,7 @@ def measured_gate(
     cache_dir: str,
     budget_s: float,
     greedy_probe_iterations: int,
+    verify_buildings: int = 2000,
 ) -> int:
     """Observe the real pipeline cost instead of projecting it.
 
@@ -308,13 +320,24 @@ def measured_gate(
     print(f"greedy       : {per_iter:.3f} s per iteration ({greedy_probe_iterations} timed)")
 
     solve_s = sum(k * per_iter for k in KS) * len(TAUS)
-    total_s = build_s + solve_s
+
+    # Verification is NOT free and was missing from this model until 2026-08-08, when
+    # a real nine-block run took 129.7 min against a ~80 min greedy projection. The
+    # gap was the near-threshold re-verification pass. Measured cost of exact
+    # interval coverage at a 400 m cull: ~1.5 ms/building at k=50, ~21.5 at k=500,
+    # ~51 at k=1000, i.e. roughly linear in k at ~51 us per building per 1000 antennas.
+    verify_s = sum(
+        verify_buildings * (k / 1000.0) * 0.051 for k in KS
+    ) * len(TAUS)
+    total_s = build_s + solve_s + verify_s
+
     print("\n" + "-" * 78)
     print(f"{'stage':40s} {'time':>16s}")
     print("-" * 78)
     print(f"{'visibility matrix (once, all 9)':40s} {build_s / 60:>13,.1f} min")
     for k in KS:
         print(f"{f'greedy x3 taus at k={k}':40s} {k * per_iter * len(TAUS) / 60:>13,.1f} min")
+    print(f"{f'verification (<={verify_buildings} bldgs/block)':40s} {verify_s / 60:>13,.1f} min")
     print(f"{'TOTAL for all nine subproblems':40s} {total_s / 3600:>13,.2f} h")
     print("-" * 78)
 
@@ -323,8 +346,8 @@ def measured_gate(
     print(f"headroom     : {budget_s / total_s:,.1f}x" if total_s > 0 else "")
     if ok:
         print("\nMEASURED VERDICT: PASS — observed, not extrapolated.")
-        print("  Solve cost is measured end to end. Output formatting and validation are")
-        print("  NOT included here; budget for them separately before calling the window safe.")
+        print("  Matrix build, greedy, and verification are all accounted for. Output")
+        print("  formatting and `validate-output` are NOT; budget those separately.")
         return 0
     print("\nMEASURED VERDICT: FAIL — the built pipeline does not fit the budget.")
     return 1
