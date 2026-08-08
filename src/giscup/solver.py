@@ -10,6 +10,7 @@ from giscup.io import load_buildings
 from giscup.matrix import build_visibility_matrix
 from giscup.models import Solution
 from giscup.optimize import greedy_select, greedy_select_matrix
+from giscup.output import nudge_off_interior
 from giscup.sampling import get_profile, sample_boundaries
 from giscup.verify import verify_and_recover
 from giscup.visibility import BlockerIndex
@@ -94,6 +95,20 @@ def solve_one(
             strategy=visibility_strategy,
             max_candidates=max_candidates,
         )
+    # Emitted antennas must not sit an ULP inside a footprint (#15). Midpoint
+    # candidates land inside ~37% of the time at projected-CRS magnitudes; that is
+    # legal but an evaluator testing visibility against the raw polygon would see
+    # nothing from them. Nudge BEFORE verification, so we verify what we emit.
+    nudge_index = BlockerIndex.from_buildings(buildings)
+    from shapely.geometry import Point as _Point
+
+    antenna_points = []
+    for candidate in selected:
+        nearby = [buildings[i] for i in nudge_index.query_indices(_Point(*candidate.point))]
+        antenna_points.append(
+            nudge_off_interior(candidate.point, nearby) if nearby else candidate.point
+        )
+
     coverage = coverage_by_building(visible, samples, buildings)
     claimed = serviced_buildings(coverage, tau, margin=claim_margin)
 
@@ -102,12 +117,12 @@ def solve_one(
         # Coverage near tau is unreliable in both directions: the radius cull
         # under-reports it, and deciding claims from the same grid we optimized on
         # over-reports it. Re-measure that window exactly.
-        verify_index = BlockerIndex.from_buildings(buildings)
+        verify_index = nudge_index
         claimed, report = verify_and_recover(
             coverage=coverage,
             claimed=claimed,
             tau=tau,
-            antenna_points=[c.point for c in selected],
+            antenna_points=antenna_points,
             samples=samples,
             buildings=buildings,
             blocker_index=verify_index,
@@ -169,7 +184,7 @@ def solve_one(
     return Solution(
         tau=tau,
         k=k,
-        antenna_points=[c.point for c in selected],
+        antenna_points=antenna_points,
         claimed_building_ids=claimed,
         diagnostics=diagnostics,
     )

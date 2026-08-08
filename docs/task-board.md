@@ -351,6 +351,32 @@ sampling error decides the outcome.
 Re-measure at full scale once the matrix lands — 0.20% on 60 buildings may behave very
 differently on 12,860.
 
+### 15 — Emitted antennas must not sit inside a footprint  (FIXED 2026-08-08)
+
+A sibling of #14, on the output side. Measured on the official dataset:
+
+| candidate kind | count | land inside their own footprint |
+|---|---|---|
+| vertex | 78,727 | 0 (0.0%) — copied verbatim from source data |
+| midpoint | 78,727 | 29,472 (**37.4%**) — computed as `(p0+p1)/2` |
+
+Median depth 7.9e-11 m, max 2.3e-10 m.
+
+Those points are **legal**: the official check is `polygon.boundary.distance(pt) <= eps` with eps
+1e-8..1e-7, and 1e-10 passes comfortably. The risk is different — an evaluator computing
+*visibility* against the raw polygon would see nothing at all from an antenna a hair inside it,
+exactly as this solver did before #14. We cannot know how the official evaluator handles it, and
+there is one submission with no feedback.
+
+**Fix:** `output.nudge_off_interior` moves emitted antennas just outside any footprint containing
+them, ~1e-9 m. Applied in `solve_one` **before** verification, so we verify exactly what we emit.
+Vertices are untouched. Verified end to end: 105 emitted antennas, 0 strictly inside, all still
+measuring 0.0 m from a boundary, `validate-output` green.
+
+Deliberately applied at output rather than in candidate generation: changing the candidate set
+would change the matrix cache key and discard the rebuild in flight, for no gain — a 1e-9 m shift
+cannot alter which candidates greedy would pick.
+
 ### 14 — Boundary-point jitter made 32% of samples unseeable  (FIXED 2026-08-08)
 
 **The most damaging bug found in this project.** Every coverage number produced before
@@ -474,6 +500,32 @@ sampling error decides the outcome.
 
 Re-measure at full scale once the matrix lands — 0.20% on 60 buildings may behave very
 differently on 12,860.
+
+### 15 — Emitted antennas must not sit inside a footprint  (FIXED 2026-08-08)
+
+A sibling of #14, on the output side. Measured on the official dataset:
+
+| candidate kind | count | land inside their own footprint |
+|---|---|---|
+| vertex | 78,727 | 0 (0.0%) — copied verbatim from source data |
+| midpoint | 78,727 | 29,472 (**37.4%**) — computed as `(p0+p1)/2` |
+
+Median depth 7.9e-11 m, max 2.3e-10 m.
+
+Those points are **legal**: the official check is `polygon.boundary.distance(pt) <= eps` with eps
+1e-8..1e-7, and 1e-10 passes comfortably. The risk is different — an evaluator computing
+*visibility* against the raw polygon would see nothing at all from an antenna a hair inside it,
+exactly as this solver did before #14. We cannot know how the official evaluator handles it, and
+there is one submission with no feedback.
+
+**Fix:** `output.nudge_off_interior` moves emitted antennas just outside any footprint containing
+them, ~1e-9 m. Applied in `solve_one` **before** verification, so we verify exactly what we emit.
+Vertices are untouched. Verified end to end: 105 emitted antennas, 0 strictly inside, all still
+measuring 0.0 m from a boundary, `validate-output` green.
+
+Deliberately applied at output rather than in candidate generation: changing the candidate set
+would change the matrix cache key and discard the rebuild in flight, for no gain — a 1e-9 m shift
+cannot alter which candidates greedy would pick.
 
 ### 14 — Boundary-point jitter made 32% of samples unseeable  (FIXED 2026-08-08)
 
