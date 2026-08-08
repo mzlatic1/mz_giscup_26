@@ -3,18 +3,23 @@
 Operational state so the next session starts without rereading history.
 Task list lives in `docs/task-board.md`. Say **"start session"** and `/startup` handles the rest.
 
-Last session: **2026-08-07**. Working tree **dirty — nothing committed this session.**
+Last session: **2026-08-08**. Working tree clean; **6 commits local and UNPUSHED**.
 
 ## The one thing that matters
 
-The feasibility blocker is **built but not yet proven**. `src/giscup/matrix.py` implements the
-radius-culled cached visibility matrix and 113 tests pass, but the full-scale 400 m build was
-still running when the session ended and `/rehearsal --measured-radius` had not yet returned a
-verdict. **Until the measured gate reads PASS, feasibility work still outranks everything else.**
+**The feasibility blocker is CLEARED.** `scripts/rehearse.py --measured-radius 400` reads
+**PASS, measured end to end**: 3.18 h for all nine subproblems against a 20 h budget, **6.3x
+headroom**. At the start of 2026-08-07 this gate read FAIL by ~5e8x. Feasibility no longer
+outranks solution quality.
 
-Next action: finish the matrix build, then run the measured gate (see *Resume here* below).
+What matters now is **solution quality and claim correctness**, plus one open decision:
 
-**8 days to test-data release (2026-08-15); submission 2026-08-16.** One shot, no score feedback
+**The 400 m cull radius discards ~9% of real visibility** (measured on the official dataset).
+800 m would cut that to ~2% for a ~6.4 h matrix build instead of 110 min, still passing the gate
+at 2.6x headroom. 400 m was Marko's call, made before that data existed. **This is the open
+decision.**
+
+**7 days to test-data release (2026-08-15); submission 2026-08-16.** One shot, no score feedback
 ever. Treat Aug 15 as a rehearsal deadline, not a start date.
 
 ## Resume here
@@ -22,27 +27,35 @@ ever. Treat Aug 15 as a rehearsal deadline, not a start date.
 ```bash
 conda activate mz-giscup-26
 
-# 1. Is the 400 m matrix complete? A metadata JSON exists only on success.
+# Which matrices exist? One key per (dataset, candidates, samples, radius, strategy, eps).
 ls outputs/cache/visibility-*.json
 
-# 2. If absent, rebuild (~2 h on 8 cores; resumes nothing, it restarts).
-python scripts/build_matrix.py --input outputs/synthetic_full.geojson --radius 400 --workers 8
+# Full-scale solve on the OFFICIAL dataset (needs a real-data matrix; see below).
+giscup solve-all --input data/GIS-cup-sample-dataset.geojson \
+    --taus 0.25 0.5 0.75 --ks 50 500 1000 \
+    --visibility-radius 400 --cache-dir outputs/cache --matrix-workers 8 \
+    --verify-band 0.10 --verify-max-buildings 2000 \
+    --output outputs/nine_blocks_real.txt --diagnostics outputs/nine_blocks_real.json
 
-# 3. The measured gate — this is task #4.
-python scripts/rehearse.py --input outputs/synthetic_full.geojson --cores 8 \
-    --measured-radius 400
+# Mechanical audit of the result -- trusts nothing from the solver.
+python scripts/audit_submission.py --input data/GIS-cup-sample-dataset.geojson \
+    --solution outputs/nine_blocks_real.txt --exact-radius 800
 ```
 
-Open decision waiting on Marko: `select_buildings_to_reverify` in `src/giscup/verify.py`
-(task #3). Four tests in `tests/test_verify.py` fail on `NotImplementedError` until it exists.
+**Two jobs were running when this was written** (2026-08-08 ~01:50):
+`giscup solve-all` on the synthetic (nine-block timings for #8), and
+`scripts/build_matrix.py` on the **official** dataset at 400 m. Check
+`outputs/nine_blocks.txt` and `outputs/cache/*.json` for their results.
 
 ## Repository
 
 - Local root: `/home/markolinux/projects/sigspatial_26`
 - Remote: `https://github.com/mzlatic1/mz_giscup_26.git`, branch `main`
-- Head: `30a9e65` (docs-only). **All 2026-08-07 work is uncommitted.**
-- 9 new files untracked, 13 modified. Nothing has been committed or pushed — Marko has not
-  approved a commit.
+- Pushed through `d7b9f6d`. **6 later commits are LOCAL AND UNPUSHED** — Marko's standing rule is
+  that pushes need explicit approval each time, and he was asleep.
+- Local head: `3166d19 Add the mechanical submission audit (#8)`
+- Unpushed: `047159e` (gate PASS), `89945ab` (#13 exact coverage), `3bc49f3` (#10 deletions),
+  `26aeedb` (#5 dataset + #3b calibration), `3166d19` (#8 audit), plus this docs commit.
 
 ## Environment
 
@@ -56,19 +69,22 @@ NumPy 2.4.6 (`np.bitwise_count` available), Shapely 2.1.2, SciPy 1.17.1.
 
 ## Data situation — read before trusting any number
 
-`data/` still contains **no dataset** (only `.gitkeep` and `README.md`). The official sample
-(released 2026-03-31) was never added locally; test data does not exist until 2026-08-15.
+**The official sample dataset is now present**: `data/GIS-cup-sample-dataset.geojson` (6.3 MB,
+git-ignored), downloaded 2026-08-08 from
+`https://sigspatial2026.sigspatial.org/img/GIS-cup-sample-dataset.geojson` (public, no
+registration). Every documented statistic matches exactly: 12,860 buildings, 78,727 exterior
+vertices, 858,973.22 m total perimeter, 1 hole-bearing polygon, EPSG:32611.
 
-All scaling work runs against a synthetic stand-in:
+Test data still does not exist until 2026-08-15.
 
-```bash
-python scripts/make_synthetic_dataset.py --output outputs/synthetic_full.geojson
-```
+The synthetic stand-in (`outputs/synthetic_full.geojson`, regenerable via
+`scripts/make_synthetic_dataset.py`) is still around and is what every pre-2026-08-08 figure was
+measured on. **It understated reality in two ways that mattered:** it omitted the large-building
+tail (real max perimeter 1,066 m, max area 17,957 m²) and it understated visibility reach, which
+is why the 400 m cull costs ~9% on real data rather than the ~2% it implied. Prefer the official
+dataset for everything from now on.
 
-It matches documented sample statistics within a few percent but has **no real street topology**
-and **omits the large-building tail**. Real grids have long unobstructed corridors it cannot
-produce, so measured visible distances are very likely an **underestimate** — which means the
-400 m cull radius may be too tight on real data. Never use it for solution-quality claims.
+**Matrix cache keys are per-dataset.** The synthetic matrix cannot be reused for real-data solves.
 
 `.gitignore` was tightened this session: `/outputs/*` matched only one level, so the 2.77 GB
 matrix showed up as untracked. Now `/outputs/**` plus `*.bits`.
