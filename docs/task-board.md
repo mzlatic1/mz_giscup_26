@@ -121,6 +121,23 @@ Cost check before committing to it: 800 m is 3.5x the pairs, so ~6.4 h of matrix
 Pending result: whichever radius yields more serviced buildings across the nine subproblems wins.
 If they tie, 400 m wins on cost.
 
+**Build costs, measured on the official dataset:**
+
+| radius | build time | visible pairs | density | visible/candidate |
+|---|---|---|---|---|
+| 400 m | 82.5 min (8 workers) | 3,888,638 | 0.01851% | 24.7 |
+| 800 m | tracking ~11 h (12 workers) | pending | pending | pending |
+
+The 800 m build is running **far** longer than the 3.5x pair-count ratio implied (~6.4 h
+estimated). Same mechanism as every other timing miss in this project: longer segments intersect
+more blockers per STRtree query, so throughput falls as radius rises — the pair count and the
+per-pair cost both grow.
+
+**The real matrix is 2.5x sparser than the synthetic one** (3.89M pairs vs 9.84M; 24.7 visible
+samples per candidate vs 61.5). Real street topology blocks far more sight lines than the
+synthetic's layout did. This cuts the opposite way from the visibility-*reach* finding, and is one
+more reason no solution-quality number measured on the synthetic can be trusted.
+
 **Mitigation already in place.** The verification pass no longer inherits the solver's cull. It
 re-measures at `visibility_radius x verify_radius_factor` (default 2.0), so a 400 m solve verifies
 against 800 m. `--verify-radius-factor 0` makes it fully unbounded.
@@ -219,7 +236,34 @@ coverage. Tune per `(tau, k)` — all nine subproblems are scored independently.
 `docs/reference/research-synthesis.md`: thresholded grouped service is **not** plain submodular
 coverage, so lazy-greedy's correctness guarantee does not transfer unchanged.
 
-### 8 — Nine-block dry run and submission audit  (blocked on #4)
+### 8 — Nine-block dry run  (SYNTHETIC COMPLETE 2026-08-08; real-data run in progress)
+
+Full-scale nine-block solve on the synthetic stand-in, **129.7 min wall clock**, 27 content lines,
+43,525 total claims.
+
+| (tau, k) | claims | runtime | recovered | dropped |
+|---|---|---|---|---|
+| 0.25 / 50 | 1,316 | 0.9 min | 20 | 36 |
+| 0.25 / 500 | 9,245 | 9.6 min | 110 | 69 |
+| 0.25 / 1000 | 12,171 | 25.9 min | 46 | 30 |
+| 0.50 / 50 | 60 | 1.4 min | 11 | 7 |
+| 0.50 / 500 | 4,294 | 14.3 min | 321 | 0 |
+| 0.50 / 1000 | 9,511 | 28.8 min | 443 | 89 |
+| 0.75 / 50 | 13 | 1.4 min | 0 | 2 |
+| 0.75 / 500 | 1,581 | 13.0 min | 92 | 119 |
+| 0.75 / 1000 | 5,334 | 34.3 min | 219 | 259 |
+
+**The verification pass is earning its keep: 1,262 recovered, 611 dropped.** Every drop is an
+overclaim that would otherwise have gone into a submission — 259 in the `0.75 / 1000` block alone.
+Every recovery is score the radius cull would have silently forfeited. Drops concentrate at high
+`tau`, exactly where coverage sits nearest the threshold.
+
+**Gate correction.** The measured gate projected ~80 min of greedy and reported 3.18 h total. The
+actual solve took 129.7 min because **verification is not modelled in the gate at all** — the gate
+explicitly excludes formatting and validation, and verification belongs on that list. Still well
+inside budget, but any future projection must add it.
+
+### 8 — Nine-block dry run and submission audit  (original framing)
 
 Produce all nine `(tau, k)` blocks end to end on full-scale data inside the wall-clock budget,
 then audit with `submission-packager` against every item in
