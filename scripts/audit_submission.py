@@ -72,8 +72,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--solution", required=True)
     ap.add_argument("--eps", type=float, default=1e-7)
     ap.add_argument("--claim-margin", type=float, default=0.0)
-    ap.add_argument("--exact-radius", type=float, default=None,
-                    help="Radius for the exact claim re-check. Omit for unbounded (slowest, strictest).")
+    ap.add_argument(
+        "--exact-radius", type=float, default=None,
+        help=(
+            "Radius for the exact claim re-check. OMIT for unbounded, which is the true "
+            "coverage and the answer that matters. Setting a radius only ever *under*-reports "
+            "coverage, so it can raise false alarms on valid claims but can never let a real "
+            "overclaim through -- useful as a fast pre-check, not as the final word."
+        ),
+    )
     args = ap.parse_args(argv)
 
     audit = Audit()
