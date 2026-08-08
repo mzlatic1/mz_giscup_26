@@ -27,6 +27,7 @@ import math
 import random
 import time
 
+import numpy as np
 from shapely.geometry import LineString
 
 from giscup.candidates import generate_boundary_candidates
@@ -101,6 +102,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--probe-samples", type=int, default=2500)
     parser.add_argument("--cores", type=int, default=1, help="Assumed parallel cores for the projection")
     parser.add_argument("--seed", type=int, default=20260806)
+    parser.add_argument(
+        "--measured-radius",
+        type=float,
+        default=None,
+        help=(
+            "Build (or load) the real visibility matrix at this cull radius and time actual "
+            "greedy iterations, so the verdict is observed rather than projected."
+        ),
+    )
+    parser.add_argument("--cache-dir", default="outputs/cache")
+    parser.add_argument("--greedy-probe-iterations", type=int, default=5)
     args = parser.parse_args(argv)
 
     print("=" * 78)
@@ -221,10 +233,93 @@ def main(argv: list[str] | None = None) -> int:
         print("         Reconsider the approach, not the constants.")
         rc = 1
 
+    if args.measured_radius is not None:
+        rc = measured_gate(
+            buildings,
+            candidates,
+            samples,
+            radius=args.measured_radius,
+            workers=args.cores,
+            cache_dir=args.cache_dir,
+            budget_s=budget_s,
+            greedy_probe_iterations=args.greedy_probe_iterations,
+        )
+
     print("\nReminder (see memory: rogii-lessons-that-transfer): measure a lever's best-case")
     print("range against the gap before investing in it. A better objective on a solver that")
     print("cannot finish scores zero.")
     return rc
+
+
+def measured_gate(
+    buildings,
+    candidates,
+    samples,
+    *,
+    radius: float,
+    workers: int,
+    cache_dir: str,
+    budget_s: float,
+    greedy_probe_iterations: int,
+) -> int:
+    """Observe the real pipeline cost instead of projecting it.
+
+    The analytic model above estimates visibility checks from probe throughput. This
+    builds (or loads) the actual matrix and times actual greedy iterations, so the
+    verdict rests on measurement. Only the k-scaling is extrapolated, and that
+    extrapolation is exact by construction: every greedy iteration is one identical
+    full pass over the matrix, independent of k.
+    """
+    from giscup.matrix import build_visibility_matrix
+
+    print("\n" + "=" * 78)
+    print(f"MEASURED GATE — radius {radius:g} m, {workers} workers")
+    print("=" * 78)
+
+    t0 = time.perf_counter()
+    matrix = build_visibility_matrix(
+        buildings, candidates, samples, radius=radius, workers=workers,
+        cache_dir=cache_dir, progress=True,
+    )
+    build_s = matrix.build_seconds if matrix.loaded_from_cache else time.perf_counter() - t0
+    source = "loaded from cache (build time from metadata)" if matrix.loaded_from_cache else "built now"
+    print(f"\nmatrix build : {build_s / 60:,.1f} min   ({source})")
+
+    nonzeros = matrix.nonzeros()
+    total_cells = matrix.n_candidates * matrix.n_samples
+    print(f"visible pairs: {nonzeros:,}  (density {nonzeros / total_cells * 100:.5f}%)")
+    print(f"mean visible samples per candidate : {nonzeros / matrix.n_candidates:.1f}")
+
+    # One greedy iteration = one marginal_gains pass + one covered-set union.
+    covered = matrix.empty_covered()
+    t0 = time.perf_counter()
+    for _ in range(greedy_probe_iterations):
+        gains = matrix.marginal_gains(covered)
+        matrix.add_to_covered(covered, int(np.argmax(gains)))
+    per_iter = (time.perf_counter() - t0) / greedy_probe_iterations
+    print(f"greedy       : {per_iter:.3f} s per iteration ({greedy_probe_iterations} timed)")
+
+    solve_s = sum(k * per_iter for k in KS) * len(TAUS)
+    total_s = build_s + solve_s
+    print("\n" + "-" * 78)
+    print(f"{'stage':40s} {'time':>16s}")
+    print("-" * 78)
+    print(f"{'visibility matrix (once, all 9)':40s} {build_s / 60:>13,.1f} min")
+    for k in KS:
+        print(f"{f'greedy x3 taus at k={k}':40s} {k * per_iter * len(TAUS) / 60:>13,.1f} min")
+    print(f"{'TOTAL for all nine subproblems':40s} {total_s / 3600:>13,.2f} h")
+    print("-" * 78)
+
+    ok = total_s <= budget_s
+    print(f"\nbudget       : {budget_s / 3600:.1f} h")
+    print(f"headroom     : {budget_s / total_s:,.1f}x" if total_s > 0 else "")
+    if ok:
+        print("\nMEASURED VERDICT: PASS — observed, not extrapolated.")
+        print("  Solve cost is measured end to end. Output formatting and validation are")
+        print("  NOT included here; budget for them separately before calling the window safe.")
+        return 0
+    print("\nMEASURED VERDICT: FAIL — the built pipeline does not fit the budget.")
+    return 1
 
 
 if __name__ == "__main__":

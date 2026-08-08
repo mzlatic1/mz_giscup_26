@@ -11,8 +11,9 @@ src/giscup/
   candidates.py   # boundary-derived antenna candidates and dedupe
   visibility.py   # STRtree blocker index and LOS predicates
   coverage.py     # sampled coverage and serviced-building checks
-  bitsets.py      # integer bitset abstraction
-  optimize.py     # baseline greedy selection; future optimizer home
+  bitsets.py      # integer bitset abstraction (superseded by matrix.py; unused)
+  matrix.py       # radius-culled cached visibility matrix (dense bitset, memmap, parallel)
+  optimize.py     # greedy selection: predicate-based and matrix-backed
   solver.py       # solve-one orchestration
   output.py       # official formatting/parsing; exact-k guard
   validate.py     # solution validation and sampled claim coverage
@@ -24,14 +25,19 @@ src/giscup/
 
 ```text
 tests/test_geometry.py
+tests/test_matrix.py             # matrix ground truth, cache keys, parallel==serial
+tests/test_optimize_matrix.py    # matrix greedy == predicate greedy
 tests/test_output_format.py
 tests/test_sampling.py
 tests/test_solver.py
+tests/test_solver_matrix.py      # solve_one fast path, cross-subproblem reuse
 tests/test_validate.py
+tests/test_validate_scaling.py   # BoundaryIndex + culled scan equivalence
 tests/test_visibility.py
+tests/test_visibility_strategy.py  # relate default, degeneracy agreement, erosion safety
 ```
 
-Current latest result: `18 passed` in Conda env `mz-giscup-26`.
+Current latest result: `113 passed` in Conda env `mz-giscup-26` (2026-08-07).
 
 ## Compact documentation layer
 
@@ -63,7 +69,9 @@ CLAUDE.md                                    # auto-loaded project rules
 
 ```text
 scripts/make_synthetic_dataset.py  # full-scale stand-in matching documented sample stats
-scripts/rehearse.py                # measures throughput/sparsity, PASS/FAIL vs budget
+scripts/rehearse.py                # gate: analytic projection, plus --measured-radius for an
+                                   #   observed end-to-end verdict off the real matrix
+scripts/build_matrix.py            # build/reuse the visibility matrix at full scale
 ```
 
 `data/` has no official dataset yet, so all scaling work runs against the synthetic
@@ -79,6 +87,19 @@ giscup solve-one --input <geojson> --tau <float> --k <int> --output <txt> [optio
 giscup solve-all --input <geojson> --taus ... --ks ... --output <txt> [options]
 giscup validate-output --input <geojson> --solution <txt> [options]
 ```
+
+Full-scale runs need the matrix, which is opt-in and never implied:
+
+```bash
+giscup solve-all --input <geojson> --taus 0.25 0.5 0.75 --ks 50 500 1000 \
+    --visibility-radius 400 --cache-dir outputs/cache --matrix-workers 8 --output <txt>
+giscup validate-output --input <geojson> --solution <txt> \
+    --sampling-profile accurate --validation-radius 400
+```
+
+Without `--visibility-radius` the solver recomputes visibility every greedy iteration and will
+not finish at full scale. Culling only ever *removes* visible pairs, so it under-reports coverage:
+safe for validation (rejects, never wrongly accepts) but a silent score loss for the solver.
 
 Currently implemented solver optimizer:
 
@@ -97,13 +118,21 @@ Do not imply `lazy-greedy`, `stochastic-greedy`, or `hybrid` are implemented unt
 
 ## Known limitations
 
-- Visibility precomputation/cache not implemented.
-- Bitset acceleration not integrated into optimizer.
-- Greedy objective is still raw newly visible sample count.
-- Candidate pruning modes are preliminary.
+- Greedy objective is still raw newly visible sample count, not serviced-building count (task #6).
+- Candidate pruning modes only add candidates; they prune nothing (task #9).
 - Config loading is not wired into CLI.
 - `scripts/profile_visibility.py` and `scripts/compare_configs.py` are placeholders.
 - Continuous coverage is approximated by weighted samples; final validation should be denser and conservative.
+- `negative_buffer` / `hybrid` visibility strategies are redundant or unsafe and should be removed
+  (task #10). `relate` is the exact official predicate and is the default everywhere.
+- The cull radius is a heuristic: it discards genuinely visible pairs beyond the radius and loses
+  score with no feedback. The un-culled verification pass (task #3) is not built yet.
+
+## Resolved since 2026-08-07
+
+- Visibility precomputation/cache: **implemented** (`matrix.py`, task #2).
+- Bitset acceleration in the optimizer: **implemented** (`optimize.greedy_select_matrix`).
+- Validation scaling: **implemented** (`geometry.BoundaryIndex`, `validate.visible_sample_ids_from_points`).
 
 ## Safe development checks
 

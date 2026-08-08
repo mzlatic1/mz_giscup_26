@@ -24,7 +24,9 @@ solver:
   # optimizers remain roadmap items until implemented and tested.
   optimizer: greedy
   random_seed: 2026
-  visibility_strategy: hybrid
+  # `relate` is the official predicate (interior-of-line meets interior-of-polygon)
+  # and agrees with negative_buffer/hybrid across the full degeneracy set.
+  visibility_strategy: relate
   perimeter_mode: all-boundaries
   claim_margin: 0.005
 

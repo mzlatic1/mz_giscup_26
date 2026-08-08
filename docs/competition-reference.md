@@ -97,9 +97,22 @@ Total score is the sum across nine subproblems.
 
 ## Dataset handling
 
-Official page says building footprints are simplified simple polygons without holes. The preserved sample inspection reports one hole-containing polygon. Therefore:
+Official page, verbatim (re-checked 2026-08-07): **"the polygons will not self-intersect and
+will not have holes."** Coverage is **"the ratio of the length of visible segments on the boundary
+to the total perimeter of b."**
 
-- Code should defensively preserve holes.
-- Official rules and final evaluator expectations take precedence.
-- Current sampling includes all Shapely boundary rings to match `polygon.length`.
-- Candidate antennas currently remain boundary-derived; avoid relying on hole-boundary antenna placement unless official clarification supports it.
+The preserved sample inspection reports one hole-containing polygon (id 9448), so the sources
+disagree. Resolved 2026-08-07 (task #11):
+
+- **On official data the question is moot.** With no interior rings, `polygon.length` (all rings,
+  what `sampling.py` uses) and exterior-only perimeter are the same number. The two readings can
+  only diverge on a hole-bearing polygon, which the official spec says will not occur.
+- **The defensive behaviour stays**, because the sample contradicts the page and costs nothing:
+  sampling includes all Shapely boundary rings so the represented weight matches
+  `Building.perimeter == polygon.length`.
+- **Recorded assumption:** if a hole-bearing polygon does appear, our coverage denominator
+  includes the hole perimeter while `candidates.py` generates candidates only from
+  `exterior_edges`. Coverage for that building is therefore **underestimated**. That is the safe
+  direction — it can only forfeit a claim, never produce an overclaim that invalidates a block.
+  Cost is bounded by the number of hole-bearing polygons (one, in the sample).
+- Avoid relying on hole-boundary antenna placement unless official clarification supports it.

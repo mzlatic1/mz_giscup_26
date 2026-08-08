@@ -38,6 +38,9 @@ def cmd_solve_one(args: argparse.Namespace) -> None:
         visibility_strategy=args.visibility_strategy,
         claim_margin=args.claim_margin,
         candidate_spacing=args.candidate_spacing,
+        visibility_radius=args.visibility_radius,
+        cache_dir=args.cache_dir,
+        matrix_workers=args.matrix_workers,
     )
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
     Path(args.output).write_text(format_solution_file([solution]), encoding="utf-8")
@@ -60,6 +63,9 @@ def cmd_solve_all(args: argparse.Namespace) -> None:
                 visibility_strategy=args.visibility_strategy,
                 claim_margin=args.claim_margin,
                 candidate_spacing=args.candidate_spacing,
+                visibility_radius=args.visibility_radius,
+                cache_dir=args.cache_dir,
+                matrix_workers=args.matrix_workers,
             )
             solutions.append(solution)
             diagnostics[f"tau_{tau}_k_{k}"] = solution.diagnostics
@@ -76,6 +82,7 @@ def cmd_validate_output(args: argparse.Namespace) -> None:
         sampling_profile=args.sampling_profile,
         visibility_strategy=args.visibility_strategy,
         claim_margin=args.claim_margin,
+        validation_radius=args.validation_radius,
     )
     print(json.dumps({"ok": result.ok, "errors": result.errors, "warnings": result.warnings}, indent=2))
     if not result.ok:
@@ -112,8 +119,18 @@ def build_parser() -> argparse.ArgumentParser:
     validate_p.add_argument("--solution", required=True)
     validate_p.add_argument("--eps", type=float, default=1e-7)
     validate_p.add_argument("--sampling-profile", default="accurate")
-    validate_p.add_argument("--visibility-strategy", default="hybrid")
+    validate_p.add_argument("--visibility-strategy", default="relate")
     validate_p.add_argument("--claim-margin", type=float, default=0.0)
+    validate_p.add_argument(
+        "--validation-radius",
+        type=float,
+        default=None,
+        help=(
+            "Cull visibility testing to pairs within this distance (CRS units). Culling only "
+            "under-reports coverage, so it can reject a good claim but never accept a bad one. "
+            "Omit for an exact but much slower check."
+        ),
+    )
     validate_p.set_defaults(func=cmd_validate_output)
     return parser
 
@@ -125,8 +142,27 @@ def _add_solver_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--sampling-profile", default="balanced")
     parser.add_argument("--optimizer", default="greedy")
     parser.add_argument("--max-candidates", type=int)
-    parser.add_argument("--visibility-strategy", default="hybrid")
+    parser.add_argument("--visibility-strategy", default="relate")
     parser.add_argument("--claim-margin", type=float, default=0.005)
+    parser.add_argument(
+        "--visibility-radius",
+        type=float,
+        default=None,
+        help=(
+            "Enable the cached visibility matrix, culled to pairs within this distance "
+            "(CRS units). Required for full-scale runs; without it the solver recomputes "
+            "visibility every greedy iteration and will not finish. Choose generously -- "
+            "culling discards genuinely visible pairs and loses score silently."
+        ),
+    )
+    parser.add_argument(
+        "--cache-dir",
+        default="outputs/cache",
+        help="Where the visibility matrix is stored and reused across subproblems.",
+    )
+    parser.add_argument(
+        "--matrix-workers", type=int, default=1, help="Parallel workers for the matrix build."
+    )
 
 
 def main(argv: list[str] | None = None) -> None:

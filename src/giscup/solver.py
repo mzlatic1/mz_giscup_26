@@ -7,8 +7,9 @@ from time import perf_counter
 from giscup.candidates import generate_boundary_candidates
 from giscup.coverage import coverage_by_building, serviced_buildings
 from giscup.io import load_buildings
+from giscup.matrix import build_visibility_matrix
 from giscup.models import Solution
-from giscup.optimize import greedy_select
+from giscup.optimize import greedy_select, greedy_select_matrix
 from giscup.sampling import get_profile, sample_boundaries
 from giscup.visibility import BlockerIndex
 
@@ -21,11 +22,24 @@ def solve_one(
     candidate_mode: str = "basic",
     optimizer: str = "greedy",
     max_candidates: int | None = None,
-    visibility_strategy: str = "hybrid",
+    visibility_strategy: str = "relate",
     claim_margin: float = 0.005,
     candidate_spacing: float = 25.0,
+    visibility_radius: float | None = None,
+    cache_dir: str | None = None,
+    matrix_workers: int = 1,
 ) -> Solution:
-    """Solve one GIS Cup subproblem with the current baseline pipeline."""
+    """Solve one GIS Cup subproblem.
+
+    Setting `visibility_radius` enables the cached visibility matrix: visibility is
+    computed once for pairs within that radius and reused across every greedy
+    iteration and every subproblem sharing the same `cache_dir`. Without it the
+    solver falls back to recomputing predicates per iteration, which does not finish
+    at full scale.
+
+    The radius is opt-in and never implied, because culling silently discards
+    genuinely visible pairs and there is no score feedback to detect the loss.
+    """
     if not (0 < tau <= 1):
         raise ValueError(f"tau must be in (0, 1], got {tau}")
     if k <= 0:
@@ -45,17 +59,39 @@ def solve_one(
     candidates = generate_boundary_candidates(
         buildings, mode=candidate_mode, candidate_spacing=candidate_spacing
     )
-    blocker_index = BlockerIndex.from_buildings(buildings)
-    selected, visible = greedy_select(
-        candidates,
-        samples,
-        buildings,
-        blocker_index,
-        tau=tau,
-        k=k,
-        strategy=visibility_strategy,
-        max_candidates=max_candidates,
-    )
+    matrix_info: dict | None = None
+    if visibility_radius is not None:
+        matrix = build_visibility_matrix(
+            buildings,
+            candidates,
+            samples,
+            radius=visibility_radius,
+            strategy=visibility_strategy,
+            workers=matrix_workers,
+            cache_dir=cache_dir,
+        )
+        selected, visible = greedy_select_matrix(
+            matrix, candidates, samples, buildings, tau=tau, k=k, max_candidates=max_candidates
+        )
+        matrix_info = {
+            "key": matrix.spec.key,
+            "radius": visibility_radius,
+            "loaded_from_cache": matrix.loaded_from_cache,
+            "build_seconds": matrix.build_seconds,
+            "nonzeros": matrix.nonzeros(),
+        }
+    else:
+        blocker_index = BlockerIndex.from_buildings(buildings)
+        selected, visible = greedy_select(
+            candidates,
+            samples,
+            buildings,
+            blocker_index,
+            tau=tau,
+            k=k,
+            strategy=visibility_strategy,
+            max_candidates=max_candidates,
+        )
     coverage = coverage_by_building(visible, samples, buildings)
     claimed = serviced_buildings(coverage, tau, margin=claim_margin)
     diagnostics = {
@@ -75,10 +111,13 @@ def solve_one(
             "max_candidates": max_candidates,
             "visibility_strategy": visibility_strategy,
             "claim_margin": claim_margin,
+            "visibility_radius": visibility_radius,
         },
         "runtime_seconds": {"total": perf_counter() - start},
         "warnings": [],
     }
+    if matrix_info is not None:
+        diagnostics["visibility_matrix"] = matrix_info
     if len(selected) != k:
         raise RuntimeError(f"internal solver error: selected {len(selected)} antennas for k={k}")
     return Solution(

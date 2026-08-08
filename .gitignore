@@ -27,7 +27,16 @@ dist/
 /data/*.zip
 !/data/README.md
 !/data/.gitkeep
-/outputs/*
+# `/outputs/*` alone matches only direct children. Because outputs/cache/.gitkeep is
+# tracked, git descends into outputs/cache/ and the 2.77 GB visibility matrix showed
+# up as untracked. Match every depth.
+/outputs/**
+!/outputs/.gitkeep
+!/outputs/cache/
+!/outputs/cache/.gitkeep
+
+# Visibility matrices, wherever they land.
+*.bits
 !/outputs/.gitkeep
 !/outputs/cache/
 !/outputs/cache/.gitkeep

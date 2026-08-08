@@ -12,7 +12,7 @@ def visible_sample_ids(
     candidate: Candidate,
     samples: list[BoundarySample],
     blocker_index: BlockerIndex,
-    strategy: str = "hybrid",
+    strategy: str = "relate",
 ) -> set[int]:
     """Compute visible sample IDs for one candidate with direct predicates."""
     return {s.id for s in samples if is_visible(candidate.point, s.point, blocker_index, strategy=strategy)}

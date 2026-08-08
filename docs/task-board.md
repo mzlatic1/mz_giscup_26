@@ -3,14 +3,13 @@
 Durable task list. `/startup` reads this and recreates the in-session task list from it.
 Keep it current: when a task is finished, move it to **Done** with the date and the evidence.
 
-Last updated: 2026-08-06.
+Last updated: 2026-08-07.
 
 ## Critical path — nothing downstream matters until #4 passes
 
 | # | Task | Blocked by |
 |---|---|---|
-| 1 | Switch default visibility strategy to `relate`; hoist `buffer(-eps)` out of the hot loop | — |
-| 2 | **Build the radius-culled cached visibility matrix** | 1 |
+| 2 | **Build the radius-culled cached visibility matrix** | — |
 | 3 | Calibrate cull radius conservatively; add an un-culled verification pass | 2 |
 | 4 | **Re-run `/rehearsal` until the feasibility gate reads PASS** | 2, 3 |
 
@@ -19,9 +18,8 @@ Last updated: 2026-08-06.
 | # | Task |
 |---|---|
 | 5 | Obtain the official sample dataset into `data/`; re-validate every measured claim |
-| 7 | Make the validation path scale |
 | 10 | Implement or remove unimplemented optimizer names and script placeholders |
-| 11 | Resolve the hole-perimeter question against official rules |
+| 12 | **Decouple the claim decision from the optimization sampling grid** — we overclaim today |
 
 ## Gated on feasibility
 
@@ -29,29 +27,11 @@ Last updated: 2026-08-06.
 |---|---|---|
 | 9 | Prune the candidate pool | 2 |
 | 6 | Replace the greedy objective with a threshold-aware one | 4 |
-| 8 | Full nine-block end-to-end dry run + submission audit | 4, 7 |
+| 8 | Full nine-block end-to-end dry run + submission audit | 4 |
 
 ---
 
 ## Details
-
-### 1 — Switch default visibility strategy to `relate`
-
-Two free, semantics-preserving speedups in `src/giscup/visibility.py`.
-
-**(a)** Change the default from `"hybrid"` to `"relate"` in `is_visible()`,
-`solver.solve_one()`, `validate.validate_solution_file()`, and `cli.py`. Verified 2026-08-06:
-`relate` and `hybrid` agree on all 9 official degeneracies (corner graze, collinear-along-edge,
-single-vertex touch, interior crossing, self-blocking, adjacent same-edge points, boundary
-endpoint rays inward and outward), and `relate` is ~2.5x faster.
-`relate_pattern(poly, "T********")` is exactly the official predicate — interior-of-line meets
-interior-of-polygon.
-
-**(b)** `_blocked_negative_buffer` calls `polygon.buffer(-eps)` *inside the hot loop*. If the
-strategy is kept as an option at all, precompute the eroded geometry once per building.
-
-Add a test asserting relate/hybrid agreement across the degeneracy set so the default cannot
-silently regress.
 
 ### 2 — Radius-culled cached visibility matrix  ← THE BLOCKER
 
@@ -63,18 +43,43 @@ subproblems. Two compounding effects, measured 2026-08-06:
 2. Throughput scales inversely with blockers per STRtree query, so restricting to short segments
    gives ~44x more throughput.
 
-| segment length | blockers/query | checks/s |
-|---|---|---|
-| unbounded | 1,401 | 605 |
-| ≤ 400 m | 21 | 17,951 |
-| ≤ 200 m | 7 | 26,539 |
+Throughput re-measured 2026-08-07 with `relate` after the erosion hoist (400 pairs per row,
+single core, synthetic full-scale). Run-to-run variance is ±10–25% — treat as order-of-magnitude,
+not precise:
 
-Use a spatial index over samples to enumerate only pairs within the cull radius. Store as bitsets
-(`src/giscup/bitsets.py` exists but the optimizer never uses it). Key the cache on
-dataset / candidate-set / sampling-profile / strategy / radius hashes so it can never be reused
-across incompatible configurations.
+| segment length | blockers/query | checks/s (2026-08-07) | checks/s (2026-08-06) |
+|---|---|---|---|
+| unbounded | 1,180 | 537–580 | 605 |
+| ≤ 400 m | 21 | 12,172–16,213 | 17,951 |
+| ≤ 200 m | 7 | 23,169–25,775 | 26,539 |
 
-Target from the gate: 200 m cull = 1.3e8 checks ≈ 10 min on 8 cores; 400 m = 5.2e8 ≈ 1 h.
+The 2026-08-07 figures are lower but the PASS verdict survives with margin: 200 m ≈ 11.8 min,
+400 m ≈ 1.5 h on 8 cores against a 20 h budget.
+
+Target from the gate: 200 m cull = 1.3e8 checks ≈ 10–12 min on 8 cores; 400 m = 5.2e8 ≈ 1–1.5 h.
+
+**Status 2026-08-07 — implemented, full-scale build in progress.** `src/giscup/matrix.py`:
+
+- Dense candidate-major bit matrix, `uint64` words, memmap-backed under `outputs/cache/`.
+  Marko chose dense bitsets over sparse CSR after seeing the density measurement (below).
+- cKDTree over samples enumerates only pairs inside the radius; parallel workers write disjoint
+  candidate ranges through the memmap, so 2.76 GB never crosses a pickle boundary.
+- Cache key is a blake2b digest over building WKB + candidate coords + sample coords + radius +
+  strategy + eps, so an incompatible matrix can never be reused. The metadata JSON doubles as the
+  completion marker: a crashed partial build is rebuilt, not trusted.
+- `optimize.greedy_select_matrix` selects off the matrix and is tested to pick *exactly* what the
+  predicate-based greedy picks. `solver.solve_one` takes `--visibility-radius` / `--cache-dir`.
+  The radius is opt-in and never implied.
+
+Measured matrix density at full scale (150 probe candidates, `balanced` profile):
+
+| radius | neighbours/candidate | visible/candidate | nonzeros | density | dense bitset |
+|---|---|---|---|---|---|
+| 200 m | 798 | 48.3 | 7.74M | 0.035% | 2.76 GB |
+| 400 m | 3,048 | 60.5 | 9.70M | 0.044% | 2.76 GB |
+
+200 m → 400 m costs **6.2x** the build time for **+25%** visible pairs — sharply diminishing, but
+a quarter of all visibility lives in that band. Radius **400 m** chosen (decision recorded in #3).
 
 ### 3 — Calibrate the cull radius; add an un-culled verification pass
 
@@ -129,19 +134,7 @@ coverage. Tune per `(tau, k)` — all nine subproblems are scored independently.
 `docs/reference/research-synthesis.md`: thresholded grouped service is **not** plain submodular
 coverage, so lazy-greedy's correctness guarantee does not transfer unchanged.
 
-### 7 — Make validation scale
-
-Same complexity bug as the solver.
-
-- `validate._visible_sample_ids_from_points` is samples × points: 138k × 1000 = 1.4e8 checks,
-  ~11 h at `k=1000` on measured full-scale throughput. Reuse the cached matrix.
-- `geometry.is_point_on_any_boundary` is a linear scan over all buildings — 1.3e7
-  boundary-distance ops per run at `k=1000`, with an STRtree sitting unused.
-
-With one shot and no feedback, validation is the only correctness signal that exists. It has to be
-fast enough to run on all nine blocks inside the window.
-
-### 8 — Nine-block dry run and submission audit  (blocked on #4, #7)
+### 8 — Nine-block dry run and submission audit  (blocked on #4)
 
 Produce all nine `(tau, k)` blocks end to end on full-scale data inside the wall-clock budget,
 then audit with `submission-packager` against every item in
@@ -153,6 +146,54 @@ margin.
 
 Time the whole run. **This must complete well before 2026-08-15** — that date is a rehearsal
 deadline, not a start date.
+
+**Dry run done at small scale 2026-08-07** (60 buildings, UTM 11N, 15.4 s end to end via
+`giscup solve-all --visibility-radius 400`). Two findings:
+
+1. **Overclaim** — see #12. `validate-output` rejected our own output.
+2. **Blank lines between blocks — confirmed intended, not a defect.** The output carries 27
+   content lines plus 8 blank separators. `.claude/skills/giscup-output-format/SKILL.md` line 17
+   specifies exactly this ("each **exactly three lines**, blocks separated by a blank line"), and
+   `format_solution_file` implements it. Noted here only because the residual risk is unverified:
+   the official page states three lines per subproblem without stating whether separators are
+   tolerated. If an official clarification ever addresses separators, this is the place to check.
+
+Verified good in the same run: `.17g` round-trips exactly (including
+`500000.1 → "500000.09999999998"`), exactly `k` points per block, every claimed ID present in the
+source, and every antenna on a boundary.
+
+### 12 — Claim decision must not use the optimizer's own samples
+
+Found 2026-08-07 running the nine-block CLI pipeline end to end at small scale (60 buildings at
+UTM 11N magnitudes). **`validate-output` rejected our own solution.**
+
+| tau | k | claimed | overclaims | worst gap |
+|---|---|---|---|---|
+| 0.75 | 5 | 28 | 1 | 0.0424 |
+
+1 of 489 claims across all nine blocks (0.20%). Every other block was clean.
+
+**Root cause.** `solve_one` optimizes on the `balanced` grid (10 m spacing) and then decides
+claims from those same samples. That is an *in-sample* estimate and is optimistically biased:
+greedy chose antennas specifically to light up those samples, so sampled coverage overstates true
+coverage for the selected set. Re-measuring on `accurate` (5 m) disagrees. The observed gap of
+0.0424 is nearly **10x** the current `claim_margin` of 0.005.
+
+Overclaims concentrate at **high tau and low k** — where coverage sits nearest the threshold and
+sampling error decides the outcome.
+
+**Options.**
+
+- (a) Decide claims on a denser, independent sampling than the one optimized on. Principled;
+  costs one extra coverage pass.
+- (b) Raise `claim_margin` to ~0.05. Crude — forfeits every building whose true coverage lies
+  between `tau` and `tau + margin`.
+- (c) Fold the claim decision into the un-culled verification pass of **#3**, which already
+  re-measures near-threshold buildings exactly. Probably the right home: one mechanism handles
+  both the cull's under-report and the sampling grid's over-report.
+
+Re-measure at full scale once the matrix lands — 0.20% on 60 buildings may behave very
+differently on 12,860.
 
 ### 9 — Prune the candidate pool  (blocked on #2)
 
@@ -170,21 +211,18 @@ Prevents a false capability claim at submission time.
 
 - `lazy-greedy`, `stochastic-greedy`, `hybrid` appear in configs and CLI help but only `greedy`
   exists (`solver.solve_one` correctly raises). Implement or remove the names.
+- **Recommend deleting the `negative_buffer` and `hybrid` *visibility* strategies.** Measured
+  2026-08-07: `relate` is the exact official predicate; `hybrid` is semantically identical to it
+  (0 disagreements over 1,200 full-scale pairs) but 1.16–1.40x slower, so it is pure waste.
+  `negative_buffer` is worse than waste — at EPSG:32611 magnitudes `buffer(-1e-9)` falls below
+  float64 relative precision and collapses footprints to empty, so it reported **every** pair
+  visible (56/400 disagreements at ≤200 m before the guard landed). It now raises rather than
+  over-claiming, but the option should not exist at all: `validate-output` accepts the same
+  `--visibility-strategy`, so solving and validating both on it would have produced a garbage
+  solution that validated clean — the exact ROGII "blind local validation" failure mode.
 - `scripts/compare_configs.py` and `scripts/profile_visibility.py` are placeholders — implement or
   delete. `optimization-experimenter` is currently told to flag rather than run them.
 - `configs/defaults.yaml` is not wired into the CLI at all.
-
-### 11 — Hole perimeter question
-
-`sampling.py` includes interior rings, so the coverage denominator uses `polygon.length` including
-hole perimeter — but `candidates.py` generates candidates only from `exterior_edges`. For the one
-hole-bearing polygon (id 9448) coverage is structurally **underestimated**. That is the safe
-direction and it is deliberate, but it costs a building if the official evaluator uses
-exterior-only perimeter.
-
-The official page says footprints have no holes while the sample contains one — the sources
-disagree. Check for an official clarification; absent one, keep the conservative behaviour and
-record the assumption explicitly in `docs/competition-reference.md`.
 
 ---
 
@@ -192,8 +230,11 @@ record the assumption explicitly in `docs/competition-reference.md`.
 
 | Date | Task | Evidence |
 |---|---|---|
+| 2026-08-07 | #11 — hole-perimeter question resolved against official rules | Official page re-checked: "the polygons will not self-intersect and will not have holes." Moot on official data (no interior rings ⇒ `polygon.length` == exterior perimeter). Defensive behaviour kept; assumption + bounded cost recorded in `docs/competition-reference.md`. |
+| 2026-08-07 | #7 — validation path scales | Uncommitted. `geometry.BoundaryIndex` replaces the linear boundary scan: **1,877x** faster, identical results on 300 full-scale probes (8.6 min → 0.3 s for k=1000 × 9). `validate.visible_sample_ids_from_points` is point-major with an early-out plus an optional `--validation-radius`: nine blocks in ~95 min measured *under full CPU contention*, against a naive 2.39e8 checks per block. 13 tests in `tests/test_validate_scaling.py` pin equivalence, subset-safety of the cull, and eps handling. |
 | 2026-08-06 | Migrate Codex layer to Claude Code | `be6d66b` — 18 tests pass, all paths resolve |
 | 2026-08-06 | Harden `.claude/settings.json` after security review | `6403ab6` — 3 findings fixed |
 | 2026-08-06 | Full-scale synthetic dataset generator | `ee51eef` — `scripts/make_synthetic_dataset.py`, within a few % of every documented statistic |
 | 2026-08-06 | Feasibility gate | `ee51eef` — `scripts/rehearse.py` + `/rehearsal`; found the viable route on day 1 of 9 |
 | 2026-08-06 | Encode ROGII lessons as rules and gates | `ee51eef` — `CLAUDE.md` posture section, agent rules, session memory |
+| 2026-08-07 | #1 — default visibility strategy → `relate`; hoist `buffer(-eps)` out of the hot loop | Uncommitted. 77 tests pass (was 18). `tests/test_visibility_strategy.py` pins the `relate` default at all 6 entry points + CLI, and 11 degeneracies × 3 strategies agree. Erosion memoized per-eps on `BlockerIndex`; strategy dispatch also hoisted out of the per-blocker loop. Measured speedup 1.16–1.40x, **not** the ~2.5x the board assumed. Found and guarded a silent over-claim bug in `negative_buffer` (see #10). |
