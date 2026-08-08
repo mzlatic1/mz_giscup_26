@@ -21,7 +21,6 @@ solution quality — but see #13 before trusting any threshold decision.
 |---|---|
 | 5 | Obtain the official sample dataset into `data/`; re-validate every measured claim |
 | 10 | Implement or remove unimplemented optimizer names and script placeholders |
-| 13 | **Compute coverage exactly (visible intervals) instead of by midpoint sampling** |
 
 ## Gated on feasibility
 
@@ -225,37 +224,44 @@ sampling error decides the outcome.
 Re-measure at full scale once the matrix lands — 0.20% on 60 buildings may behave very
 differently on 12,860.
 
-### 13 — Sampled coverage does not converge; compute it exactly
+### 13 — Exact interval coverage  (DONE 2026-08-08)
 
-Found 2026-08-07 while wiring #3. Same building, same antennas, varying only sampling density:
+**CORRECTION to the 2026-08-07 finding.** That entry claimed sampled coverage "does not
+converge". **That was wrong** — it was inferred from only four coarse densities. Sampling *does*
+converge; it just needs ~0.5 m spacing, far finer than anything in `PROFILES`:
 
-| building | fast (20 m) | balanced (10 m) | accurate (5 m) | final (2.5 m) |
-|---|---|---|---|---|
-| 27 | 0.7232 | 0.7232 | 0.7232 | **0.7627** |
-| 6 | 0.7768 | 0.7768 | **0.7076** | 0.7373 |
+| spacing | samples | bldg 27 | bldg 6 |
+|---|---|---|---|
+| 5.00 m (`accurate`) | 26 | 0.7232 | 0.7076 |
+| 2.50 m (`final`) | 48 | 0.7693 | 0.7373 |
+| 0.50 m | 224 | 0.7528 | 0.7361 |
+| 0.02 m | 5,516 | 0.7538 | 0.7368 |
+| **exact** | — | **0.7537** | **0.7368** |
 
-The estimates **oscillate by up to 0.07** instead of converging. `sample_building_boundary` takes
-segment midpoints and assigns the whole segment weight to that single verdict, so refining the
-grid moves samples across visibility boundaries and the estimate jumps.
+The real defect is that the profiles we actually use carry errors up to **0.03**, moving
+non-monotonically, which misclassifies any building within ~0.03 of `tau`. That is smaller than
+the 0.07 originally claimed, but still larger than any usable `claim_margin`.
 
-**Consequence: any building within ~0.05 of `tau` is unclassifiable by sampling at any density we
-can afford.** That is larger than any usable `claim_margin`. It is why the verification pass
-(`final`) and `validate-output` (`accurate`) disagreed about building 27 — neither is truth.
+**Exact coverage is both correct and cheaper** than the sampling density needed to match it:
+6.2 ms for two buildings versus 5,516 samples.
 
-The official rules define coverage **continuously**: "the ratio of the length of visible segments
-on the boundary to the total perimeter", a segment being visible when every point along it is
-visible from some antenna. Sampling is this codebase's approximation, not the specification.
+**How it works** (`src/giscup/exact_coverage.py`). Visibility along an edge from a fixed point is
+piecewise constant, and its breakpoints are exactly where the sight line grazes a blocker vertex.
+So: cast rays from the antenna through every nearby blocker vertex, record where they cross the
+edge, and those parameters partition [0,1] into intervals of constant visibility. Test one
+interior point per interval with the official predicate, union across antennas, sum lengths. No
+grid, no tunable density.
 
-**Correct fix.** For each boundary edge and antenna, compute the visible sub-interval(s)
-analytically — the shadow boundaries blocking polygons cast onto that edge — union the intervals
-per edge across antennas, and sum lengths. Exact, grid-free, no threshold instability. Cost
-becomes per (edge, antenna, blocker) instead of per (sample, antenna); the radius cull and the
-matrix still apply. Likely subsumes #12 and much of #3's motivation.
+**Bug found and fixed during implementation** — same family as the `negative_buffer` failure.
+`np.allclose(p0, p1)` defaults to a **relative** tolerance of 1e-5. At UTM 11N northings (~3.7e6)
+a 16 m vertical edge differs by only 4.5e-6 relatively, so the degeneracy check declared real
+edges zero-length and returned no intervals. Only *vertical* edges broke, because eastings (~5e5)
+are an order of magnitude smaller. Unit-square tests at coordinates near 1 could never expose it;
+`tests/test_exact_coverage.py` now carries UTM-magnitude regression and brute-force cross-checks.
 
-**Interim posture (in effect now).** `solve_one`'s `verify_profile` defaults to `accurate`, the
-same profile `validate-output` uses, so the claim decision and the validator agree. Local
-validation now passes. **That is alignment, not correctness** — do not read a green
-`validate-output` as evidence the claims are true.
+**Scope (Marko's call):** exact coverage backs the **claim decision and validation**. Greedy keeps
+the fast sampled matrix — it is a search heuristic, not the scored quantity, and putting exact
+coverage in its inner loop would risk the 6.3x feasibility headroom.
 
 ### 9 — Prune the candidate pool  (blocked on #2)
 
@@ -292,6 +298,7 @@ Prevents a false capability claim at submission time.
 
 | Date | Task | Evidence |
 |---|---|---|
+| 2026-08-08 | #13 — exact interval coverage | `src/giscup/exact_coverage.py` + 15 tests. Agrees with converged brute force to 4 dp (0.7537 vs 0.7538) at 6.2 ms for two buildings. Corrected the 2026-08-07 "does not converge" claim — it does converge, at ~0.5 m. Fixed a relative-tolerance bug that silently voided vertical edges at UTM magnitudes. |
 | 2026-08-07 | #2 — radius-culled cached visibility matrix | `d7b9f6d` + build. 2.77 GB, 9,844,991 visible pairs, 110.8 min on 8 cores, key `18912a76…`. Reused across all nine subproblems. |
 | 2026-08-07 | #4 — feasibility gate reads PASS | **MEASURED**, not projected: 3.18 h for nine subproblems vs a 20 h budget, 6.3x headroom. Was FAIL by ~5e8x at session start. |
 | 2026-08-07 | #3 — un-culled verification pass | Uncommitted. `src/giscup/verify.py` + 19 tests. Policy (Marko): band **relative** to tau, **two-sided**, closest-to-tau first under a cap. Recovers what the cull forfeited, drops what the grid inflated. Wired into `solve_one` via `--verify-band` / `--verify-max-buildings`, opt-in. **Radius calibration half still outstanding** — needs the full-scale matrix. |

@@ -9,6 +9,7 @@ import numpy as np
 from scipy.spatial import cKDTree
 
 from giscup.coverage import coverage_by_building
+from giscup.exact_coverage import exact_coverage_by_building
 from giscup.geometry import BoundaryIndex
 from giscup.io import load_buildings
 from giscup.output import parse_points
@@ -32,6 +33,7 @@ def validate_solution_file(
     claim_margin: float = 0.0,
     validate_claim_coverage: bool = True,
     validation_radius: float | None = None,
+    exact_claims: bool = True,
 ) -> ValidationResult:
     """Validate official formatting, boundary legality, IDs, and sampled claims.
 
@@ -91,10 +93,19 @@ def validate_solution_file(
         if missing:
             errors.append(f"Claimed IDs not present in dataset: {missing[:10]}")
         if validate_claim_coverage and claims and blocker_index is not None:
-            visible_ids = visible_sample_ids_from_points(
-                points, samples, blocker_index, visibility_strategy, radius=validation_radius
-            )
-            coverage = coverage_by_building(visible_ids, samples, buildings)
+            if exact_claims:
+                # Exact interval coverage for the claimed buildings only (task #13).
+                # Cost scales with the claim list, not the dataset.
+                claim_ids = {_coerce_claim_id(c) for c in claims}
+                coverage = exact_coverage_by_building(
+                    list(claim_ids), points, buildings, blocker_index,
+                    strategy=visibility_strategy,
+                )
+            else:
+                visible_ids = visible_sample_ids_from_points(
+                    points, samples, blocker_index, visibility_strategy, radius=validation_radius
+                )
+                coverage = coverage_by_building(visible_ids, samples, buildings)
             failed_claims = []
             for claimed_id in claims:
                 ratio = coverage.get(_coerce_claim_id(claimed_id), coverage.get(claimed_id, 0.0))

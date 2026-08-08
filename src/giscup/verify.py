@@ -44,6 +44,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 
 from giscup.models import BoundarySample, Building, PointLike
+from giscup.exact_coverage import exact_coverage_by_building
 from giscup.sampling import SamplingProfile, sample_building_boundary
 from giscup.visibility import BlockerIndex, is_visible
 
@@ -194,6 +195,7 @@ def verify_and_recover(
     claim_margin: float = 0.0,
     strategy: str = "relate",
     verify_profile: SamplingProfile | None = None,
+    use_exact: bool = True,
 ) -> tuple[list[int | str], VerificationReport]:
     """Re-measure buildings near `tau` exactly, then recover and drop accordingly.
 
@@ -208,13 +210,21 @@ def verify_and_recover(
     if not targets:
         return list(claimed), report
 
-    # Re-sample independently when asked. Without this the pass removes only the
-    # cull's under-report; the grid's over-report (task #12) survives untouched,
-    # because measuring against the optimizer's own samples is circular.
-    measure_on = dense_samples_for(buildings, targets, verify_profile) if verify_profile else samples
-    exact, checks = exact_coverage_for(
-        targets, antenna_points, measure_on, buildings, blocker_index, strategy=strategy
-    )
+    # Measure EXACTLY (task #13). Sampling only converges at ~0.5 m spacing, far
+    # finer than any profile in use, so a sampled re-measurement would just trade one
+    # grid's bias for another's. Interval coverage has no grid at all.
+    if use_exact:
+        exact = exact_coverage_by_building(
+            targets, antenna_points, buildings, blocker_index, strategy=strategy
+        )
+        checks = 0
+    else:
+        measure_on = (
+            dense_samples_for(buildings, targets, verify_profile) if verify_profile else samples
+        )
+        exact, checks = exact_coverage_for(
+            targets, antenna_points, measure_on, buildings, blocker_index, strategy=strategy
+        )
     report.checks_performed = checks
     report.coverage_before = {bid: coverage.get(bid, 0.0) for bid in exact}
     report.coverage_after = dict(exact)
