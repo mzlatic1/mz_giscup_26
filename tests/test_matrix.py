@@ -167,7 +167,7 @@ def test_cache_is_reused_for_identical_inputs(scene, tmp_path):
     ("kwargs_a", "kwargs_b"),
     [
         ({"radius": 45.0}, {"radius": 30.0}),
-        ({"radius": 45.0, "strategy": "relate"}, {"radius": 45.0, "strategy": "hybrid"}),
+        ({"radius": 45.0, "eps": 1e-9}, {"radius": 45.0, "eps": 1e-6}),
     ],
 )
 def test_cache_key_separates_incompatible_configurations(scene, tmp_path, kwargs_a, kwargs_b):

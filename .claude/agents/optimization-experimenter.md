@@ -66,12 +66,13 @@ config silently fall back to plain greedy — unimplemented modes raise by desig
 Validation must not overclaim: near-threshold buildings need a denser sampling profile and a
 conservative claim margin before being counted as serviced.
 
-Working tools: `scripts/compare_configs.py` and `scripts/profile_visibility.py` are currently
+Working tools: `scripts/rehearse.py` (feasibility gate, `--measured-radius` for an observed
+verdict) and `scripts/build_matrix.py`. The former placeholders were deleted 2026-08-08; they were
 placeholders — flag this rather than reporting output from them.
 
 Reference detail: `docs/reference/development-workflow.md`,
 `docs/reference/geometry-and-scoring-rules.md`, `docs/reference/research-synthesis.md`,
-`configs/experiments.example.yaml`.
+`configs/experiments.example.yaml` (illustrative only; not read by the CLI).
 
 ## Required final iterative QA/QC
 

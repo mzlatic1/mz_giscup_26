@@ -1,12 +1,16 @@
-"""Strategy-equivalence and default-contract tests for visibility predicates.
+"""Predicate-correctness and default-contract tests for visibility.
 
-Task board #1. Two things are pinned here:
+`relate_pattern(poly, "T********")` is exactly the official predicate: interior of the
+segment meeting interior of the polygon. Since task #10 it is the *only* strategy --
+`negative_buffer` and `hybrid` were removed 2026-08-08.
 
-1. `relate` is the default everywhere, so the ~2.5x-slower `hybrid` cannot creep back
-   in silently. `relate_pattern(poly, "T********")` is exactly the official predicate --
-   interior-of-line meets interior-of-polygon.
-2. All three strategies agree on the official degeneracy set, so switching the default
-   cannot change a single visibility answer.
+Pinned here:
+
+1. The predicate returns the official answer on every degeneracy, including two
+   non-convex self-blocking cases a square cannot express.
+2. Visibility is symmetric, which the visibility matrix relies on.
+3. `relate` is the default at every entry point and on the CLI, so a slower or
+   unsafe alternative cannot creep back in silently.
 """
 
 from __future__ import annotations
@@ -20,7 +24,7 @@ from giscup import cli, coverage, optimize, solver, validate, visibility
 from giscup.geometry import make_building
 from giscup.visibility import BlockerIndex, is_visible
 
-STRATEGIES = ("relate", "negative_buffer", "hybrid")
+STRATEGIES = ("relate",)
 
 UNIT_SQUARE = Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])
 
@@ -55,8 +59,8 @@ def _index(polygon: Polygon) -> BlockerIndex:
     ("name", "polygon", "a", "b", "expected"),
     [pytest.param(*case, id=case[0]) for case in DEGENERACIES],
 )
-def test_strategies_agree_on_official_degeneracies(name, polygon, a, b, expected, strategy):
-    """Every strategy must return the official answer on every degeneracy."""
+def test_predicate_returns_the_official_answer_on_degeneracies(name, polygon, a, b, expected, strategy):
+    """The predicate must return the official answer on every degeneracy."""
     assert is_visible(a, b, _index(polygon), strategy=strategy) is expected
 
 
@@ -110,63 +114,3 @@ def test_pipeline_entry_points_default_to_relate(func, param):
 def test_cli_defaults_to_relate(argv, extra):
     args = cli.build_parser().parse_args(argv + extra)
     assert args.visibility_strategy == "relate"
-
-
-# --- erosion hoisting -------------------------------------------------------
-
-
-def test_eroded_polygons_are_memoized_per_epsilon():
-    """`buffer(-eps)` must be computed once per building, not once per predicate call."""
-    index = _index(UNIT_SQUARE)
-    first = index.eroded_polygons(1e-9)
-    second = index.eroded_polygons(1e-9)
-    assert first is second, "eroded geometry must be cached, not rebuilt per call"
-
-
-def test_eroded_polygons_align_with_buildings():
-    buildings = [make_building(1, UNIT_SQUARE), make_building(2, L_SHAPE)]
-    index = BlockerIndex.from_buildings(buildings)
-    eroded = index.eroded_polygons(1e-9)
-    assert len(eroded) == len(buildings)
-    for original, shrunk in zip(buildings, eroded, strict=True):
-        assert shrunk.area < original.polygon.area
-
-
-def test_distinct_epsilons_get_distinct_caches():
-    index = _index(UNIT_SQUARE)
-    assert index.eroded_polygons(1e-9) is not index.eroded_polygons(1e-3)
-    assert index.eroded_polygons(1e-3)[0].area < index.eroded_polygons(1e-9)[0].area
-
-
-# --- numerical safety of the erosion strategies -----------------------------
-
-# UTM 11N magnitudes, matching the real dataset's CRS (EPSG:32611). At these
-# coordinates buffer(-1e-9) is below float64 relative precision and collapses
-# the polygon to empty, which would make `negative_buffer` report everything
-# visible. It must fail loudly instead of silently over-claiming.
-UTM_X, UTM_Y = 500_000.0, 3_700_000.0
-UTM_BUILDING = Polygon(
-    [(UTM_X, UTM_Y), (UTM_X + 20, UTM_Y), (UTM_X + 20, UTM_Y + 20), (UTM_X, UTM_Y + 20)]
-)
-
-
-def test_degenerate_erosion_raises_instead_of_reporting_everything_visible():
-    index = _index(UTM_BUILDING)
-    a, b = (UTM_X - 5, UTM_Y + 10), (UTM_X + 25, UTM_Y + 10)  # straight through the interior
-    with pytest.raises(ValueError, match="eroded to empty"):
-        is_visible(a, b, index, strategy="negative_buffer", eps=1e-9)
-
-
-def test_relate_is_unaffected_by_coordinate_magnitude():
-    """The official predicate must block an interior crossing at any CRS magnitude."""
-    index = _index(UTM_BUILDING)
-    a, b = (UTM_X - 5, UTM_Y + 10), (UTM_X + 25, UTM_Y + 10)
-    assert is_visible(a, b, index, strategy="relate") is False
-    assert is_visible(a, b, index, strategy="hybrid") is False
-
-
-def test_erosion_with_a_workable_epsilon_still_succeeds():
-    """A well-scaled eps must keep working -- the guard targets degeneracy, not erosion."""
-    index = _index(UTM_BUILDING)
-    a, b = (UTM_X - 5, UTM_Y + 10), (UTM_X + 25, UTM_Y + 10)
-    assert is_visible(a, b, index, strategy="negative_buffer", eps=1e-4) is False

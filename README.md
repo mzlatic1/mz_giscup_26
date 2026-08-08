@@ -52,7 +52,6 @@ mz_giscup_26/
     skills/
       giscup-output-format/    # Non-negotiable submission-format rules
   configs/
-    defaults.yaml              # Default solver, sampling, and validation parameters
     experiments.example.yaml   # Example multi-start/tuning experiment grid
   data/
     README.md                  # Dataset placement and provenance instructions
@@ -78,8 +77,6 @@ mz_giscup_26/
     cache/.gitkeep             # Visibility/cache outputs; ignored by Git
   scripts/
     run_sample.py
-    profile_visibility.py
-    compare_configs.py
   src/giscup/
     __init__.py
     bitsets.py                 # Integer bitset abstraction
@@ -700,8 +697,6 @@ giscup2026/
       cli.py
   scripts/
     run_sample.py
-    profile_visibility.py
-    compare_configs.py
   data/
     GIS-cup-sample-dataset.geojson
   outputs/

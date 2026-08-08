@@ -12,6 +12,8 @@ src/giscup/
   visibility.py   # STRtree blocker index and LOS predicates
   coverage.py     # sampled coverage and serviced-building checks
   bitsets.py      # integer bitset abstraction (superseded by matrix.py; unused)
+  exact_coverage.py # grid-free visible-interval coverage for claims/validation
+  verify.py       # two-sided near-threshold re-verification
   matrix.py       # radius-culled cached visibility matrix (dense bitset, memmap, parallel)
   optimize.py     # greedy selection: predicate-based and matrix-backed
   solver.py       # solve-one orchestration
@@ -120,17 +122,17 @@ Do not imply `lazy-greedy`, `stochastic-greedy`, or `hybrid` are implemented unt
 
 - Greedy objective is still raw newly visible sample count, not serviced-building count (task #6).
 - Candidate pruning modes only add candidates; they prune nothing (task #9).
-- Config loading is not wired into CLI.
-- `scripts/profile_visibility.py` and `scripts/compare_configs.py` are placeholders.
 - Continuous coverage is approximated by weighted samples; final validation should be denser and conservative.
-- `negative_buffer` / `hybrid` visibility strategies are redundant or unsafe and should be removed
-  (task #10). `relate` is the exact official predicate and is the default everywhere.
 - The cull radius is a heuristic: it discards genuinely visible pairs beyond the radius and loses
   score with no feedback. The un-culled verification pass (task #3) is not built yet.
 
 ## Resolved since 2026-08-07
 
 - Visibility precomputation/cache: **implemented** (`matrix.py`, task #2).
+- Exact interval coverage backs claims and validation (`exact_coverage.py`, task #13).
+- Dead names removed (task #10): `negative_buffer`/`hybrid` strategies, the unimplemented
+  optimizer names, `scripts/compare_configs.py`, `scripts/profile_visibility.py`,
+  `configs/defaults.yaml`. `relate` is now the only visibility strategy.
 - Bitset acceleration in the optimizer: **implemented** (`optimize.greedy_select_matrix`).
 - Validation scaling: **implemented** (`geometry.BoundaryIndex`, `validate.visible_sample_ids_from_points`).
 

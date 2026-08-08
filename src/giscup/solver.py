@@ -51,10 +51,7 @@ def solve_one(
     if max_candidates is not None and max_candidates < k:
         raise ValueError(f"max_candidates ({max_candidates}) must be at least k ({k})")
     if optimizer != "greedy":
-        raise ValueError(
-            f"optimizer {optimizer!r} is not implemented in the current scaffold; "
-            "use 'greedy' until lazy/stochastic/hybrid optimizers are implemented"
-        )
+        raise ValueError(f"optimizer must be 'greedy'; got {optimizer!r}")
 
     start = perf_counter()
     buildings, info = load_buildings(input_path)
@@ -118,6 +115,7 @@ def solve_one(
             claim_margin=claim_margin,
             strategy=visibility_strategy,
             verify_profile=get_profile(verify_profile),
+            exact_radius=visibility_radius,
         )
         verification_info = {
             "band": verify_band,

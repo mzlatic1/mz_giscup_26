@@ -56,12 +56,10 @@ Known scaffold limitations:
 
 - **The solver cannot finish a single subproblem at full scale.** Feasibility gate reads FAIL by
   ~5e8x as of 2026-08-06. This outranks every other limitation below.
-- Only `greedy` is implemented. Lazy/stochastic/hybrid correctly raise; never describe them as working.
+- Only `greedy` is implemented; other optimizer names were removed 2026-08-08 (#10).
 - Greedy objective is raw newly-visible-sample count, not the scored serviced-building count.
 - Visibility is recomputed per greedy iteration with no caching and no distance cull.
 - Candidate "pruning" modes only add candidates; they prune nothing.
-- `configs/defaults.yaml` is not wired into the CLI.
-- `scripts/compare_configs.py` and `scripts/profile_visibility.py` are placeholders.
 
 ## Current validation status
 

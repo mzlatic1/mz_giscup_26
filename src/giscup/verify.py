@@ -196,6 +196,7 @@ def verify_and_recover(
     strategy: str = "relate",
     verify_profile: SamplingProfile | None = None,
     use_exact: bool = True,
+    exact_radius: float | None = None,
 ) -> tuple[list[int | str], VerificationReport]:
     """Re-measure buildings near `tau` exactly, then recover and drop accordingly.
 
@@ -214,8 +215,13 @@ def verify_and_recover(
     # finer than any profile in use, so a sampled re-measurement would just trade one
     # grid's bias for another's. Interval coverage has no grid at all.
     if use_exact:
+        # `exact_radius` is a pure optimisation over an exact computation: an antenna
+        # further than this from an edge cannot see it in practice, and skipping it
+        # avoids building a domain-spanning triangle whose STRtree query would return
+        # thousands of blockers and thousands of breakpoints per edge.
         exact = exact_coverage_by_building(
-            targets, antenna_points, buildings, blocker_index, strategy=strategy
+            targets, antenna_points, buildings, blocker_index,
+            strategy=strategy, radius=exact_radius,
         )
         checks = 0
     else:

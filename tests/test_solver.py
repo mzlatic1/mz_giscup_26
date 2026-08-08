@@ -17,7 +17,7 @@ def test_solver_rejects_unimplemented_optimizer(tmp_path):
     dataset_path = tmp_path / "buildings.geojson"
     dataset_path.write_text(json.dumps(_two_square_dataset()), encoding="utf-8")
 
-    with pytest.raises(ValueError, match="not implemented"):
+    with pytest.raises(ValueError, match="must be 'greedy'"):
         solve_one(str(dataset_path), tau=0.25, k=1, optimizer="lazy-greedy")
 
 

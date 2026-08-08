@@ -20,7 +20,6 @@ solution quality — but see #13 before trusting any threshold decision.
 | # | Task |
 |---|---|
 | 5 | Obtain the official sample dataset into `data/`; re-validate every measured claim |
-| 10 | Implement or remove unimplemented optimizer names and script placeholders |
 
 ## Gated on feasibility
 
@@ -273,6 +272,88 @@ Implement genuine pruning behind the existing mode names (`density`, `visibility
 which makes the names misleading. Prefer spatial diversity and high-visibility positions. Measure
 the quality cost of each prune level against runtime saved; stop before quality degrades measurably.
 
+### 12 — Claim decision must not use the optimizer's own samples
+
+Found 2026-08-07 running the nine-block CLI pipeline end to end at small scale (60 buildings at
+UTM 11N magnitudes). **`validate-output` rejected our own solution.**
+
+| tau | k | claimed | overclaims | worst gap |
+|---|---|---|---|---|
+| 0.75 | 5 | 28 | 1 | 0.0424 |
+
+1 of 489 claims across all nine blocks (0.20%). Every other block was clean.
+
+**Root cause.** `solve_one` optimizes on the `balanced` grid (10 m spacing) and then decides
+claims from those same samples. That is an *in-sample* estimate and is optimistically biased:
+greedy chose antennas specifically to light up those samples, so sampled coverage overstates true
+coverage for the selected set. Re-measuring on `accurate` (5 m) disagrees. The observed gap of
+0.0424 is nearly **10x** the current `claim_margin` of 0.005.
+
+Overclaims concentrate at **high tau and low k** — where coverage sits nearest the threshold and
+sampling error decides the outcome.
+
+**Options.**
+
+- (a) Decide claims on a denser, independent sampling than the one optimized on. Principled;
+  costs one extra coverage pass.
+- (b) Raise `claim_margin` to ~0.05. Crude — forfeits every building whose true coverage lies
+  between `tau` and `tau + margin`.
+- (c) Fold the claim decision into the un-culled verification pass of **#3**, which already
+  re-measures near-threshold buildings exactly. Probably the right home: one mechanism handles
+  both the cull's under-report and the sampling grid's over-report.
+
+Re-measure at full scale once the matrix lands — 0.20% on 60 buildings may behave very
+differently on 12,860.
+
+### 13 — Exact interval coverage  (DONE 2026-08-08)
+
+**CORRECTION to the 2026-08-07 finding.** That entry claimed sampled coverage "does not
+converge". **That was wrong** — it was inferred from only four coarse densities. Sampling *does*
+converge; it just needs ~0.5 m spacing, far finer than anything in `PROFILES`:
+
+| spacing | samples | bldg 27 | bldg 6 |
+|---|---|---|---|
+| 5.00 m (`accurate`) | 26 | 0.7232 | 0.7076 |
+| 2.50 m (`final`) | 48 | 0.7693 | 0.7373 |
+| 0.50 m | 224 | 0.7528 | 0.7361 |
+| 0.02 m | 5,516 | 0.7538 | 0.7368 |
+| **exact** | — | **0.7537** | **0.7368** |
+
+The real defect is that the profiles we actually use carry errors up to **0.03**, moving
+non-monotonically, which misclassifies any building within ~0.03 of `tau`. That is smaller than
+the 0.07 originally claimed, but still larger than any usable `claim_margin`.
+
+**Exact coverage is both correct and cheaper** than the sampling density needed to match it:
+6.2 ms for two buildings versus 5,516 samples.
+
+**How it works** (`src/giscup/exact_coverage.py`). Visibility along an edge from a fixed point is
+piecewise constant, and its breakpoints are exactly where the sight line grazes a blocker vertex.
+So: cast rays from the antenna through every nearby blocker vertex, record where they cross the
+edge, and those parameters partition [0,1] into intervals of constant visibility. Test one
+interior point per interval with the official predicate, union across antennas, sum lengths. No
+grid, no tunable density.
+
+**Bug found and fixed during implementation** — same family as the `negative_buffer` failure.
+`np.allclose(p0, p1)` defaults to a **relative** tolerance of 1e-5. At UTM 11N northings (~3.7e6)
+a 16 m vertical edge differs by only 4.5e-6 relatively, so the degeneracy check declared real
+edges zero-length and returned no intervals. Only *vertical* edges broke, because eastings (~5e5)
+are an order of magnitude smaller. Unit-square tests at coordinates near 1 could never expose it;
+`tests/test_exact_coverage.py` now carries UTM-magnitude regression and brute-force cross-checks.
+
+**Scope (Marko's call):** exact coverage backs the **claim decision and validation**. Greedy keeps
+the fast sampled matrix — it is a search heuristic, not the scored quantity, and putting exact
+coverage in its inner loop would risk the 6.3x feasibility headroom.
+
+### 9 — Prune the candidate pool  (blocked on #2)
+
+160,198 candidates to choose at most 1,000 from is heavy overkill, and matrix cost is linear in
+candidate count — an 8x prune is an 8x saving on the dominant cost.
+
+Implement genuine pruning behind the existing mode names (`density`, `visibility_probe`,
+`hybrid`). Today those modes only add **more** candidates via `edge_sample` and prune nothing,
+which makes the names misleading. Prefer spatial diversity and high-visibility positions. Measure
+the quality cost of each prune level against runtime saved; stop before quality degrades measurably.
+
 ### 10 — Unimplemented names and placeholders
 
 Prevents a false capability claim at submission time.
@@ -298,6 +379,7 @@ Prevents a false capability claim at submission time.
 
 | Date | Task | Evidence |
 |---|---|---|
+| 2026-08-08 | #10 — dead names removed | Deleted the `negative_buffer` and `hybrid` visibility strategies (one predicate remains, the official one), the unimplemented optimizer names, `scripts/compare_configs.py`, `scripts/profile_visibility.py`, and `configs/defaults.yaml`. 122 tests pass. `MatrixSpec.eps` deliberately retained — dropping it would have changed the cache key and thrown away the 110-minute matrix build. |
 | 2026-08-08 | #13 — exact interval coverage | `src/giscup/exact_coverage.py` + 15 tests. Agrees with converged brute force to 4 dp (0.7537 vs 0.7538) at 6.2 ms for two buildings. Corrected the 2026-08-07 "does not converge" claim — it does converge, at ~0.5 m. Fixed a relative-tolerance bug that silently voided vertical edges at UTM magnitudes. |
 | 2026-08-07 | #2 — radius-culled cached visibility matrix | `d7b9f6d` + build. 2.77 GB, 9,844,991 visible pairs, 110.8 min on 8 cores, key `18912a76…`. Reused across all nine subproblems. |
 | 2026-08-07 | #4 — feasibility gate reads PASS | **MEASURED**, not projected: 3.18 h for nine subproblems vs a 20 h budget, 6.3x headroom. Was FAIL by ~5e8x at session start. |

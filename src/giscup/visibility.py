@@ -1,8 +1,30 @@
-"""Line-of-sight visibility predicates and spatial blocker index."""
+"""Line-of-sight visibility predicate and spatial blocker index.
+
+There is exactly one predicate, and it is the official one:
+`line.relate_pattern(polygon, "T********")` asks whether the interior of the segment
+meets the interior of the polygon, which is precisely the GIS Cup blocking rule.
+Boundary-only contact, tangency, and vertex touches do not block.
+
+Two alternative strategies (`negative_buffer`, `hybrid`) were removed on 2026-08-08
+(task board #10):
+
+- `hybrid` was measured identical to `relate` across 1,200 full-scale pairs and the
+  whole degeneracy set, but ran 1.16-1.40x slower. Pure waste.
+- `negative_buffer` was actively dangerous. It eroded footprints by `eps` and tested
+  intersection with the result, but at EPSG:32611 magnitudes (~5e5, 3.7e6) an `eps`
+  of 1e-9 sits below float64 relative precision, so `buffer(-eps)` collapsed whole
+  buildings to empty. Empty geometry blocks nothing, so it reported *every* pair as
+  visible -- 56/400 disagreements with `relate` on real-magnitude data. Because
+  `validate-output` accepted the same strategy flag, solving and validating on it
+  would have produced a garbage solution that validated clean.
+
+Keeping one correct predicate removes the choice, and with it the chance of choosing
+wrong on the single submission.
+"""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from numbers import Integral
 
 from shapely.geometry import LineString
@@ -11,29 +33,21 @@ from shapely.strtree import STRtree
 
 from giscup.models import Building, PointLike
 
-STRATEGIES = ("relate", "negative_buffer", "hybrid")
+STRATEGIES = ("relate",)
 
 
 @dataclass(slots=True)
 class BlockerIndex:
-    """STRtree wrapper for building footprint blocker queries.
-
-    Also owns the per-epsilon eroded-geometry cache. Erosion is a function of
-    (building, eps) only, so it is computed once per index rather than once per
-    predicate call -- `buffer(-eps)` inside the visibility loop was previously
-    the dominant cost of the `negative_buffer` and `hybrid` strategies.
-    """
+    """STRtree wrapper for building footprint blocker queries."""
 
     buildings: list[Building]
     tree: STRtree
-    _eroded: dict[float, list[BaseGeometry]] = field(default_factory=dict, repr=False)
-    _degenerate: dict[float, str | None] = field(default_factory=dict, repr=False)
 
     @classmethod
     def from_buildings(cls, buildings: list[Building]) -> "BlockerIndex":
         return cls(buildings=buildings, tree=STRtree([b.polygon for b in buildings]))
 
-    def query_indices(self, line: LineString) -> list[int]:
+    def query_indices(self, line: BaseGeometry) -> list[int]:
         """Return positional indices of buildings whose bbox intersects `line`."""
         hits = self.tree.query(line)
         out: list[int] = []
@@ -48,57 +62,13 @@ class BlockerIndex:
                         break
         return out
 
-    def query(self, line: LineString) -> list[Building]:
+    def query(self, line: BaseGeometry) -> list[Building]:
         return [self.buildings[i] for i in self.query_indices(line)]
 
-    def eroded_polygons(self, eps: float, strict: bool = True) -> list[BaseGeometry]:
-        """Return buildings eroded by `eps`, aligned with `self.buildings`.
 
-        Memoized per `eps`; the returned list must not be mutated by callers.
-
-        With `strict` (the default), raises if erosion degenerated. At projected-CRS
-        magnitudes (EPSG:32611 is ~5e5, 3.7e6) an `eps` of 1e-9 is below float64
-        relative precision, and `buffer(-eps)` collapses whole buildings to empty.
-        An empty eroded polygon blocks nothing, so `negative_buffer` would silently
-        report every pair as visible and over-claim every building.
-
-        `hybrid` passes `strict=False`: it ORs with `relate`, which stays correct at
-        any magnitude, so degenerate erosion costs it work but never an answer.
-        """
-        cached = self._eroded.get(eps)
-        if cached is None:
-            cached = [b.polygon.buffer(-eps) for b in self.buildings]
-            self._eroded[eps] = cached
-            self._degenerate[eps] = self._degeneracy_reason(eps, cached)
-        if strict:
-            reason = self._degenerate[eps]
-            if reason is not None:
-                raise ValueError(reason)
-        return cached
-
-    def _degeneracy_reason(self, eps: float, eroded: list[BaseGeometry]) -> str | None:
-        """Report the first footprint that vanished under erosion but should not have."""
-        # A footprint far larger than eps^2 cannot legitimately vanish under
-        # erosion by eps; if it did, the buffer lost all precision.
-        floor = (4.0 * eps) ** 2
-        for building, shrunk in zip(self.buildings, eroded, strict=True):
-            if shrunk.is_empty and building.area > floor:
-                return (
-                    f"building {building.id!r} (area {building.area:.6g}) eroded to empty at "
-                    f"eps={eps:g}: buffer(-eps) lost all precision at these coordinate "
-                    f"magnitudes, which would report every pair as visible. "
-                    f"Use strategy='relate' (the exact official predicate) or a larger eps."
-                )
-        return None
-
-
-def _blocked_relate(line: LineString, polygon: BaseGeometry) -> bool:
+def _blocked(line: LineString, polygon: BaseGeometry) -> bool:
     """Official predicate: interior of the segment meets interior of the polygon."""
-    return bool(line.crosses(polygon) or line.within(polygon) or line.relate_pattern(polygon, "T********"))
-
-
-def _blocked_eroded(line: LineString, eroded: BaseGeometry) -> bool:
-    return (not eroded.is_empty) and bool(line.intersects(eroded))
+    return bool(line.relate_pattern(polygon, "T********"))
 
 
 def is_visible(
@@ -110,31 +80,24 @@ def is_visible(
 ) -> bool:
     """Return whether `a` and `b` have line of sight under GIS Cup rules.
 
-    Boundary-only contact is not blocking; intersection with any building interior is blocking.
+    Boundary-only contact is not blocking; intersection with any building interior is
+    blocking.
 
-    `relate` is the default: `relate_pattern(poly, "T********")` is exactly the official
-    predicate, and it agrees with the other strategies across the full degeneracy set
-    (see `tests/test_visibility_strategy.py`) while being materially faster.
+    `strategy` accepts only `"relate"`. It is retained as a parameter so that callers
+    and the visibility-matrix cache key keep a stable shape.
+
+    `eps` is accepted and **ignored**. It only ever fed the removed erosion strategies.
+    It is kept because `matrix.MatrixSpec` records it in the cache key, and dropping it
+    would invalidate every matrix already built -- 110 minutes of work at full scale for
+    no behavioural gain.
     """
     if strategy not in STRATEGIES:
-        raise ValueError(f"strategy must be one of: {', '.join(STRATEGIES)}")
+        raise ValueError(
+            f"strategy must be one of: {', '.join(STRATEGIES)}; got {strategy!r}. "
+            "negative_buffer and hybrid were removed 2026-08-08 -- see task board #10."
+        )
     if a == b:
         return True
     line = LineString([a, b])
-    indices = blocker_index.query_indices(line)
-    if not indices:
-        return True
-
-    if strategy == "relate":
-        polygons = blocker_index.buildings
-        return not any(_blocked_relate(line, polygons[i].polygon) for i in indices)
-
-    if strategy == "negative_buffer":
-        eroded = blocker_index.eroded_polygons(eps)
-        return not any(_blocked_eroded(line, eroded[i]) for i in indices)
-
-    eroded = blocker_index.eroded_polygons(eps, strict=False)
     buildings = blocker_index.buildings
-    return not any(
-        _blocked_eroded(line, eroded[i]) or _blocked_relate(line, buildings[i].polygon) for i in indices
-    )
+    return not any(_blocked(line, buildings[i].polygon) for i in blocker_index.query_indices(line))
