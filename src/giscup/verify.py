@@ -101,17 +101,27 @@ class VerificationReport:
         )
 
 
+# Sampled coverage carries about +/-0.03 error at the profiles in use (`accurate` 5 m,
+# `final` 2.5 m). A purely relative band collapses below that at low tau -- at
+# tau=0.25 a 10% band is only +/-0.025 -- so the window would be narrower than the
+# error it exists to catch and low-tau overclaims would escape re-verification.
+BAND_FLOOR = 0.05
+
+
 def select_buildings_to_reverify(
     coverage: dict[int | str, float],
     tau: float,
     band: float = 0.10,
     max_buildings: int | None = None,
+    band_floor: float = BAND_FLOOR,
 ) -> list[int | str]:
     """Choose which buildings get the expensive un-culled re-check.
 
-    The window is two-sided and relative to `tau`:
+    The window is two-sided and relative to `tau`, but never narrower than
+    `band_floor` in absolute terms:
 
-        [tau * (1 - band), tau * (1 + band))
+        half_width = max(tau * band, band_floor)
+        [tau - half_width, tau + half_width)
 
     Buildings outside it are left alone: far below `tau` the cull's under-report
     cannot plausibly close the gap, and far above it the grid's over-report cannot
@@ -133,8 +143,10 @@ def select_buildings_to_reverify(
     if band < 0:
         raise ValueError(f"band must be non-negative, got {band}")
 
-    low = tau * (1.0 - band)
-    high = tau * (1.0 + band)
+    # Widen to at least `band_floor` in absolute coverage terms; see BAND_FLOOR.
+    half_width = max(tau * band, band_floor)
+    low = tau - half_width
+    high = tau + half_width
     targets = [bid for bid, ratio in coverage.items() if low <= ratio < high]
     targets.sort(key=lambda bid: abs(coverage[bid] - tau))
     if max_buildings is not None:

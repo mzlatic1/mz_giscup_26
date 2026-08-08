@@ -57,9 +57,10 @@ def test_a_building_just_above_tau_is_reverified():
 @pytest.mark.parametrize(
     ("tau", "inside", "outside"),
     [
-        (0.25, 0.24, 0.20),  # window [0.225, 0.275)
-        (0.50, 0.46, 0.40),  # window [0.450, 0.550)
-        (0.75, 0.68, 0.60),  # window [0.675, 0.825)
+        # half_width = max(tau * band, BAND_FLOOR=0.05)
+        (0.25, 0.24, 0.15),  # floor binds:    window [0.200, 0.300)
+        (0.50, 0.46, 0.40),  # floor ties:     window [0.450, 0.550)
+        (0.75, 0.68, 0.60),  # relative binds: window [0.675, 0.825)
     ],
 )
 def test_band_scales_with_tau(tau, inside, outside):
@@ -223,3 +224,27 @@ def test_report_bounds_what_the_cull_was_hiding():
         band=0.10,
     )
     assert report.max_coverage_delta == pytest.approx(0.02, abs=1e-9)
+
+
+# --- the relative band collapses at low tau ---------------------------------
+
+
+def test_band_never_narrows_below_the_sampling_error():
+    """At tau=0.25 a 10% relative band is +/-0.025, but sampled coverage carries
+    +/-0.03 error. Without an absolute floor the window is narrower than the error it
+    exists to catch, and low-tau overclaims escape re-verification entirely."""
+    coverage = {"just_over": 0.28, "just_under": 0.22}
+    chosen = select_buildings_to_reverify(coverage, tau=0.25, band=0.10)
+    assert "just_over" in chosen, "0.28 is within sampling error of tau=0.25"
+    assert "just_under" in chosen, "0.22 is within sampling error of tau=0.25"
+
+
+def test_the_floor_does_not_shrink_a_wide_relative_band():
+    """At tau=0.75 the relative band is already +/-0.075; the floor must not reduce it."""
+    coverage = {"far": 0.69}
+    assert "far" in select_buildings_to_reverify(coverage, tau=0.75, band=0.10)
+
+
+def test_the_floor_can_be_disabled():
+    coverage = {"just_over": 0.28}
+    assert select_buildings_to_reverify(coverage, tau=0.25, band=0.10, band_floor=0.0) == []
