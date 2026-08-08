@@ -26,7 +26,10 @@ src/giscup/
 ## Tests
 
 ```text
+tests/test_antenna_placement.py  # emitted antennas never inside a footprint (#15)
+tests/test_boundary_jitter.py    # THE invariant: a boundary point is visible from its boundary
 tests/test_geometry.py
+tests/test_projected_tolerances.py  # absolute tolerances at UTM magnitudes (#16)
 tests/test_matrix.py             # matrix ground truth, cache keys, parallel==serial
 tests/test_optimize_matrix.py    # matrix greedy == predicate greedy
 tests/test_output_format.py
@@ -41,7 +44,7 @@ tests/test_visibility.py
 tests/test_visibility_strategy.py  # official predicate, degeneracies, relate default
 ```
 
-Current latest result: `122 passed` in Conda env `mz-giscup-26` (2026-08-08).
+Current latest result: `145 passed` in Conda env `mz-giscup-26` (2026-08-08).
 
 ## Compact documentation layer
 
@@ -129,8 +132,14 @@ Visibility strategy: **`relate` only** — the exact official predicate. `negati
 - Greedy objective is still raw newly visible sample count, not serviced-building count (task #6).
 - Candidate pruning modes only add candidates; they prune nothing (task #9).
 - The cull radius is a heuristic: it discards genuinely visible pairs beyond the radius and loses
-  score with no feedback. The near-threshold verification pass exists (#3a), but the radius itself
-  has not been calibrated against measured coverage beyond 400 m (#3b).
+  score with no feedback. The near-threshold verification pass exists (#3a) and now re-measures at
+  a **wider** radius than the solver's cull. The 400 m vs 800 m comparison (#3b) is unresolved —
+  both matrices must be rebuilt post-#14.
+- **Geometry tolerances are load-bearing.** `visibility.INTERIOR_TOLERANCE` (1e-6 m),
+  `geometry.COINCIDENT_POINT_TOLERANCE` (1e-9 m) and
+  `exact_coverage.DEGENERATE_EDGE_LENGTH` (1e-9 m) are all ABSOLUTE, in CRS units, and each exists
+  because a relative or too-fine tolerance produced a real bug. Never loosen or relativise them
+  without reading `CLAUDE.md` Geospatial rules first.
 - Greedy still optimizes on the sampled matrix. That is deliberate — it is a search heuristic, not
   the scored quantity — but it means the objective and the claim decision measure different things.
 - No official dataset: every figure is measured against the synthetic stand-in (#5).

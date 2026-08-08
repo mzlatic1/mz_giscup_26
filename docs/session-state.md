@@ -3,9 +3,22 @@
 Operational state so the next session starts without rereading history.
 Task list lives in `docs/task-board.md`. Say **"start session"** and `/startup` handles the rest.
 
-Last session: **2026-08-08**. Working tree clean; **6 commits local and UNPUSHED**.
+Last session: **2026-08-08**. Working tree clean; **everything pushed**.
 
 ## The one thing that matters
+
+**Four numerical bugs were found and fixed on 2026-08-08, and they invalidate every
+solution-quality figure recorded before ~10:30 that day.** All four are the same class: relative
+tolerances, or tolerances below float64 resolution, applied at projected-CRS magnitudes. See
+`docs/task-board.md` #13, #14, #15, #16, and the rule now in `CLAUDE.md` under Geospatial rules.
+
+The worst of them (#14) made **32% of all boundary samples permanently unseeable**, because
+interpolated points land an ULP inside their own footprint about half the time and were then
+treated as interior penetration. Everything downstream — coverage, claims, the "76% unreachable at
+tau=0.75" figure, the #6 lever sizing — was distorted by it.
+
+**Do not trust any measured solution-quality number in this repo dated before 2026-08-08 10:30.**
+Feasibility timings are unaffected; correctness figures are not.
 
 **The feasibility blocker is CLEARED.** `scripts/rehearse.py --measured-radius 400` reads
 **PASS, measured end to end**: 3.18 h for all nine subproblems against a 20 h budget, **6.3x
@@ -42,10 +55,14 @@ python scripts/audit_submission.py --input data/GIS-cup-sample-dataset.geojson \
     --solution outputs/nine_blocks_real.txt --exact-radius 800
 ```
 
-**Two jobs were running when this was written** (2026-08-08 ~01:50):
-`giscup solve-all` on the synthetic (nine-block timings for #8), and
-`scripts/build_matrix.py` on the **official** dataset at 400 m. Check
-`outputs/nine_blocks.txt` and `outputs/cache/*.json` for their results.
+**State at 2026-08-08 ~11:00.** All matrices were deleted after #14 (7.5 GB) because they encoded
+the broken notion of visibility. `MatrixSpec` now carries `interior_tolerance`, so a pre-fix matrix
+can never be silently reused, and metadata lacking that field is rejected rather than defaulted.
+
+A rebuild of the **official-dataset 400 m matrix** was running when this was written. Once it
+lands, the immediate next step is to **re-run the #6 lever sizing**, which was voided by #14.
+
+Local head: `1e7f6da Harden exact_coverage against a degenerate blocker region; sync the output skill`.
 
 ## Repository
 
