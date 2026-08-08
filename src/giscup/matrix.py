@@ -40,7 +40,7 @@ import shapely
 from scipy.spatial import cKDTree
 
 from giscup.models import BoundarySample, Building, Candidate
-from giscup.visibility import BlockerIndex, is_visible
+from giscup.visibility import INTERIOR_TOLERANCE, BlockerIndex, is_visible
 
 BITS_PER_WORD = 64
 # Rows processed per marginal-gain chunk. 8192 x 2158 words x 8 B ~ 140 MB of
@@ -88,6 +88,11 @@ class MatrixSpec:
     dataset_digest: str
     candidate_digest: str
     sample_digest: str
+    # Interior-penetration tolerance of the visibility predicate. Part of the key
+    # because it changes what "visible" means: matrices built before the
+    # boundary-jitter fix (#14) encoded ~32% of samples as permanently unseeable and
+    # must never be silently reused.
+    interior_tolerance: float = INTERIOR_TOLERANCE
 
     @property
     def words(self) -> int:
@@ -107,6 +112,13 @@ class MatrixSpec:
 
     @classmethod
     def from_dict(cls, payload: dict) -> "MatrixSpec":
+        missing = [f for f in cls.__slots__ if f not in payload]
+        if missing:
+            raise ValueError(
+                f"visibility-matrix metadata is missing {missing}; it predates the "
+                "boundary-jitter fix (#14) and encodes a different notion of visibility. "
+                "Delete it and rebuild rather than reusing it."
+            )
         return cls(**{f: payload[f] for f in cls.__slots__})
 
 
@@ -124,6 +136,7 @@ def _spec_for(
         radius=float(radius),
         strategy=strategy,
         eps=float(eps),
+        interior_tolerance=float(INTERIOR_TOLERANCE),
         dataset_digest=_digest_buildings(buildings),
         candidate_digest=_digest_floats(np.array([[c.x, c.y] for c in candidates])),
         sample_digest=_digest_floats(np.array([[s.x, s.y] for s in samples])),

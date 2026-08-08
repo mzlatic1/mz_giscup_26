@@ -351,6 +351,48 @@ sampling error decides the outcome.
 Re-measure at full scale once the matrix lands — 0.20% on 60 buildings may behave very
 differently on 12,860.
 
+### 14 — Boundary-point jitter made 32% of samples unseeable  (FIXED 2026-08-08)
+
+**The most damaging bug found in this project.** Every coverage number produced before
+2026-08-08 10:30 is wrong.
+
+Samples and candidates are produced by interpolation, `p0 + t*(p1 - p0)`. In float64 at EPSG:32611
+magnitudes (~5e5, 3.7e6) the result lands within an ULP of the true edge line — about 1e-10 m —
+and lands **inside** the polygon roughly half the time. Measured on the official dataset: **44.5%
+of samples sit microscopically inside their own footprint.** One ULP is the smallest displacement
+representable there; no amount of careful computation avoids it.
+
+Tested against the raw polygon, such a point makes every segment ending at it report blocked — the
+segment's interior genuinely does dip inside. The point became invisible from *everything*,
+including a candidate two metres away on its own edge.
+
+| | before | after |
+|---|---|---|
+| samples invisible from their own building | ~32% | **0.03%** |
+| samples visible from any candidate at all | 67.6% | — |
+| buildings "unreachable" at tau=0.75 | 76.1% | — |
+
+**Fix:** block when a segment penetrates more than `INTERIOR_TOLERANCE = 1e-6` m into the
+interior, by testing against the footprint eroded by that amount. Same official rule, stated so
+float64 can evaluate it. A micrometre is five orders above the jitter and five below the smallest
+real footprint, so nothing geometric rides on the value. Verified: 0 of 12,860 footprints collapse,
+minimum area retained 99.9998%.
+
+**This is the mechanism deleted in #10.** `negative_buffer` failed at `eps=1e-9`, which sits below
+float64 relative precision at 3.7e6. The mechanism was right; the epsilon was wrong. I deleted it
+on real evidence but drew too broad a conclusion. `_check_erosion` now makes collapse loud.
+
+**Why nothing caught it:** every geometry test used unit-square coordinates, where an ULP is ~2e-16
+and the jitter cannot occur. The regression suite (`tests/test_boundary_jitter.py`) now works at
+UTM magnitudes with irregular coordinates, and asserts the cheapest possible invariant — *a point
+on a boundary must be visible from that same boundary*.
+
+**Blast radius:** both visibility matrices deleted (7.5 GB); the 800 m build was killed at 26/48
+chunks; the real 400 m nine-block solve was killed mid-run; the #6 sizing must be redone. The
+"76% unreachable at tau=0.75" figure was mostly this bug, not geometry. `MatrixSpec` now carries
+`interior_tolerance` so a pre-fix matrix can never be silently reused, and metadata lacking the
+field is rejected rather than defaulted.
+
 ### 13 — Exact interval coverage  (DONE 2026-08-08)
 
 **CORRECTION to the 2026-08-07 finding.** That entry claimed sampled coverage "does not
@@ -432,6 +474,48 @@ sampling error decides the outcome.
 
 Re-measure at full scale once the matrix lands — 0.20% on 60 buildings may behave very
 differently on 12,860.
+
+### 14 — Boundary-point jitter made 32% of samples unseeable  (FIXED 2026-08-08)
+
+**The most damaging bug found in this project.** Every coverage number produced before
+2026-08-08 10:30 is wrong.
+
+Samples and candidates are produced by interpolation, `p0 + t*(p1 - p0)`. In float64 at EPSG:32611
+magnitudes (~5e5, 3.7e6) the result lands within an ULP of the true edge line — about 1e-10 m —
+and lands **inside** the polygon roughly half the time. Measured on the official dataset: **44.5%
+of samples sit microscopically inside their own footprint.** One ULP is the smallest displacement
+representable there; no amount of careful computation avoids it.
+
+Tested against the raw polygon, such a point makes every segment ending at it report blocked — the
+segment's interior genuinely does dip inside. The point became invisible from *everything*,
+including a candidate two metres away on its own edge.
+
+| | before | after |
+|---|---|---|
+| samples invisible from their own building | ~32% | **0.03%** |
+| samples visible from any candidate at all | 67.6% | — |
+| buildings "unreachable" at tau=0.75 | 76.1% | — |
+
+**Fix:** block when a segment penetrates more than `INTERIOR_TOLERANCE = 1e-6` m into the
+interior, by testing against the footprint eroded by that amount. Same official rule, stated so
+float64 can evaluate it. A micrometre is five orders above the jitter and five below the smallest
+real footprint, so nothing geometric rides on the value. Verified: 0 of 12,860 footprints collapse,
+minimum area retained 99.9998%.
+
+**This is the mechanism deleted in #10.** `negative_buffer` failed at `eps=1e-9`, which sits below
+float64 relative precision at 3.7e6. The mechanism was right; the epsilon was wrong. I deleted it
+on real evidence but drew too broad a conclusion. `_check_erosion` now makes collapse loud.
+
+**Why nothing caught it:** every geometry test used unit-square coordinates, where an ULP is ~2e-16
+and the jitter cannot occur. The regression suite (`tests/test_boundary_jitter.py`) now works at
+UTM magnitudes with irregular coordinates, and asserts the cheapest possible invariant — *a point
+on a boundary must be visible from that same boundary*.
+
+**Blast radius:** both visibility matrices deleted (7.5 GB); the 800 m build was killed at 26/48
+chunks; the real 400 m nine-block solve was killed mid-run; the #6 sizing must be redone. The
+"76% unreachable at tau=0.75" figure was mostly this bug, not geometry. `MatrixSpec` now carries
+`interior_tolerance` so a pre-fix matrix can never be silently reused, and metadata lacking the
+field is rejected rather than defaulted.
 
 ### 13 — Exact interval coverage  (DONE 2026-08-08)
 
