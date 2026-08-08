@@ -19,7 +19,7 @@ Last updated: 2026-08-07.
 |---|---|
 | 5 | Obtain the official sample dataset into `data/`; re-validate every measured claim |
 | 10 | Implement or remove unimplemented optimizer names and script placeholders |
-| 12 | **Decouple the claim decision from the optimization sampling grid** — we overclaim today |
+| 13 | **Compute coverage exactly (visible intervals) instead of by midpoint sampling** |
 
 ## Gated on feasibility
 
@@ -90,9 +90,9 @@ long unobstructed corridors; the synthetic stand-in has no real streets, so the 
 Under-culling loses score with no feedback to detect it. The budget has slack — 400 m costs ~1 h
 of a 20 h window — so choose the radius **generously**, not at the measured p95.
 
-Then add a verification pass that re-checks buildings near `tau` **without** the cull before they
-are claimed, so the heuristic can never cause an overclaim. Report the coverage delta between
-culled and un-culled results to bound the loss.
+**Verification pass: DONE 2026-08-07** — see `src/giscup/verify.py`. **Radius calibration: still
+open** — measuring how much coverage lives beyond 400 m needs the full-scale matrix, which was
+still building. Until that runs, 400 m is a judgment call, not a calibrated number.
 
 ### 4 — Gate must read PASS
 
@@ -195,6 +195,38 @@ sampling error decides the outcome.
 Re-measure at full scale once the matrix lands — 0.20% on 60 buildings may behave very
 differently on 12,860.
 
+### 13 — Sampled coverage does not converge; compute it exactly
+
+Found 2026-08-07 while wiring #3. Same building, same antennas, varying only sampling density:
+
+| building | fast (20 m) | balanced (10 m) | accurate (5 m) | final (2.5 m) |
+|---|---|---|---|---|
+| 27 | 0.7232 | 0.7232 | 0.7232 | **0.7627** |
+| 6 | 0.7768 | 0.7768 | **0.7076** | 0.7373 |
+
+The estimates **oscillate by up to 0.07** instead of converging. `sample_building_boundary` takes
+segment midpoints and assigns the whole segment weight to that single verdict, so refining the
+grid moves samples across visibility boundaries and the estimate jumps.
+
+**Consequence: any building within ~0.05 of `tau` is unclassifiable by sampling at any density we
+can afford.** That is larger than any usable `claim_margin`. It is why the verification pass
+(`final`) and `validate-output` (`accurate`) disagreed about building 27 — neither is truth.
+
+The official rules define coverage **continuously**: "the ratio of the length of visible segments
+on the boundary to the total perimeter", a segment being visible when every point along it is
+visible from some antenna. Sampling is this codebase's approximation, not the specification.
+
+**Correct fix.** For each boundary edge and antenna, compute the visible sub-interval(s)
+analytically — the shadow boundaries blocking polygons cast onto that edge — union the intervals
+per edge across antennas, and sum lengths. Exact, grid-free, no threshold instability. Cost
+becomes per (edge, antenna, blocker) instead of per (sample, antenna); the radius cull and the
+matrix still apply. Likely subsumes #12 and much of #3's motivation.
+
+**Interim posture (in effect now).** `solve_one`'s `verify_profile` defaults to `accurate`, the
+same profile `validate-output` uses, so the claim decision and the validator agree. Local
+validation now passes. **That is alignment, not correctness** — do not read a green
+`validate-output` as evidence the claims are true.
+
 ### 9 — Prune the candidate pool  (blocked on #2)
 
 160,198 candidates to choose at most 1,000 from is heavy overkill, and matrix cost is linear in
@@ -230,6 +262,8 @@ Prevents a false capability claim at submission time.
 
 | Date | Task | Evidence |
 |---|---|---|
+| 2026-08-07 | #3 — un-culled verification pass | Uncommitted. `src/giscup/verify.py` + 19 tests. Policy (Marko): band **relative** to tau, **two-sided**, closest-to-tau first under a cap. Recovers what the cull forfeited, drops what the grid inflated. Wired into `solve_one` via `--verify-band` / `--verify-max-buildings`, opt-in. **Radius calibration half still outstanding** — needs the full-scale matrix. |
+| 2026-08-07 | #12 — claim decision decoupled from the optimizer's grid | Uncommitted. `verify.dense_samples_for` re-samples targeted buildings independently rather than reusing the grid greedy optimized on. On the mini nine-block run this dropped the original overclaim (building 6) plus 7, and recovered 8 and 27; `validate-output` went from FAIL to `ok: true`. **Superseded in principle by #13** — the underlying instability is unfixed. |
 | 2026-08-07 | #11 — hole-perimeter question resolved against official rules | Official page re-checked: "the polygons will not self-intersect and will not have holes." Moot on official data (no interior rings ⇒ `polygon.length` == exterior perimeter). Defensive behaviour kept; assumption + bounded cost recorded in `docs/competition-reference.md`. |
 | 2026-08-07 | #7 — validation path scales | Uncommitted. `geometry.BoundaryIndex` replaces the linear boundary scan: **1,877x** faster, identical results on 300 full-scale probes (8.6 min → 0.3 s for k=1000 × 9). `validate.visible_sample_ids_from_points` is point-major with an early-out plus an optional `--validation-radius`: nine blocks in ~95 min measured *under full CPU contention*, against a naive 2.39e8 checks per block. 13 tests in `tests/test_validate_scaling.py` pin equivalence, subset-safety of the cull, and eps handling. |
 | 2026-08-06 | Migrate Codex layer to Claude Code | `be6d66b` — 18 tests pass, all paths resolve |

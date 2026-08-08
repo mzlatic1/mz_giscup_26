@@ -90,3 +90,37 @@ def test_radius_is_required_for_the_matrix_path(tmp_path):
     dataset = _dataset(tmp_path)
     solution = solve_one(dataset, tau=0.5, k=2, cache_dir=str(tmp_path / "cache"))
     assert "visibility_matrix" not in solution.diagnostics
+
+
+def test_verification_pass_runs_and_reports(tmp_path):
+    """The un-culled pass must be reachable from solve_one and recorded in diagnostics."""
+    dataset = _dataset(tmp_path)
+    solution = solve_one(
+        dataset, tau=0.5, k=4, visibility_radius=WIDE,
+        cache_dir=str(tmp_path / "cache"), verify_band=0.10,
+    )
+    info = solution.diagnostics["verification"]
+    assert info["band"] == 0.10
+    assert "reverified_count" in info
+    assert "recovered" in info and "dropped" in info
+    assert len(solution.antenna_points) == 4
+
+
+def test_verification_is_opt_in(tmp_path):
+    """Without verify_band the expensive un-culled pass must not run."""
+    dataset = _dataset(tmp_path)
+    solution = solve_one(
+        dataset, tau=0.5, k=4, visibility_radius=WIDE, cache_dir=str(tmp_path / "cache")
+    )
+    assert "verification" not in solution.diagnostics
+
+
+def test_verification_never_leaves_a_claim_it_disproved(tmp_path):
+    """Any dropped id must be absent from the final claim list."""
+    dataset = _dataset(tmp_path)
+    solution = solve_one(
+        dataset, tau=0.75, k=3, visibility_radius=WIDE,
+        cache_dir=str(tmp_path / "cache"), verify_band=0.20,
+    )
+    dropped = set(solution.diagnostics["verification"]["dropped"])
+    assert dropped.isdisjoint(set(solution.claimed_building_ids))

@@ -12,14 +12,30 @@ one good consequence and one bad one:
   measure 0.73 under the cull and go unclaimed at `tau = 0.75`. There is no score
   feedback in this competition, so that loss is invisible.
 
-This module recovers those forfeited buildings. Every building whose culled coverage
-sits just below `tau` is re-measured against the exact, un-culled predicate; those
-that actually clear `tau` are claimed after all.
+There is a second, opposite error. `solve_one` decides claims from the same sampled
+grid it optimized on, which is an *in-sample* estimate: greedy chose antennas
+specifically to light up those samples, so sampled coverage **over**-states true
+coverage for the selected set (task #12). Measured at small scale, that produced a
+building claimed at `tau = 0.75` whose true coverage was 0.7076.
+
+So coverage near `tau` is unreliable in both directions, and one exact re-measurement
+fixes both. This module re-measures every building whose reported coverage lands in a
+window around `tau`, then:
+
+- below `tau`: **recovers** buildings the cull forfeited;
+- above `tau`: **drops** claims the sampling grid inflated.
+
+Policy decided 2026-08-07 (Marko): the window is **relative** to `tau` and two-sided,
+
+    window = [tau * (1 - band), tau * (1 + band))     band default 0.10
+
+and targets are taken **closest to `tau` first** under a cap, since proximity to the
+threshold is the only signal that predicts a flip and every serviced building is worth
+exactly one point regardless of size.
 
 The re-check is expensive -- it is exactly the unbounded visibility work the cull was
-introduced to avoid, at roughly 550 checks/s versus 17,500 culled. So it must be
-aimed at the buildings where it can change an outcome, not run over the whole set.
-That targeting decision is `select_buildings_to_reverify`.
+introduced to avoid, at roughly 550 checks/s versus 17,500 culled -- so it is aimed
+only at buildings where it can change an outcome.
 """
 
 from __future__ import annotations
@@ -28,7 +44,33 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 
 from giscup.models import BoundarySample, Building, PointLike
+from giscup.sampling import SamplingProfile, sample_building_boundary
 from giscup.visibility import BlockerIndex, is_visible
+
+
+def dense_samples_for(
+    buildings: list[Building], building_ids: list[int | str], profile: SamplingProfile
+) -> list[BoundarySample]:
+    """Re-sample just the targeted buildings at `profile`'s density.
+
+    The claim decision must not reuse the grid the optimizer ran on. Greedy chose
+    antennas to light up those exact samples, so measuring against them again
+    reproduces the same optimistic bias (task #12). Sampling independently, and more
+    finely, is what makes the re-measurement informative rather than circular.
+    """
+    wanted = set(building_ids)
+    out: list[BoundarySample] = []
+    for building in buildings:
+        if building.id in wanted:
+            out.extend(
+                sample_building_boundary(
+                    building,
+                    profile.spacing,
+                    profile.min_samples_per_building,
+                    start_id=len(out),
+                )
+            )
+    return out
 
 
 @dataclass(slots=True)
@@ -37,6 +79,7 @@ class VerificationReport:
 
     reverified_count: int = 0
     recovered_ids: list[int | str] = field(default_factory=list)
+    dropped_ids: list[int | str] = field(default_factory=list)
     coverage_before: dict[int | str, float] = field(default_factory=dict)
     coverage_after: dict[int | str, float] = field(default_factory=dict)
     checks_performed: int = 0
@@ -65,32 +108,37 @@ def select_buildings_to_reverify(
 ) -> list[int | str]:
     """Choose which buildings get the expensive un-culled re-check.
 
-    TODO(marko): implement the selection policy.
+    The window is two-sided and relative to `tau`:
 
-    Inputs:
-        coverage      building id -> culled (underestimated) coverage ratio, 0..1
-        tau           the threshold for this subproblem
-        band          how far below `tau` to consider recoverable
-        max_buildings optional cap on how many to re-check, or None for no cap
+        [tau * (1 - band), tau * (1 + band))
 
-    Return the building ids to re-verify, best candidates first when capped.
+    Buildings outside it are left alone: far below `tau` the cull's under-report
+    cannot plausibly close the gap, and far above it the grid's over-report cannot
+    plausibly have invented the whole margin. Both re-checks would be wasted work.
 
-    Trade-offs to weigh:
-      - Buildings already at or above `tau` need no re-check: coverage only rises
-        without the cull, so they stay claimed. Re-checking them is pure waste.
-      - Buildings far below `tau` are unlikely to be rescued by the ~25% of visible
-        pairs living in the 200-400 m band, and each re-check is ~30x the cost of a
-        culled one. Where you cut off is the real decision.
-      - Under a cap, which ones first? Closest to `tau` are the likeliest flips, but
-        a building with a large perimeter may be worth more attention than a small
-        one, and all buildings score identically (one serviced building = one point).
-      - `tau` varies across the nine subproblems (0.25 / 0.5 / 0.75). A fixed
-        absolute band behaves very differently at 0.25 than at 0.75; consider whether
-        the band should scale.
+    Args:
+        coverage: building id -> reported coverage ratio in 0..1, from the sampled,
+            radius-culled estimate.
+        tau: threshold for this subproblem.
+        band: half-width of the window as a fraction of `tau`.
+        max_buildings: cap on how many to re-check, or None for no cap.
+
+    Returns:
+        Building ids ordered by absolute distance from `tau`, closest first, so a cap
+        keeps the likeliest flips.
     """
-    raise NotImplementedError(
-        "select_buildings_to_reverify is not implemented yet -- see task board #3"
-    )
+    if not coverage:
+        return []
+    if band < 0:
+        raise ValueError(f"band must be non-negative, got {band}")
+
+    low = tau * (1.0 - band)
+    high = tau * (1.0 + band)
+    targets = [bid for bid, ratio in coverage.items() if low <= ratio < high]
+    targets.sort(key=lambda bid: abs(coverage[bid] - tau))
+    if max_buildings is not None:
+        targets = targets[:max_buildings]
+    return targets
 
 
 def exact_coverage_for(
@@ -145,26 +193,39 @@ def verify_and_recover(
     max_buildings: int | None = None,
     claim_margin: float = 0.0,
     strategy: str = "relate",
+    verify_profile: SamplingProfile | None = None,
 ) -> tuple[list[int | str], VerificationReport]:
-    """Recover buildings the cull forfeited, and report how much it was hiding.
+    """Re-measure buildings near `tau` exactly, then recover and drop accordingly.
 
-    Returns the final claim list (original claims plus recovered ones) and a report
-    bounding the cull's cost.
+    Buildings below `tau` that actually clear it are recovered; claims above `tau`
+    that actually miss it are dropped. Buildings outside the window are trusted as
+    reported and left untouched.
+
+    Returns the final claim list and a report bounding what the cull was hiding.
     """
-    already = set(claimed)
-    targets = [bid for bid in select_buildings_to_reverify(coverage, tau, band, max_buildings)
-               if bid not in already]
+    targets = select_buildings_to_reverify(coverage, tau, band, max_buildings)
     report = VerificationReport(reverified_count=len(targets))
     if not targets:
         return list(claimed), report
 
+    # Re-sample independently when asked. Without this the pass removes only the
+    # cull's under-report; the grid's over-report (task #12) survives untouched,
+    # because measuring against the optimizer's own samples is circular.
+    measure_on = dense_samples_for(buildings, targets, verify_profile) if verify_profile else samples
     exact, checks = exact_coverage_for(
-        targets, antenna_points, samples, buildings, blocker_index, strategy=strategy
+        targets, antenna_points, measure_on, buildings, blocker_index, strategy=strategy
     )
     report.checks_performed = checks
     report.coverage_before = {bid: coverage.get(bid, 0.0) for bid in exact}
     report.coverage_after = dict(exact)
 
-    recovered = [bid for bid, ratio in exact.items() if ratio >= tau + claim_margin]
-    report.recovered_ids = recovered
-    return list(claimed) + recovered, report
+    threshold = tau + claim_margin
+    already = set(claimed)
+
+    # Keep claims we did not re-check; re-checked ones must earn their place.
+    final = [bid for bid in claimed if bid not in exact or exact[bid] >= threshold]
+    report.dropped_ids = [bid for bid in claimed if bid in exact and exact[bid] < threshold]
+    report.recovered_ids = [
+        bid for bid, ratio in exact.items() if bid not in already and ratio >= threshold
+    ]
+    return final + report.recovered_ids, report
