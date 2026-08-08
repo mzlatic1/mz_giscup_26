@@ -14,11 +14,20 @@ from shapely.strtree import STRtree
 from giscup.models import Building
 
 
+# Two coordinates closer than this (in CRS units) are the same point. Absolute, never
+# relative: numpy's default rtol of 1e-5 is 37 metres at a UTM northing of 3.7e6, so a
+# relative test would call a 37 m gap "closed" and silently drop the closing edge.
+# float64 resolution at those magnitudes is ~5e-10 m, so 1e-9 is the tightest
+# meaningful threshold.
+COINCIDENT_POINT_TOLERANCE = 1e-9
+
+
 def ring_edges(coords: np.ndarray) -> list[tuple[np.ndarray, np.ndarray]]:
     """Return consecutive edges from a closed or open ring coordinate array."""
     if len(coords) < 2:
         return []
-    if not np.allclose(coords[0], coords[-1]):
+    gap = float(np.hypot(coords[-1][0] - coords[0][0], coords[-1][1] - coords[0][1]))
+    if gap > COINCIDENT_POINT_TOLERANCE:
         coords = np.vstack([coords, coords[0]])
     return [(coords[i], coords[i + 1]) for i in range(len(coords) - 1)]
 

@@ -351,6 +351,28 @@ sampling error decides the outcome.
 Re-measure at full scale once the matrix lands — 0.20% on 60 buildings may behave very
 differently on 12,860.
 
+### 16 — Absolute tolerances at projected magnitudes  (FIXED 2026-08-08)
+
+A sweep for the bug class behind #13, #14 and #15, after three instances in one day made it clear
+this was a pattern rather than a coincidence.
+
+**`geometry.ring_edges`** decided whether to close a ring with `np.allclose(coords[0],
+coords[-1])`. Default `rtol=1e-5` is **37 metres** at a northing of 3.7e6, so a genuinely open
+ring would be treated as closed and its closing edge silently dropped — shortening the perimeter,
+which is the denominator of every coverage ratio. Latent in practice because Shapely always
+returns closed rings, but live for any other input path. Now an absolute
+`COINCIDENT_POINT_TOLERANCE = 1e-9` m, just above float64 resolution there.
+
+**`candidates._add_candidate`** deduped on `round(x, 12)`. Twelve decimals is meaningless at an
+easting of 5e5, where float64 resolution is already ~6e-11. It merges genuinely coincident points
+(a corner shared by two footprints) and cannot merge jittered near-duplicates. Changed to 9
+decimals and documented, so the code no longer implies a precision it does not have.
+
+**The rule is now in `CLAUDE.md`** under Geospatial rules: every geometric tolerance absolute, in
+CRS units, never relative and never below float64 resolution — with the three concrete failures
+and the instruction to test at real projected magnitudes with irregular coordinates. Unit-square
+tests cannot see any of this: 122 of them passed while a third of the boundary was unseeable.
+
 ### 15 — Emitted antennas must not sit inside a footprint  (FIXED 2026-08-08)
 
 A sibling of #14, on the output side. Measured on the official dataset:
@@ -500,6 +522,28 @@ sampling error decides the outcome.
 
 Re-measure at full scale once the matrix lands — 0.20% on 60 buildings may behave very
 differently on 12,860.
+
+### 16 — Absolute tolerances at projected magnitudes  (FIXED 2026-08-08)
+
+A sweep for the bug class behind #13, #14 and #15, after three instances in one day made it clear
+this was a pattern rather than a coincidence.
+
+**`geometry.ring_edges`** decided whether to close a ring with `np.allclose(coords[0],
+coords[-1])`. Default `rtol=1e-5` is **37 metres** at a northing of 3.7e6, so a genuinely open
+ring would be treated as closed and its closing edge silently dropped — shortening the perimeter,
+which is the denominator of every coverage ratio. Latent in practice because Shapely always
+returns closed rings, but live for any other input path. Now an absolute
+`COINCIDENT_POINT_TOLERANCE = 1e-9` m, just above float64 resolution there.
+
+**`candidates._add_candidate`** deduped on `round(x, 12)`. Twelve decimals is meaningless at an
+easting of 5e5, where float64 resolution is already ~6e-11. It merges genuinely coincident points
+(a corner shared by two footprints) and cannot merge jittered near-duplicates. Changed to 9
+decimals and documented, so the code no longer implies a precision it does not have.
+
+**The rule is now in `CLAUDE.md`** under Geospatial rules: every geometric tolerance absolute, in
+CRS units, never relative and never below float64 resolution — with the three concrete failures
+and the instruction to test at real projected magnitudes with irregular coordinates. Unit-square
+tests cannot see any of this: 122 of them passed while a third of the boundary was unseeable.
 
 ### 15 — Emitted antennas must not sit inside a footprint  (FIXED 2026-08-08)
 

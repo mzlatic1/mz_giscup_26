@@ -17,7 +17,11 @@ def _add_candidate(
     edge_index: int | None,
     kind: str,
 ) -> None:
-    key = (round(float(x), 12), round(float(y), 12))
+    # Rounding to 12 decimals is a no-op at projected-CRS magnitudes -- float64
+    # resolution at an easting of 5e5 is already ~6e-11 -- so this merges only
+    # genuinely coincident points, such as a corner shared by two footprints. It
+    # cannot merge points separated by interpolation jitter, and is not meant to.
+    key = (round(float(x), 9), round(float(y), 9))
     if key in seen:
         return
     seen.add(key)

@@ -34,6 +34,20 @@ Full detail: `docs/reference/geometry-and-scoring-rules.md`, `docs/competition-r
 
 ## Geospatial rules
 
+- **Every geometric tolerance must be ABSOLUTE, in CRS units. Never relative, never below
+  float64 resolution.** Coordinates here are ~5e5 easting and ~3.7e6 northing, where one ULP is
+  ~6e-11 m and ~5e-10 m. Consequences, all of which actually happened on 2026-08-08:
+  - `np.allclose`/`np.isclose` default to `rtol=1e-5`, which is **37 metres** at 3.7e6. It
+    declared 16 m edges zero-length, and would call a 37 m ring gap "closed".
+  - `buffer(-1e-9)` collapsed whole footprints to empty, because 1e-9 is below float64
+    relative precision there. `buffer(-1e-6)` is correct.
+  - Interpolated points (`p0 + t*(p1-p0)`, `(p0+p1)/2`) land an ULP off the true line and
+    fall **inside** the polygon about half the time. Predicates must tolerate that; emitted
+    antennas must be nudged out of it.
+
+  Before writing any tolerance, ask what it equals in metres at 3.7e6. Test geometry at real
+  projected magnitudes with irregular coordinates — unit-square tests cannot see any of this,
+  and 122 of them passed while a third of the boundary was silently unseeable.
 - Preserve CRS explicitly. Do **not** assume EPSG:4326 — the sample is EPSG:32611 (UTM 11N),
   but code must inspect the source data rather than hardcode.
 - Preserve holes in loaded geometries and include them in obstacle geometry, even though the
