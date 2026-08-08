@@ -109,12 +109,17 @@ therefore discards roughly **9% of real visibility** — more than the synthetic
 exactly as predicted, because real street grids have long unobstructed corridors it could not
 reproduce.
 
-**Open decision for Marko.** 800 m would cut the loss from ~9% to ~2% at 3.5x the pairs, so a
-~6.4 h matrix build instead of 110 min. The measured gate leaves room: 6.4 h matrix + ~1.3 h greedy
-= 7.7 h against a 20 h budget, still passing with 2.6x headroom. The board's own guidance is
-"choose the radius **generously** — under-culling loses score silently", and this is the first
-measurement that quantifies the loss. Not actioned unilaterally because 400 m was Marko's explicit
-call, taken before this data existed.
+**DECIDED 2026-08-08 (Marko): "whatever produced better results."** Being taken as a measurement
+rather than an assumption — both radii are being built on the official dataset so the nine-block
+solve can be run at each and the **serviced-building counts compared directly**. Visible-pair
+capture (91% vs 98%) is a proxy; claimed-building count is the scored quantity.
+
+Cost check before committing to it: 800 m is 3.5x the pairs, so ~6.4 h of matrix build instead of
+110 min. The gate still passes — 6.4 h matrix + ~1.3 h greedy = 7.7 h against 20 h, 2.6x headroom.
+1600 m is not worth testing: it buys only +1.6% over 800 m for another 3.3x.
+
+Pending result: whichever radius yields more serviced buildings across the nine subproblems wins.
+If they tie, 400 m wins on cost.
 
 **Mitigation already in place.** The verification pass no longer inherits the solver's cull. It
 re-measures at `visibility_radius x verify_radius_factor` (default 2.0), so a 400 m solve verifies
