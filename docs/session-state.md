@@ -156,7 +156,9 @@ conda activate mz-giscup-26
 #    Re-fit the gate's verification cost to 0.87 s/claim and re-run it.
 python scripts/rehearse.py --input data/GIS-cup-sample-dataset.geojson --cores 16
 
-# 2. Baseline artifact is DONE and structurally clean:
+# 2. BASELINE IS DONE AND FULLY AUDITED -- AUDIT PASSED, 0 overclaims of 39,120
+#    claims across all nine blocks (outputs/audit_v2.log). Task #8 is closed for
+#    the baseline artifact.
 #    outputs/nine_real_400_v2.txt      (8 blank separator lines -- predates the fix)
 #    outputs/nine_real_400_v2_clean.txt (normalised: 27 lines, 0 blanks, 39,120 claims)
 
