@@ -182,34 +182,67 @@ read 1,245 checks/s against 500 m's 16,717 — throughput apparently *rising* wi
 400 m was also the calibration base, every derived estimate was inflated. Warm the index before
 timing anything.
 
-**DECIDED 2026-08-08 (Marko): "whatever produced better results."** Being taken as a measurement
-rather than an assumption — both radii are being built on the official dataset so the nine-block
-solve can be run at each and the **serviced-building counts compared directly**. Visible-pair
-capture (91% vs 98%) is a proxy; claimed-building count is the scored quantity.
+**DECIDED 2026-08-08 (Marko): "whatever produced better results."**
 
-Cost check before committing to it: 800 m is 3.5x the pairs, so ~6.4 h of matrix build instead of
-110 min. The gate still passes — 6.4 h matrix + ~1.3 h greedy = 7.7 h against 20 h, 2.6x headroom.
-1600 m is not worth testing: it buys only +1.6% over 800 m for another 3.3x.
+### 600 m ANSWERED 2026-08-09 — matched-pair measurement, awaiting Marko's call
 
-Pending result: whichever radius yields more serviced buildings across the nine subproblems wins.
-If they tie, 400 m wins on cost.
+Both matrices built on the official dataset; identical candidates (157,454), samples (133,417),
+script and objective; **only the radius differs**. Serviced-building counts:
 
-**Build costs, measured on the official dataset:**
-
-| radius | build time | visible pairs | density | visible/candidate |
+| tau | k | 400 m | 600 m | change |
 |---|---|---|---|---|
-| 400 m | 82.5 min (8 workers) | 3,888,638 | 0.01851% | 24.7 |
-| 800 m | tracking ~11 h (12 workers) | pending | pending | pending |
+| 0.25 | 50 | 1,652 | 1,875 | **+13.5%** |
+| 0.25 | 500 | 8,818 | 9,083 | +3.0% |
+| 0.25 | 1000 | 11,622 | 11,742 | +1.0% |
+| 0.50 | 50 | 390 | 484 | **+24.1%** |
+| 0.50 | 500 | 4,578 | 4,931 | +7.7% |
+| 0.50 | 1000 | 8,545 | 8,729 | +2.2% |
+| 0.75 | 50 | 28 | 69 | **+146.4%** |
+| 0.75 | 500 | 1,312 | 1,439 | +9.7% |
+| 0.75 | 1000 | 3,648 | 3,886 | +6.5% |
+| | **total** | 40,593 | 42,238 | **+4.1%** |
 
-The 800 m build is running **far** longer than the 3.5x pair-count ratio implied (~6.4 h
-estimated). Same mechanism as every other timing miss in this project: longer segments intersect
-more blockers per STRtree query, so throughput falls as radius rises — the pair count and the
-per-pair cost both grow.
+**The gain is real and concentrates at low k and high tau** — the starved subproblems, where
+relative scoring pays most. But the model here predicted ~5.4 h and the build took **7.24 h**
+(sixth optimistic projection in this project).
 
-**The real matrix is 2.5x sparser than the synthetic one** (3.89M pairs vs 9.84M; 24.7 visible
-samples per candidate vs 61.5). Real street topology blocks far more sight lines than the
-synthetic's layout did. This cuts the opposite way from the visibility-*reach* finding, and is one
-more reason no solution-quality number measured on the synthetic can be trusted.
+**Unmeasured cost, and it is the deciding one:** `--verify-radius-factor 2.0` means a 600 m solve
+verifies at **1200 m**, while the 0.826 s constant was measured at 800 m. `gate_model` now
+*refuses* to cost that pair rather than guess. Even ignoring it: 7.24 h matrix + 1.72 h greedy +
+1.64 h verify = ~10.6 h likely / ~12.3 h bound, **~1.6x headroom** — below the 2.5x this section
+projected and near the 1.1x that got 800 m killed.
+
+**Recommendation: 400 m stands.** Rule 1 — feasibility outranks quality, and 1.6x on an unseen
+extract is not robust. The open counter-proposal is a **2x-pruned 600 m build** (~3.6 h instead of
+7.24 h, since a 2x prune is free — see #9), which might land back near 2.5x. That is ~3.6 h of
+machine time and is **Marko's call**.
+
+Not worth testing: 1600 m buys +1.6% over 800 m for another 3.3x.
+
+**Build costs, measured on the official dataset. CORRECTED 2026-08-09 — the figures that were
+here before were measured with the PRE-#14 broken predicate and understate visibility by ~2x.**
+
+| radius | build time | visible pairs | visible/candidate | key | valid? |
+|---|---|---|---|---|---|
+| 400 m | 82.5 min (8 workers) | 3,888,638 | 24.7 | `171c436e` | **NO — pre-#14** |
+| 400 m | **99.6 min** (8 workers) | **8,194,226** | **52.0** | `7a385189` | yes |
+| 600 m | **434.5 min** (6 workers, nice 15) | **8,891,506** | **56.5** | `89846a10` | yes |
+| 800 m | abandoned at 12/48 chunks, tracking ~15 h | — | — | — | — |
+
+Only the last two rows may be quoted. The `24.7 → 52.0` jump is #14: absolute visibility roughly
+doubled once boundary jitter stopped making a third of the samples unseeable.
+
+Longer segments intersect more blockers per STRtree query, so throughput falls as radius rises —
+the pair count and the per-pair cost both grow. That is why 600 m cost **4.36x** the build time of
+400 m for **+8.5%** visible pairs.
+
+**CORRECTED 2026-08-09.** This paragraph used to read "the real matrix is 2.5x sparser than the
+synthetic one (3.89M pairs vs 9.84M)". That compared the **pre-#14** real matrix against the
+synthetic and is wrong. Post-fix the real 400 m matrix holds **8,194,226** pairs (52.0 visible
+samples per candidate) against the synthetic's 9,844,991 (61.5) — real is **1.2x sparser, not
+2.5x**. Real street topology does block more sight lines than the synthetic's layout, but by far
+less than the broken predicate made it look. The conclusion that survives unchanged: no
+solution-quality number measured on the synthetic can be trusted.
 
 **Mitigation already in place.** The verification pass no longer inherits the solver's cull. It
 re-measures at `visibility_radius x verify_radius_factor` (default 2.0), so a 400 m solve verifies
@@ -241,10 +274,13 @@ All performance figures recorded before 2026-08-08 were measured on the syntheti
 matrix in `outputs/cache` is for the SYNTHETIC dataset; a real-data matrix has a different cache
 key and must be built before any real-data solve.
 
-### 4 — Gate reads PASS  (DONE 2026-08-07)
+### 4 — Gate reads PASS  (2026-08-07 — **NUMBERS SUPERSEDED, DO NOT QUOTE**)
 
-**MEASURED VERDICT: PASS.** Observed, not projected — the real 400 m matrix was built and real
-greedy iterations were timed.
+> **The 3.18 h / 6.3x below is DISPROVEN.** It omitted verification entirely, which turned out to
+> be 81.7% of the runtime. A real nine-block run took **9.42 h**. Kept only to show what the gate
+> used to say and why. Current figures are in the header of this file; the calibrated model lives
+> in `giscup.gate_model`, pinned by `tests/test_gate_calibration.py`. These numbers were also
+> measured on the SYNTHETIC stand-in and on the pre-#14 predicate.
 
 ```
 matrix build : 110.8 min   (once, reused by all nine)
@@ -252,7 +288,7 @@ greedy       : 1.031 s per iteration
   k=50   x 3 taus :   2.6 min
   k=500  x 3 taus :  25.8 min
   k=1000 x 3 taus :  51.6 min
-TOTAL            : 3.18 h        budget 20 h        headroom 6.3x
+TOTAL            : 3.18 h    <-- WRONG: excludes verification, actual run 9.42 h
 ```
 
 Matrix: 9,844,991 visible pairs, density 0.04451%, 61.5 visible samples per candidate, key
@@ -705,17 +741,60 @@ are an order of magnitude smaller. Unit-square tests at coordinates near 1 could
 
 **Scope (Marko's call):** exact coverage backs the **claim decision and validation**. Greedy keeps
 the fast sampled matrix — it is a search heuristic, not the scored quantity, and putting exact
-coverage in its inner loop would risk the 6.3x feasibility headroom.
+coverage in its inner loop would risk the feasibility headroom. (The "6.3x" that stood here is
+the disproven 2026-08-07 figure; current headroom is 2.9x on the bound. The reasoning is
+unaffected — if anything a tighter budget strengthens it.)
 
-### 9 — Prune the candidate pool  (blocked on #2)
+### 9 — Prune the candidate pool  (SIZED 2026-08-09; 2x is free, adoption not started)
 
-160,198 candidates to choose at most 1,000 from is heavy overkill, and matrix cost is linear in
-candidate count — an 8x prune is an 8x saving on the dominant cost.
+**The board used to frame this as a matrix-build saving. It is nearly twice that.** Greedy's
+argmax is a popcount pass over all 157,454 rows on every one of the `k` iterations, so **67% of
+the likely day total is linear in candidate count**, not 33%:
 
-Implement genuine pruning behind the existing mode names (`density`, `visibility_probe`,
-`hybrid`). Today those modes only add **more** candidates via `edge_sample` and prune nothing,
-which makes the names misleading. Prefer spatial diversity and high-visibility positions. Measure
-the quality cost of each prune level against runtime saved; stop before quality degrades measurably.
+| | h | scales with |
+|---|---|---|
+| matrix build | 1.66 | candidates |
+| greedy argmax | 1.72 | candidates |
+| verification | 1.64 | claims × k — untouched by pruning |
+
+**Measured degradation, official data, k=500** (`scripts/size_candidate_prune.py`). The prune rule
+keeps every Nth candidate *within each building*, so survivors stay spread over the domain:
+
+| prune | candidates | tau=0.25 | tau=0.50 | tau=0.75 | likely | headroom (bound) |
+|---|---|---|---|---|---|---|
+| 1x (control) | 157,454 | 8,818 | 4,578 | 1,312 | 5.02 h | 3.0x |
+| **2x** | 78,727 | −0.0% | +0.0% | **+0.0%** | **3.33 h** | **4.0x** |
+| 4x | 39,431 | −2.0% | −3.0% | −6.6% | 2.48 h | 4.7x |
+| 7.2x | 21,813 | −4.0% | −7.5% | **−14.9%** | 2.11 h | 5.2x |
+
+**Only 2x is free** — one serviced building lost of 14,708. Degradation is monotone, accelerating,
+and always worst at high tau. An earlier claim in this session that an 8x prune was viable was
+wrong and is withdrawn. **The honest lever is 1.69 h at zero measured quality cost.**
+
+Two structural facts:
+
+- **The free 2x is exactly `vertex-only`.** Candidates alternate vertex/midpoint, so `stride-2`
+  and `vertex-only` are the *same set* — they are one measurement, not two agreeing. Pleasant
+  coincidence with #15: the discarded half is the midpoint half, 37.4% of which lands
+  microscopically inside its own footprint and needs an output nudge.
+- **Per-building stride saturates near 12.2x** (157,454 candidates over 12,860 buildings), because
+  every building keeps its first candidate. Beyond that a prune must delete whole buildings,
+  removing their only legal antenna positions.
+
+**Control passed:** `stride-1` reproduced `greedy_select_matrix` exactly, so the rest of the table
+is trustworthy. Counts are in-sample (the grid greedy optimized on) so levels are upper estimates,
+but the bias is *not* asymmetric between arms — every arm runs the same objective and differs only
+in the row subset — so the comparison between levels is sound.
+
+**Caveats before adopting:** measured at 400 m and k=500 only. Whether 2x stays free at k=50 —
+where tau=0.75 services just 28 buildings and one lost candidate shows — is untested.
+
+**`--max-candidates` is NOT this.** It truncates by generation order, which walks building by
+building, so it deletes whole neighbourhoods. Documented as such in the CLI help and in
+`greedy_select_matrix`. Do not use it for pruning.
+
+**Sequencing:** pruning changes the candidate digest and therefore the matrix cache key. Adopting
+it discards both the valid 400 m matrix and the 600 m build. Do not start until #3b is settled.
 
 ### 10 — Unimplemented names and placeholders
 
@@ -747,7 +826,7 @@ Prevents a false capability claim at submission time.
 | 2026-08-08 | #10 — dead names removed | Deleted the `negative_buffer` and `hybrid` visibility strategies (one predicate remains, the official one), the unimplemented optimizer names, `scripts/compare_configs.py`, `scripts/profile_visibility.py`, and `configs/defaults.yaml`. 122 tests pass. `MatrixSpec.eps` deliberately retained — dropping it would have changed the cache key and thrown away the 110-minute matrix build. |
 | 2026-08-08 | #13 — exact interval coverage | `src/giscup/exact_coverage.py` + 15 tests. Agrees with converged brute force to 4 dp (0.7537 vs 0.7538) at 6.2 ms for two buildings. Corrected the 2026-08-07 "does not converge" claim — it does converge, at ~0.5 m. Fixed a relative-tolerance bug that silently voided vertical edges at UTM magnitudes. |
 | 2026-08-07 | #2 — radius-culled cached visibility matrix | `d7b9f6d` + build. 2.77 GB, 9,844,991 visible pairs, 110.8 min on 8 cores, key `18912a76…`. Reused across all nine subproblems. |
-| 2026-08-07 | #4 — feasibility gate reads PASS | **MEASURED**, not projected: 3.18 h for nine subproblems vs a 20 h budget, 6.3x headroom. Was FAIL by ~5e8x at session start. |
+| 2026-08-07 | #4 — feasibility gate reads PASS | ~~3.18 h, 6.3x headroom~~ **DISPROVEN — the real run took 9.42 h.** The gate excluded verification, which was 81.7% of runtime. Re-fitted in #16; current figures are in this file's header. The PASS verdict itself survived; the number did not. |
 | 2026-08-07 | #3 — un-culled verification pass | Uncommitted. `src/giscup/verify.py` + 19 tests. Policy (Marko): band **relative** to tau, **two-sided**, closest-to-tau first under a cap. Recovers what the cull forfeited, drops what the grid inflated. Wired into `solve_one` via `--verify-band` / `--verify-max-buildings`, opt-in. **Radius calibration half still outstanding** — needs the full-scale matrix. |
 | 2026-08-07 | #12 — claim decision decoupled from the optimizer's grid | Uncommitted. `verify.dense_samples_for` re-samples targeted buildings independently rather than reusing the grid greedy optimized on. On the mini nine-block run this dropped the original overclaim (building 6) plus 7, and recovered 8 and 27; `validate-output` went from FAIL to `ok: true`. **Superseded in principle by #13** — the underlying instability is unfixed. |
 | 2026-08-07 | #11 — hole-perimeter question resolved against official rules | Official page re-checked: "the polygons will not self-intersect and will not have holes." Moot on official data (no interior rings ⇒ `polygon.length` == exterior perimeter). Defensive behaviour kept; assumption + bounded cost recorded in `docs/competition-reference.md`. |

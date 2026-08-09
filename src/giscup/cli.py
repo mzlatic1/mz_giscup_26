@@ -229,7 +229,18 @@ def _add_solver_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--candidate-spacing", type=float, default=25.0)
     parser.add_argument("--sampling-profile", default="balanced")
     parser.add_argument("--optimizer", default="greedy")
-    parser.add_argument("--max-candidates", type=int)
+    parser.add_argument(
+        "--max-candidates", type=int,
+        help=(
+            "DO NOT USE FOR PRUNING. Truncates the candidate list by generation "
+            "order, and generation walks building by building -- so this deletes "
+            "whole neighbourhoods of the city rather than thinning uniformly. "
+            "Measured 2026-08-09, a uniform 2x prune (keep every other candidate, "
+            "which is exactly the vertex half) costs 1 serviced building of 14,708; "
+            "4x costs 6.6%% at tau=0.75 and 7.2x costs 14.9%%. See task #9. This flag "
+            "exists for bounding test runs, nothing else."
+        ),
+    )
     parser.add_argument("--visibility-strategy", default="relate")
     parser.add_argument("--claim-margin", type=float, default=0.005)
     parser.add_argument(

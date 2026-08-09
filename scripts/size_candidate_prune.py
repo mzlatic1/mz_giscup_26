@@ -12,12 +12,32 @@ measured constants:
 **67% of the runtime is linear in candidate count.** The board framed #9 as a way
 to shrink the matrix build; it is nearly twice that, because greedy's argmax is a
 popcount pass over every one of the 157,454 rows on every one of the k iterations.
-An 8x prune takes the likely day to ~2.06 h and the pessimistic bound's headroom
-from 3.0x to 5.3x.
 
 So the only open question is the quality cost, and that is measurable *without
 rebuilding anything*: restrict greedy to a subset of the rows of the matrix we
 already have, and compare serviced-building counts against the full pool.
+
+RESULT, measured 2026-08-09 at 400 m / k=500 by this script:
+
+    prune  candidates   tau=0.25  tau=0.50  tau=0.75   likely day
+      1x      157,454    control   control   control      5.02 h
+      2x       78,727     -0.0%     +0.0%     +0.0%      3.33 h
+      4x       39,431     -2.0%     -3.0%     -6.6%      2.48 h
+    7.2x       21,813     -4.0%     -7.5%    -14.9%      2.11 h
+
+**Only 2x is free** -- one serviced building lost of 14,708. Degradation is
+monotone, accelerating, and always worst at high tau. An earlier claim that an 8x
+prune was viable is withdrawn: the honest lever is 1.69 h at zero quality cost.
+
+Per-building stride saturates near 12.2x, because every building keeps its first
+candidate. Beyond that a prune deletes whole buildings and their only legal
+antenna positions.
+
+CAVEAT ON THE TIMING COLUMN THIS SCRIPT PRINTS: ignore it. `marginal_gains`
+computes gains for every row and the mask is applied afterwards, so every arm does
+identical work -- the column measures contention, not pruning. The runtime case
+rests on the structural argument (a genuinely smaller matrix has fewer rows to
+popcount), which this script cannot demonstrate.
 
 **A prune rule is only usable if it is computable before the matrix exists**,
 since the whole point is to not build those rows. Both rules here are geometry-only:

@@ -85,6 +85,13 @@ def greedy_select_matrix(
     `progress`, when given, is called as `progress(picked, k)` every `report_every`
     picks. This is the longest phase in a subproblem -- ~17 min at k=1000 -- so without
     it the run looks stalled for that entire stretch.
+
+    **`max_candidates` is not a prune.** It disqualifies everything past an index,
+    and candidates are generated building by building, so it deletes whole
+    neighbourhoods of the city rather than thinning uniformly. A real prune keeps
+    every Nth candidate *within* each building. Measured 2026-08-09 at k=500: that
+    is free at 2x (one serviced building lost of 14,708), costs 6.6% at tau=0.75 by
+    4x, and 14.9% by 7.2x. See task #9 and `scripts/size_candidate_prune.py`.
     """
     if k <= 0:
         raise ValueError(f"k must be positive; got {k}")

@@ -23,10 +23,14 @@ from __future__ import annotations
 import pytest
 
 from giscup.gate_model import (
+    MEASURED_AT_SOLVE_RADIUS_M,
+    MEASURED_AT_VERIFY_RADIUS_FACTOR,
+    MEASURED_AT_VERIFY_RADIUS_M,
     MEASURED_VERIFY_S_PER_BUILDING_PER_1K,
     calibrated_verify_seconds,
     pessimistic_verify_seconds,
     projected_verify_seconds,
+    verify_constant_for,
     verify_speedup,
 )
 
@@ -143,6 +147,70 @@ def test_an_unmeasured_worker_count_rounds_down_to_a_measured_one():
 def test_speedup_is_monotonic():
     values = [verify_speedup(w) for w in (1, 2, 4, 8, 12)]
     assert values == sorted(values)
+
+
+# --- the constant is not universal; it belongs to a radius PAIR ---------------
+#
+# 0.826 was measured on a 400 m solve, and `--verify-radius-factor 2.0` means that
+# run verified at 800 m. It is not a property of the solver -- it is the cost of
+# exact coverage against however many blockers an 800 m query returns.
+#
+# #3b is live: the 600 m matrix was built 2026-08-09, and a 600 m solve verifies at
+# 1200 m, where the per-building cost is materially higher. Reusing 0.826 there
+# would understate verification -- the same failure as #16, same mechanism, same
+# direction, and nothing in the code recorded the coupling until now.
+
+
+def test_the_constant_is_returned_at_the_radius_pair_it_was_measured_on():
+    got = verify_constant_for(
+        MEASURED_AT_SOLVE_RADIUS_M, MEASURED_AT_VERIFY_RADIUS_FACTOR
+    )
+    assert got == pytest.approx(MEASURED_VERIFY_S_PER_BUILDING_PER_1K)
+
+
+def test_the_measured_pair_is_400_solving_and_800_verifying():
+    """Pinned because the whole refusal below is meaningless if these drift."""
+    assert MEASURED_AT_SOLVE_RADIUS_M == pytest.approx(400.0)
+    assert MEASURED_AT_VERIFY_RADIUS_FACTOR == pytest.approx(2.0)
+    assert MEASURED_AT_VERIFY_RADIUS_M == pytest.approx(800.0)
+
+
+def test_a_600_metre_solve_is_refused_rather_than_costed_with_the_wrong_constant():
+    """The gate must not silently produce a number for a radius it never measured.
+    Refusing is the safe direction: a loud stop costs one session, a quiet 2x error
+    costs the submission."""
+    with pytest.raises(ValueError) as exc:
+        verify_constant_for(600.0, 2.0)
+    message = str(exc.value)
+    assert "1200" in message, "the error must name the verify radius actually requested"
+    assert "800" in message, "and the one the constant was measured at"
+
+
+def test_changing_only_the_verify_factor_is_also_refused():
+    """400 m solving with factor 1.0 verifies at 400 m, not 800 -- a different cost
+    even though the solve radius is unchanged. The pair is what matters."""
+    with pytest.raises(ValueError):
+        verify_constant_for(400.0, 1.0)
+
+
+def test_unbounded_verification_is_refused():
+    """`--verify-radius-factor 0` means no cull at all. The board measured ~1,180
+    blockers per unbounded query against 21 at 400 m; costing that with an 800 m
+    constant is not an approximation, it is a different problem."""
+    with pytest.raises(ValueError):
+        verify_constant_for(400.0, 0.0)
+
+
+def test_an_unbounded_solve_is_refused():
+    with pytest.raises(ValueError):
+        verify_constant_for(None, 2.0)
+
+
+def test_an_explicit_override_is_honoured():
+    """The escape hatch exists so a future session that MEASURES 600/1200 can cost
+    it without editing the module. Passing a number is a claim that you measured
+    it -- which is the point, because it cannot happen by accident."""
+    assert verify_constant_for(600.0, 2.0, override=2.5) == pytest.approx(2.5)
 
 
 def test_parallel_verification_moves_the_gate_off_the_margin():

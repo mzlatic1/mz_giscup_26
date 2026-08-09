@@ -27,6 +27,65 @@ import os
 #: The previous value, 0.051, under-predicted that run by 16.2x.
 MEASURED_VERIFY_S_PER_BUILDING_PER_1K = 0.826
 
+#: The radius pair `MEASURED_VERIFY_S_PER_BUILDING_PER_1K` belongs to. The v2 run
+#: solved at a 400 m cull with `--verify-radius-factor 2.0`, so every exact-coverage
+#: query it timed ran against blockers within **800 m**.
+MEASURED_AT_SOLVE_RADIUS_M = 400.0
+MEASURED_AT_VERIFY_RADIUS_FACTOR = 2.0
+MEASURED_AT_VERIFY_RADIUS_M = MEASURED_AT_SOLVE_RADIUS_M * MEASURED_AT_VERIFY_RADIUS_FACTOR
+
+
+def verify_constant_for(
+    solve_radius_m: float | None,
+    verify_radius_factor: float = MEASURED_AT_VERIFY_RADIUS_FACTOR,
+    *,
+    override: float | None = None,
+) -> float:
+    """Seconds per building per 1000 antennas -- but only at the radius it was measured.
+
+    **0.826 is not a property of the solver.** It is the cost of exact interval
+    coverage against however many blockers one query returns, and that count grows
+    steeply with radius: the board measured 21 blockers per query at 400 m against
+    ~1,180 unbounded, and the audit found 800 m cost ~10x what 400 m did rather than
+    the 3-4x assumed.
+
+    So the constant belongs to the *pair* (solve radius, verify factor) = (400 m,
+    2.0), i.e. verification at 800 m. This matters right now: #3b built a 600 m
+    matrix on 2026-08-09, and a 600 m solve verifies at 1200 m. Reusing 0.826 there
+    would understate verification -- the same failure as #16, same mechanism, same
+    optimistic direction.
+
+    Refusing is the safe direction. A loud stop costs one session; a quiet 2x error
+    costs the submission, which is what happened when the gate read 4.01 h for a
+    9.42 h run. `override` is the escape hatch, and passing a number is an assertion
+    that you measured it -- which cannot happen by accident.
+    """
+    if override is not None:
+        return override
+    if solve_radius_m == MEASURED_AT_SOLVE_RADIUS_M and (
+        verify_radius_factor == MEASURED_AT_VERIFY_RADIUS_FACTOR
+    ):
+        return MEASURED_VERIFY_S_PER_BUILDING_PER_1K
+
+    if solve_radius_m is None:
+        requested = "unbounded"
+    elif not verify_radius_factor:
+        requested = "unbounded (verify_radius_factor=0)"
+    else:
+        requested = f"{solve_radius_m * verify_radius_factor:g} m"
+    raise ValueError(
+        f"verification cost is uncalibrated at this radius: you asked to cost "
+        f"verification at {requested}, but {MEASURED_VERIFY_S_PER_BUILDING_PER_1K} s "
+        f"per building per 1000 antennas was measured at "
+        f"{MEASURED_AT_VERIFY_RADIUS_M:g} m (a "
+        f"{MEASURED_AT_SOLVE_RADIUS_M:g} m solve at factor "
+        f"{MEASURED_AT_VERIFY_RADIUS_FACTOR:g}). Blockers per query grow steeply with "
+        f"radius -- 800 m cost ~10x 400 m -- so reusing this constant would understate "
+        f"the run, exactly as the gate did before #16. Measure the new pair and pass "
+        f"it as override=<seconds>."
+    )
+
+
 #: The nine subproblems, as published on the sample page.
 TAUS = (0.25, 0.5, 0.75)
 KS = (50, 500, 1000)

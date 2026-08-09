@@ -3,6 +3,33 @@
 Operational state so the next session starts without rereading history.
 Task list lives in `docs/task-board.md`. Say **"start session"** and `/startup` handles the rest.
 
+**`docs/submission-day-runbook.md` is new (2026-08-09).** It is the operational sequence for
+2026-08-15/16 — inspect first (the `--id-property` trap), size, solve, audit, package, plus what
+to give up if the extract is bigger. Read it on the day; it is not a startup read.
+
+## 2026-08-09 midday — three measurements and two corrections
+
+**#3b ANSWERED: 600 m services +4.1% more buildings than 400 m, concentrated at low k**
+(+146.4% at tau=0.75/k=50, +24.1% at 0.5/50, +13.5% at 0.25/50; only +1.0–6.5% at k=1000).
+Matched pair — identical candidates, samples, script and objective. **But it cost 434.5 min to
+build against a ~5.4 h projection**, and a 600 m solve verifies at 1200 m where the cost constant
+does not apply. ~1.6x headroom. **Recommendation: 400 m stands. Marko's call**, and the live
+counter-proposal is a 2x-pruned 600 m build (~3.6 h) that might land back near 2.5x.
+
+**#9 SIZED: a 2x candidate prune is free** (one serviced building of 14,708) and worth **1.69 h**.
+4x costs 6.6% at tau=0.75, 7.2x costs 14.9%. The free 2x is exactly the vertex half. I claimed
+mid-session that an 8x prune was viable — **withdrawn**, the last arm disproved it.
+
+**Correction carried into the board:** its 400 m row (3,888,638 pairs, 24.7 visible/candidate) was
+the **pre-#14** matrix and understates visibility ~2x. Valid figures: 8,194,226 and 52.0, key
+`7a385189`. The derived "real matrix is 2.5x sparser than synthetic" claim was wrong too — it is
+1.2x.
+
+**New guard:** `gate_model.verify_constant_for()` now **refuses** to cost a radius pair it was not
+measured at. 0.826 s belongs to (400 m solve, 800 m verify), not to the solver — reusing it at
+600/1200 would repeat #16 exactly. `--verify-workers` now defaults to `min(cores, 12)` everywhere,
+and the gate's default is pinned *to the solver's* by test.
+
 Last session: **2026-08-09 (overnight)**. Local head `f4e7b81`. **`4c947d6` and `f4e7b81` are
 committed LOCALLY AND UNPUSHED** — Marko authorised local commits only while asleep.
 

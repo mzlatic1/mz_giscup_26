@@ -32,9 +32,11 @@ from shapely.geometry import LineString
 
 from giscup.candidates import generate_boundary_candidates
 from giscup.gate_model import (
+    MEASURED_AT_VERIFY_RADIUS_FACTOR,
     MEASURED_VERIFY_S_PER_BUILDING_PER_1K,
     default_verify_workers,
     projected_verify_seconds,
+    verify_constant_for,
     verify_speedup,
 )
 from giscup.io import load_buildings
@@ -310,6 +312,8 @@ def measured_gate(
     greedy_probe_iterations: int,
     verify_buildings: int = 2000,
     verify_workers: int = 1,
+    verify_radius_factor: float = MEASURED_AT_VERIFY_RADIUS_FACTOR,
+    verify_constant_override: float | None = None,
 ) -> int:
     """Observe the real pipeline cost instead of projecting it.
 
@@ -368,7 +372,12 @@ def measured_gate(
     # per 1000 antennas; decomposing v2's measured 33,898 s gives 0.826 -- 16.2x
     # larger, and the entire reason this gate read 4.01 h for a 9.42 h run.
     # See giscup.gate_model and tests/test_gate_calibration.py.
-    c = MEASURED_VERIFY_S_PER_BUILDING_PER_1K
+    # The constant belongs to a radius PAIR, not to the solver. #3b built a 600 m
+    # matrix on 2026-08-09, and a 600 m solve verifies at 1200 m -- where this
+    # constant does not apply. Refuse rather than print a number we cannot stand behind.
+    c = verify_constant_for(
+        radius, verify_radius_factor, override=verify_constant_override
+    )
     speedup = verify_speedup(verify_workers)
     exhaustive_s = sum(len(buildings) * (k / 1000.0) * c for k in KS) * len(TAUS) / speedup
     recovery_s = sum(verify_buildings * (k / 1000.0) * c for k in KS) * len(TAUS) / speedup
