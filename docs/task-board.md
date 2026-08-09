@@ -477,38 +477,79 @@ So every sweep number above **inflates lever A more than baseline**. Treat them 
 estimate and a ranking of quantiles, not as a score prediction. The honest measurement is the
 nine-block run, which decides claims off an independent grid and then verifies exhaustively:
 
-#### ANSWERED 2026-08-09 — the advantage survives verification (5 of 9 blocks)
+#### ANSWERED 2026-08-09 — the advantage survives verification (7 of 9 blocks)
 
-Baseline `outputs/nine_verifypar_400.txt` vs lever A `outputs/nine_leverA_400_5of9.txt`, both
-post-verification, schedule `--near-tau-quantile 100 50 25` mapped positionally onto
-`--taus 0.25 0.5 0.75`:
+Baseline `outputs/nine_verifypar_400.txt` vs lever A (`outputs/nine_leverA_400_5of9.txt` plus
+`outputs/leverA_tau075_small.txt`), all post-verification, schedule `--near-tau-quantile 100 50 25`
+mapped positionally onto `--taus 0.25 0.5 0.75`:
 
-| block | q | baseline | lever A | verified | sweep predicted |
+| block | q | baseline | lever A | verified | sweep predicted | ratio if we ship baseline |
+|---|---|---|---|---|---|---|
+| (0.25, 50) | 100 | 1,660 | 1,659 | **−0.1%** | +0.4% | 1.001 |
+| (0.25, 500) | 100 | 8,854 | 9,349 | **+5.6%** | +6.4% | 0.947 |
+| (0.25, 1000) | 100 | 11,630 | 12,279 | **+5.6%** | — | 0.947 |
+| (0.5, 50) | 50 | 144 | 269 | **+86.8%** | +22.1% | 0.535 |
+| (0.5, 500) | 50 | 3,903 | 4,247 | **+8.8%** | +8.6% | 0.919 |
+| (0.5, 1000) | 50 | 8,063 | *not measured* | | | |
+| (0.75, 50) | 25 | 27 | 148 | **+448.1%** | +460.7% | **0.182** |
+| (0.75, 500) | 25 | 1,295 | 2,222 | **+71.6%** | +77.7% | **0.583** |
+| (0.75, 1000) | 25 | 3,544 | *not measured* | | | |
+| **subtotal** | | **27,513** | **30,173** | **+9.7%** | | |
+
+**The lever is real and the gap is large.** It wins six blocks of seven; the single loss is one
+building. The last column is the score we would take on each block if a rival submitted
+lever-A-equivalent numbers: shipping baseline instead of lever A forfeits **1.89 of 9 subproblems**
+across these seven blocks, ~21% of the achievable total. That is a comparison between two of *our
+own* options, not a score prediction — competition rule 5 still holds.
+
+**The blocks that matter most are the ones with the fewest claims.** Under relative scoring every
+subproblem is worth 1.0 regardless of size, so `(0.75, 50)` — 27 baseline claims — swings more than
+`(0.25, 1000)`'s 11,630. Lever A's gains are largest exactly where the counts are smallest. Any
+future lever must be sized on this table, never on the total claim count.
+
+**The predicted in-sample asymmetry never materialised, in any block.** The warning above reasoned
+that lever A's wins sit near the threshold, so verification should punish lever A harder than
+baseline, making sweep numbers an upper estimate for lever A. Measured: in **five of six** blocks
+with a sweep prediction, verification landed within a few points of it (+0.4→−0.1, +6.4→+5.6,
++8.6→+8.8, +460.7→+448.1, +77.7→+71.6). The sixth, `(0.5, 50)`, went the *other* way — the sweep
+**understated** lever A by 4x, because verification cut the baseline from 390 in-sample to 144
+(−63%) against lever A's 476→269 (−43%). So where the bias existed at all it favoured **baseline**,
+never lever A. The `sweep_near_tau.py` numbers proved a good predictor of verified reality; keep
+the methodological caution, but the empirical claim that it inflates lever A is **withdrawn**.
+
+**`(0.5, 1000)` and `(0.75, 1000)` remain unmeasured** — the original run was killed at 13:55 in
+block 6 of 9 after 10.4 h, having been launched with serial verification before the
+`--verify-workers` default landed. Both are k=1000 blocks, where the k=1000 sweep *inverts* the
+trend (see above), so they are the two blocks least safe to extrapolate. They cost ~2 h together.
+
+#### The schedule is per-tau, but the optimum is per-(tau, k)
+
+`--near-tau-quantile` maps positionally onto `--taus`, so one quantile serves all three k values at
+that tau. The sweeps say the optimum moves with k as well — higher tau tightens, higher k loosens,
+and the two effects oppose. Checking the shipped `100 50 25` schedule against each block's own best
+quantile in the sweep tables above:
+
+| block | schedule q | sweep at that q | best q | sweep at best | leaves |
 |---|---|---|---|---|---|
-| (0.25, 50) | 100 | 1,660 | 1,659 | **−0.1%** | +0.4% |
-| (0.25, 500) | 100 | 8,854 | 9,349 | **+5.6%** | +6.4% |
-| (0.25, 1000) | 100 | 11,630 | 12,279 | **+5.6%** | — |
-| (0.5, 50) | 50 | 144 | 269 | **+86.8%** | +22.1% |
-| (0.5, 500) | 50 | 3,903 | 4,247 | **+8.8%** | +8.6% |
-| **subtotal** | | **26,191** | **27,803** | **+6.2%** | |
+| (0.25, 50) | 100 | +0.4% | 100 | +0.4% | — |
+| (0.25, 500) | 100 | +6.4% | 100 | +6.4% | — |
+| (0.25, 1000) | 100 | +6.8% | 100 | +6.8% | — |
+| (0.5, 50) | 50 | +22.1% | **25** | **+37.7%** | **15.6 pts** |
+| (0.5, 500) | 50 | +8.6% | 50 | +8.6% | — |
+| (0.5, 1000) | 50 | +1.1% | **100** | **+3.5%** | **2.4 pts** |
+| (0.75, 50) | 25 | +460.7% | 25 | +460.7% | — |
+| (0.75, 500) | 25 | +77.7% | 25 | +77.7% | — |
+| (0.75, 1000) | 25 | +28.0% | 50 | +29.7% | 1.7 pts |
 
-**The lever is real.** It wins four blocks of five; the single loss is one building.
+Six of nine blocks already run at their best quantile. The one worth acting on is **`(0.5, 50)`**,
+where q=25 beats the scheduled q=50 by 15.6 points in the sweep — and `(0.5, 50)` is a
+small-count block, so under relative scoring it carries the same weight as `(0.25, 1000)`.
+`(0.5, 1000)` and `(0.75, 1000)` leave little.
 
-**The predicted in-sample asymmetry did not materialise — and at small k it ran the other way.**
-The warning above reasoned that lever A's wins sit near the threshold, so verification should
-punish lever A harder than baseline. At k=500 the bias turned out roughly symmetric (predicted
-+6.4%/+8.6%, verified +5.6%/+8.8% — close enough to call the sweep honest there). At k=50,
-tau=0.5 verification cut the *baseline* from 390 in-sample to 144 verified (−63%) while cutting
-lever A from 476 to 269 (−43%), so the measured gap is **four times** what the sweep predicted.
-Baseline greedy at small k accumulates cheap coverage that in-sample scoring flatters and exact
-verification withdraws; lever A's picks are deliberate and hold up better. Keep the caution for
-future sweeps, but do not assume its sign.
-
-**The three tau=0.75 blocks and (0.5, 1000) are NOT measured.** The run was killed at 13:55 in
-block 6 of 9 after 10.4 h, because it was launched with serial verification before the
-`--verify-workers` default landed and had ~7.8 h still to go. `(0.75, 50)` is the highest-variance
-block in the submission — baseline claims just **27** buildings, so a relative-scored ratio swings
-enormously there — and it costs ~2 min at 12 workers. Measure it before finalising #15.
+**This needs a CLI change**, not just a different argument: the schedule cannot currently express a
+per-`(tau, k)` quantile. Sizing before building it — the sweep says the whole realisable gain is
+concentrated in one block, so this is a small lever, not a second lever A. Do not start it before
+#15 is settled and the two missing blocks are measured.
 
 ### 6 — Threshold-aware objective  (original framing)
 

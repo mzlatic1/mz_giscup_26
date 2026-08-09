@@ -27,6 +27,7 @@ from giscup.gate_model import (
     MEASURED_AT_VERIFY_RADIUS_FACTOR,
     MEASURED_AT_VERIFY_RADIUS_M,
     MEASURED_VERIFY_S_PER_BUILDING_PER_1K,
+    MEASURED_VERIFY_S_PER_BUILDING_PER_1K_NEAR_TAU,
     calibrated_verify_seconds,
     pessimistic_verify_seconds,
     projected_verify_seconds,
@@ -220,3 +221,151 @@ def test_parallel_verification_moves_the_gate_off_the_margin():
     parallel = serial / verify_speedup(12)
     assert serial / 3600 > 15.0
     assert parallel / 3600 < 4.0
+
+
+# ---------------------------------------------------------------------------
+# The constant belongs to an OBJECTIVE as well as to a radius pair.
+#
+# 0.826 was fitted to the v2 run, which used baseline greedy. Lever A verifies
+# the *same* buildings more expensively, because near-tau selection deliberately
+# parks them at the threshold -- inside the band where exact interval coverage
+# must actually be computed rather than short-circuited. Measured 2026-08-09 at
+# (0.25, 1000): 15,696 s serial over 12,469 checks at k=1000 = 1.26 s per
+# building per 1000 antennas, against baseline's 0.826.
+#
+# If #15 adopts lever A and the gate keeps costing it at 0.826, every gate number
+# is wrong in the optimistic direction. That is #16 exactly: one constant,
+# measured under one configuration, silently applied to another.
+# ---------------------------------------------------------------------------
+
+
+def test_the_baseline_objective_is_the_default_and_is_unchanged():
+    """Adding the parameter must not move the number anyone already relies on."""
+    assert verify_constant_for(400.0, 2.0) == pytest.approx(
+        MEASURED_VERIFY_S_PER_BUILDING_PER_1K
+    )
+    assert verify_constant_for(400.0, 2.0, objective="baseline") == pytest.approx(
+        MEASURED_VERIFY_S_PER_BUILDING_PER_1K
+    )
+
+
+def test_lever_a_gets_its_own_measured_constant():
+    assert verify_constant_for(400.0, 2.0, objective="near-tau") == pytest.approx(
+        MEASURED_VERIFY_S_PER_BUILDING_PER_1K_NEAR_TAU
+    )
+
+
+def test_lever_a_verification_is_more_expensive_than_baseline():
+    """Pins the DIRECTION, which is the part that makes the gate safe. If a future
+    edit ever makes near-tau cheaper than baseline, the measurement was misread."""
+    assert (
+        MEASURED_VERIFY_S_PER_BUILDING_PER_1K_NEAR_TAU
+        > MEASURED_VERIFY_S_PER_BUILDING_PER_1K
+    )
+    baseline = verify_constant_for(400.0, 2.0, objective="baseline")
+    near_tau = verify_constant_for(400.0, 2.0, objective="near-tau")
+    assert near_tau / baseline == pytest.approx(1.52, abs=0.05)
+
+
+def test_the_near_tau_constant_is_the_measured_one():
+    """15,696 s / 12,469 checks at k=1000. Pinned so an edit has to be deliberate."""
+    assert MEASURED_VERIFY_S_PER_BUILDING_PER_1K_NEAR_TAU == pytest.approx(1.26)
+
+
+def test_an_unknown_objective_is_refused_rather_than_silently_costed_as_baseline():
+    """The load-bearing test. A typo, or a third objective added later, must not
+    quietly inherit baseline's cheaper constant -- that is the failure mode this
+    whole parameter exists to prevent, and it is how #16 happened."""
+    with pytest.raises(ValueError) as excinfo:
+        verify_constant_for(400.0, 2.0, objective="lazy-greedy")
+    assert "lazy-greedy" in str(excinfo.value)
+
+
+def test_the_refusal_names_the_objectives_it_does_know():
+    """A stop is only useful if it says what to do next."""
+    with pytest.raises(ValueError) as excinfo:
+        verify_constant_for(400.0, 2.0, objective="stochastic-greedy")
+    message = str(excinfo.value)
+    assert "baseline" in message and "near-tau" in message
+
+
+def test_lever_a_is_pinned_to_the_radius_pair_too():
+    """Both dimensions are uncalibrated independently. A 600 m lever A solve is
+    unmeasured on radius AND on objective; it must not sneak through because the
+    objective happens to be known."""
+    with pytest.raises(ValueError):
+        verify_constant_for(600.0, 2.0, objective="near-tau")
+
+
+def test_an_override_wins_over_the_objective():
+    assert verify_constant_for(
+        400.0, 2.0, objective="near-tau", override=3.0
+    ) == pytest.approx(3.0)
+
+
+def test_costing_lever_a_as_baseline_understates_a_full_day_by_hours():
+    """Why this matters in wall-clock terms rather than in units of a constant.
+
+    The gate's pessimistic bound at 12 workers is what decides PASS/FAIL. Costing
+    a lever A run with baseline's constant hides more than an hour of it."""
+    as_baseline = pessimistic_verify_seconds(
+        V2_BUILDINGS,
+        verify_buildings=2000,
+        seconds_per_building_per_1k=verify_constant_for(400.0, 2.0),
+    ) / verify_speedup(12)
+    as_lever_a = pessimistic_verify_seconds(
+        V2_BUILDINGS,
+        verify_buildings=2000,
+        seconds_per_building_per_1k=verify_constant_for(400.0, 2.0, objective="near-tau"),
+    ) / verify_speedup(12)
+    assert (as_lever_a - as_baseline) / 3600 > 1.5
+
+
+# --- the gate script must actually consume the objective ---------------------
+#
+# A constant nobody calls is decoration. `scripts/rehearse.py` is the only caller
+# of `verify_constant_for`, so if it cannot be told which objective it is costing,
+# adding the parameter changes nothing about what the gate prints.
+
+
+def _load_rehearse():
+    """`scripts/` is not a package, so import the gate script by path."""
+    import importlib.util
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    spec = importlib.util.spec_from_file_location("rehearse", root / "scripts" / "rehearse.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_the_gate_script_can_be_told_which_objective_it_is_costing():
+    parser = _load_rehearse().build_parser()
+    args = parser.parse_args(["--input", "x.geojson", "--objective", "near-tau"])
+    assert args.objective == "near-tau"
+
+
+def test_the_gate_script_costs_baseline_unless_told_otherwise():
+    """Changing the default would silently re-cost every documented gate command."""
+    parser = _load_rehearse().build_parser()
+    assert parser.parse_args(["--input", "x.geojson"]).objective == "baseline"
+
+
+def test_the_gate_script_offers_exactly_the_measured_objectives():
+    """argparse should reject an unmeasured objective at the command line rather
+    than let it reach the model -- the model refuses too, but failing before a
+    90-minute matrix build is strictly better than failing after one."""
+    parser = _load_rehearse().build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--input", "x.geojson", "--objective", "hybrid"])
+
+
+def test_measured_gate_accepts_the_objective():
+    """Pins the parameter through to the function that does the costing, so the flag
+    cannot be parsed and then dropped on the floor."""
+    import inspect
+
+    sig = inspect.signature(_load_rehearse().measured_gate)
+    assert "objective" in sig.parameters
+    assert sig.parameters["objective"].default == "baseline"

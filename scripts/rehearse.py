@@ -33,6 +33,7 @@ from shapely.geometry import LineString
 from giscup.candidates import generate_boundary_candidates
 from giscup.gate_model import (
     MEASURED_AT_VERIFY_RADIUS_FACTOR,
+    MEASURED_VERIFY_CONSTANTS,
     MEASURED_VERIFY_S_PER_BUILDING_PER_1K,
     default_verify_workers,
     projected_verify_seconds,
@@ -141,6 +142,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--verify-buildings", type=int, default=2000,
         help="Buildings re-verified per subproblem, for the verification cost line.",
+    )
+    parser.add_argument(
+        "--objective", choices=sorted(MEASURED_VERIFY_CONSTANTS), default="baseline",
+        help=(
+            "Which optimizer the run being costed will use. Verification is not the "
+            "same price for both: lever A (--near-tau-quantile) parks buildings at the "
+            "threshold by design, which is where exact coverage cannot short-circuit, "
+            "and it measured 1.26 s per building per 1000 antennas against baseline's "
+            "0.826. Costing a lever A day as baseline understates it by ~1.6 h. "
+            "Default: %(default)s."
+        ),
     )
     return parser
 
@@ -292,6 +304,7 @@ def main(argv: list[str] | None = None) -> int:
             greedy_probe_iterations=args.greedy_probe_iterations,
             verify_buildings=args.verify_buildings,
             verify_workers=args.verify_workers,
+            objective=args.objective,
         )
 
     print("\nReminder (see memory: rogii-lessons-that-transfer): measure a lever's best-case")
@@ -314,6 +327,7 @@ def measured_gate(
     verify_workers: int = 1,
     verify_radius_factor: float = MEASURED_AT_VERIFY_RADIUS_FACTOR,
     verify_constant_override: float | None = None,
+    objective: str = "baseline",
 ) -> int:
     """Observe the real pipeline cost instead of projecting it.
 
@@ -375,8 +389,12 @@ def measured_gate(
     # The constant belongs to a radius PAIR, not to the solver. #3b built a 600 m
     # matrix on 2026-08-09, and a 600 m solve verifies at 1200 m -- where this
     # constant does not apply. Refuse rather than print a number we cannot stand behind.
+    # ...and it belongs to an OBJECTIVE too. Lever A verifies the same buildings more
+    # expensively (1.26 vs 0.826), because parking them at the threshold is its whole
+    # mechanism and the threshold band is where exact coverage cannot short-circuit.
     c = verify_constant_for(
-        radius, verify_radius_factor, override=verify_constant_override
+        radius, verify_radius_factor, objective=objective,
+        override=verify_constant_override,
     )
     speedup = verify_speedup(verify_workers)
     exhaustive_s = sum(len(buildings) * (k / 1000.0) * c for k in KS) * len(TAUS) / speedup

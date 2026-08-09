@@ -46,16 +46,27 @@ If `DatasetInfo.id_fallback_used` is true in diagnostics, **stop and fix the fla
 
 ```bash
 python scripts/rehearse.py --input data/<the-new-file>.geojson \
-    --budget-hours 20 --cores 16 --measured-radius 400 --verify-workers 12
+    --budget-hours 20 --cores 16 --measured-radius 400 --verify-workers 12 \
+    --objective baseline          # or: --objective near-tau, if shipping lever A
 ```
 
 Read **both** numbers it prints — upper bound and likely. The bound sets the verdict; the likely
 figure is what to plan around. On the March sample at 400 m these read 6.87 h / 2.9× and
 5.14 h / 3.9×.
 
-The gate **refuses** to cost a radius pair it was not measured at. That is deliberate: the
-verification constant belongs to (400 m solve, 800 m verify), not to the solver. If you change
-`--visibility-radius` or `--verify-radius-factor`, the gate will stop rather than lie.
+**Pass `--objective near-tau` if the solve will use `--near-tau-quantile`.** Verification is not
+the same price for both objectives: lever A parks buildings *at* the threshold by design, which is
+exactly where exact interval coverage cannot short-circuit, and it measured **1.26** s per building
+per 1000 antennas against baseline's **0.826**. Costing a lever A day as baseline hides **+1.77 h**
+on the bound and **+0.86 h** on the likely figure. The two flags must agree — if `solve-all` gets
+`--near-tau-quantile`, the gate gets `--objective near-tau`.
+
+The gate **refuses** to cost a radius pair or an objective it was not measured at. That is
+deliberate, and it is the same defect twice: the verification constant belongs to (400 m solve,
+800 m verify) *and* to baseline greedy, not to the solver in general. Change
+`--visibility-radius`, `--verify-radius-factor`, or the objective, and the gate stops rather than
+lies. An unrecognised objective is refused rather than defaulted, because baseline is the cheapest
+constant in the module and would be the worst possible fallback.
 
 ## 3. Solve (the long step — budget ~5–7 h at March-sample size)
 

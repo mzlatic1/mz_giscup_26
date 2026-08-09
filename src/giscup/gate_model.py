@@ -27,6 +27,29 @@ import os
 #: The previous value, 0.051, under-predicted that run by 16.2x.
 MEASURED_VERIFY_S_PER_BUILDING_PER_1K = 0.826
 
+#: The same quantity for a **lever A** (`--near-tau-quantile`) run, measured
+#: 2026-08-09 at (0.25, 1000): 15,696 s of serial verification over 12,469 checks
+#: at k=1000. Lever A verifies the same buildings more expensively than baseline
+#: does, because near-tau selection deliberately parks them *at* the threshold --
+#: inside the band where exact interval coverage must actually be computed instead
+#: of short-circuited.
+#:
+#: **Weaker provenance than 0.826, and knowingly so.** That figure was fitted across
+#: a whole nine-block run; this is one block, timed while the 600 m matrix build was
+#: running at `nice 15`. Contention inflates it, and for a feasibility gate an
+#: inflated verification cost is the safe direction, so it is used as measured. The
+#: ratio against baseline is 1.5x measured this way and 1.8x if compared against
+#: baseline's own parallel figure from the same pair of runs (0.150 s x 4.70); the
+#: conservative end of that range is what is encoded here.
+MEASURED_VERIFY_S_PER_BUILDING_PER_1K_NEAR_TAU = 1.26
+
+#: Every objective whose verification cost has actually been measured. Anything not
+#: in here is refused rather than costed -- see `verify_constant_for`.
+MEASURED_VERIFY_CONSTANTS: dict[str, float] = {
+    "baseline": MEASURED_VERIFY_S_PER_BUILDING_PER_1K,
+    "near-tau": MEASURED_VERIFY_S_PER_BUILDING_PER_1K_NEAR_TAU,
+}
+
 #: The radius pair `MEASURED_VERIFY_S_PER_BUILDING_PER_1K` belongs to. The v2 run
 #: solved at a 400 m cull with `--verify-radius-factor 2.0`, so every exact-coverage
 #: query it timed ran against blockers within **800 m**.
@@ -39,9 +62,10 @@ def verify_constant_for(
     solve_radius_m: float | None,
     verify_radius_factor: float = MEASURED_AT_VERIFY_RADIUS_FACTOR,
     *,
+    objective: str = "baseline",
     override: float | None = None,
 ) -> float:
-    """Seconds per building per 1000 antennas -- but only at the radius it was measured.
+    """Seconds per building per 1000 antennas -- at the radius AND objective measured.
 
     **0.826 is not a property of the solver.** It is the cost of exact interval
     coverage against however many blockers one query returns, and that count grows
@@ -59,13 +83,35 @@ def verify_constant_for(
     costs the submission, which is what happened when the gate read 4.01 h for a
     9.42 h run. `override` is the escape hatch, and passing a number is an assertion
     that you measured it -- which cannot happen by accident.
+
+    **The objective is the second such dimension, and it bites the same way.** 0.826
+    was fitted to v2, a *baseline greedy* run. Lever A verifies the same buildings
+    more expensively (1.26 measured), because parking them at the threshold is the
+    whole mechanism, and the threshold band is where exact coverage cannot
+    short-circuit. If #15 adopts lever A and the gate keeps costing it at 0.826,
+    every gate number is optimistic -- #16 again, one constant measured under one
+    configuration and silently applied to another.
+
+    An unrecognised objective is refused rather than defaulted to baseline. Baseline
+    is the *cheapest* constant, so a typo or a newly added optimizer would inherit
+    the most optimistic number in the module, which is the worst possible fallback.
     """
     if override is not None:
         return override
+    if objective not in MEASURED_VERIFY_CONSTANTS:
+        known = ", ".join(sorted(MEASURED_VERIFY_CONSTANTS))
+        raise ValueError(
+            f"verification cost is uncalibrated for objective {objective!r}. "
+            f"Measured objectives are: {known}. Defaulting an unknown objective to "
+            f"'baseline' would hand it the cheapest constant in the module (0.826 vs "
+            f"near-tau's 1.26), so the gate refuses instead. Measure the objective and "
+            f"add it to MEASURED_VERIFY_CONSTANTS, or pass override=<seconds>."
+        )
+    measured = MEASURED_VERIFY_CONSTANTS[objective]
     if solve_radius_m == MEASURED_AT_SOLVE_RADIUS_M and (
         verify_radius_factor == MEASURED_AT_VERIFY_RADIUS_FACTOR
     ):
-        return MEASURED_VERIFY_S_PER_BUILDING_PER_1K
+        return measured
 
     if solve_radius_m is None:
         requested = "unbounded"
@@ -75,8 +121,8 @@ def verify_constant_for(
         requested = f"{solve_radius_m * verify_radius_factor:g} m"
     raise ValueError(
         f"verification cost is uncalibrated at this radius: you asked to cost "
-        f"verification at {requested}, but {MEASURED_VERIFY_S_PER_BUILDING_PER_1K} s "
-        f"per building per 1000 antennas was measured at "
+        f"verification at {requested}, but {measured} s "
+        f"per building per 1000 antennas (objective {objective!r}) was measured at "
         f"{MEASURED_AT_VERIFY_RADIUS_M:g} m (a "
         f"{MEASURED_AT_SOLVE_RADIUS_M:g} m solve at factor "
         f"{MEASURED_AT_VERIFY_RADIUS_FACTOR:g}). Blockers per query grow steeply with "
