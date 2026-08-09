@@ -341,14 +341,40 @@ matching lever B on all three — **six-for-six across two k values**):
 | 0.50 | **+37.7%** | +22.1% | +1.0% | q=25 |
 | 0.25 | −13.8% | −5.7% | **+0.4%** | q=100 |
 
-Smaller k → tighter quantile, same mechanism as tau. **Note the negatives**: at tau=0.25 the wrong
-quantile *loses* 13.8%. The schedule is not a free knob.
+And k=1000, which **inverts** the trend:
 
-Only **one** of the six measured cells disagrees between k=50 and k=500 — tau=0.5, which wants
-q=25 at k=50 and q=50 at k=500. So the shipped per-tau schedule `100 50 25` is optimal in 3/3 cells
-at k=500 and 2/3 at k=50, giving up 15.6pp in that one cell. The CLI expresses **per-tau**
-schedules only; whether per-(tau, k) is worth the surface is task #15, Marko's call. k=1000 was
-still measuring at hand-off.
+| tau | q=25 | q=50 | q=100 (= lever B) | best |
+|---|---|---|---|---|
+| 0.75 | +28.0% | **+29.7%** | +0.5% | q=50 |
+| 0.50 | **−6.4%** | +1.1% | **+3.5%** | q=100 |
+| 0.25 | −0.6% | +3.0% | **+6.8%** | q=100 |
+
+**The optimal quantile tracks how many buildings are realistically winnable.** Higher tau → fewer
+winnable → tighten. Higher k → more winnable → loosen. The two effects oppose, and the resulting
+grid is clean and monotone in both directions:
+
+| optimal q | k=50 | k=500 | k=1000 |
+|---|---|---|---|
+| tau=0.75 | 25 | 25 | **50** |
+| tau=0.50 | 25 | **50** | **100** |
+| tau=0.25 | 100 | 100 | 100 |
+
+**The schedule is not a free knob — the wrong value loses**: −13.8% at tau=0.25/k=50/q=25, −6.4% at
+tau=0.5/k=1000/q=25.
+
+**The shipped schedule `100 50 25` is safe, and better than it had any right to be.** It is
+positive in all nine cells and *optimal in five of them*:
+
+| tau | q used | k=50 | k=500 | k=1000 |
+|---|---|---|---|---|
+| 0.25 | 100 | **+0.4%** ✓ | **+6.4%** ✓ | **+6.8%** ✓ |
+| 0.50 | 50 | +22.1% (best 37.7) | **+8.6%** ✓ | +1.1% (best 3.5) |
+| 0.75 | 25 | **+460.7%** ✓ | **+77.7%** ✓ | +28.0% (best 29.7) |
+
+It gives up meaningfully only at **tau=0.5**, and tau=0.25 wants q=100 at every k — i.e. plain
+lever B is exactly right there. A per-(tau, k) schedule would recover the tau=0.5 cells; whether
+that is worth the CLI surface **and the overfitting risk on a one-shot submission tuned entirely on
+the March sample** is task #15, Marko's call.
 
 Wired as `--near-tau-quantile`, **default off**. Every figure here is the March sample; the
 quantile is a *tuned* parameter and may not transfer to the August extract, which the baseline
