@@ -33,6 +33,7 @@ from shapely.geometry import LineString
 from giscup.candidates import generate_boundary_candidates
 from giscup.gate_model import (
     MEASURED_VERIFY_S_PER_BUILDING_PER_1K,
+    default_verify_workers,
     projected_verify_seconds,
     verify_speedup,
 )
@@ -96,7 +97,15 @@ def measure_visible_fraction(index, candidates, samples, rng, n_cand, n_samp):
     return hits / (len(probes) * len(subset)), dists
 
 
-def main(argv: list[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
+    """Extracted from `main` so the gate's defaults are testable.
+
+    The gate must model the configuration the solver will actually run. When the
+    two drifted -- `--verify-workers` defaulting to 1 here and in the CLI while
+    #18 had made verification parallel -- the gate reported 19.34 h / 1.0x for a
+    run that takes 6.87 h / 2.9x. `tests/test_verify_workers_default.py` pins the
+    two defaults together.
+    """
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--input", required=True)
     parser.add_argument("--sampling-profile", default="balanced")
@@ -119,17 +128,23 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--cache-dir", default="outputs/cache")
     parser.add_argument("--greedy-probe-iterations", type=int, default=5)
     parser.add_argument(
-        "--verify-workers", type=int, default=1,
+        "--verify-workers", type=int, default=default_verify_workers(),
         help=(
             "Processes for exact claim verification. Measured speedups (floors, taken "
-            "under contention): 1.77x at 2, 3.10x at 4, 4.20x at 8, 4.70x at 12."
+            "under contention): 1.77x at 2, 3.10x at 4, 4.20x at 8, 4.70x at 12. "
+            "Must match what solve-all will use, or the gate models a run nobody "
+            "will make. On this host: %(default)s."
         ),
     )
     parser.add_argument(
         "--verify-buildings", type=int, default=2000,
         help="Buildings re-verified per subproblem, for the verification cost line.",
     )
-    args = parser.parse_args(argv)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
 
     print("=" * 78)
     print("GIS CUP FEASIBILITY REHEARSAL")

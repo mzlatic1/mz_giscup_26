@@ -34,13 +34,31 @@ Cores available:
 2. **Run the gate** (budget defaults to 20 h; `$1` overrides, `$2` sets cores):
 
    ```bash
-   python scripts/rehearse.py --input <dataset> --budget-hours ${1:-20} --cores ${2:-8}
+   python scripts/rehearse.py --input <dataset> --budget-hours ${1:-20} --cores ${2:-8} \
+       --measured-radius 400 --verify-workers 12
    ```
+
+   `--verify-workers` now defaults to `min(cores, 12)`, so omitting it is no
+   longer a trap — but state the value you ran with, because the verdict moves by
+   ~2.8x across that one flag and **the same flag must be passed to `solve-all` on
+   the day**. Serial verification costs ~12 h of a ~24 h window.
 
 3. **Report the verdict** and, if FAIL, the cheapest variant that fits and what
    stands between the current code and that variant.
 
 ## Reading the result
+
+The gate prints **two** numbers, and quoting either one alone misleads:
+
+- **upper bound** — assumes every building is claimed in every block. This sets
+  the verdict. It is near-tight at low tau and heavily pessimistic at high tau,
+  which is the direction a gate should err.
+- **likely** — scales the v2 run's measured claim fractions to this dataset. This
+  is what to plan around; it predicted the observed nine-block run within 1%.
+
+Report both. Reporting only the bound reads as near-failure on a run with real
+headroom; reporting only the likely figure is exactly how this gate came to claim
+5.0x headroom on a run that then took 9.42 h.
 
 - **PASS** — the pipeline as written fits. Solution-quality work is now the
   priority.

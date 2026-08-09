@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from giscup.diagnostics import dataset_summary
+from giscup.gate_model import default_verify_workers
 from giscup.io import load_buildings
 from giscup.output import format_solution_file
 from giscup.progress import ProgressReporter
@@ -277,11 +278,14 @@ def _add_solver_args(parser: argparse.ArgumentParser) -> None:
         help="Cap on buildings re-verified per subproblem, closest to tau first.",
     )
     parser.add_argument(
-        "--verify-workers", type=int, default=1,
+        "--verify-workers", type=int, default=default_verify_workers(),
         help=(
             "Processes for exact claim verification. Verification is ~82%% of a full "
             "run and every building is independent, so this is the cheapest large "
-            "speedup available. Results are bit-identical to serial."
+            "speedup available. Results are bit-identical to serial. Defaults to "
+            "min(cores, 12) -- serial verification costs ~12 h of a ~24 h window, "
+            "so it must be chosen deliberately rather than fallen into. "
+            f"On this host: %(default)s."
         ),
     )
     parser.add_argument(

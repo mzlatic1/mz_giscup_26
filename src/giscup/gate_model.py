@@ -20,6 +20,8 @@ building per 1000 antennas, against the 0.051 the gate had been using.
 
 from __future__ import annotations
 
+import os
+
 #: Seconds to re-verify one building against 1000 antennas, with exact interval
 #: coverage at a 400 m cull. Measured from the v2 nine-block run, 2026-08-09.
 #: The previous value, 0.051, under-predicted that run by 16.2x.
@@ -65,6 +67,34 @@ def verify_speedup(workers: int) -> float:
         raise ValueError(f"workers must be at least 1, got {workers}")
     usable = [w for w in sorted(MEASURED_VERIFY_SPEEDUP) if w <= workers]
     return MEASURED_VERIFY_SPEEDUP[usable[-1]] if usable else 1.0
+
+
+def default_verify_workers(cpu_count: int | None = None) -> int:
+    """How many verification processes to use when nobody says otherwise.
+
+    #18 made verification parallel but left every entry point defaulting to 1, so
+    the documented commands still described serial verification -- the gate read
+    19.34 h / 1.0x headroom instead of 6.87 h / 2.9x, and a run launched without
+    the flag would burn ~12 extra hours of a ~24 h submission window.
+
+    Bounded on both sides, and neither bound is arbitrary:
+
+    * never above `max(MEASURED_VERIFY_SPEEDUP)`, because scaling had already
+      decayed to 39% efficiency there and this project's whole history of bad
+      estimates is extrapolation past the last measurement;
+    * never above the core count, because verification is memory-bandwidth bound
+      and oversubscribing it makes the run slower;
+    * never below 1, because zero workers would mean claims go unverified, and an
+      overclaim is a correctness failure rather than merely a slow run.
+
+    A host that will not report its core count gets serial. Guessing high on an
+    unknown machine risks thrashing it, and this is the safe direction.
+    """
+    if cpu_count is None:
+        cpu_count = os.cpu_count()
+    if cpu_count is None or cpu_count < 1:
+        return 1
+    return min(cpu_count, max(MEASURED_VERIFY_SPEEDUP))
 
 
 #: Fraction of all buildings re-verified in each block, measured on the v2 run
