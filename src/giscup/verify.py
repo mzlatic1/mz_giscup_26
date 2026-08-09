@@ -218,7 +218,21 @@ def verify_and_recover(
 
     Returns the final claim list and a report bounding what the cull was hiding.
     """
-    targets = select_buildings_to_reverify(coverage, tau, band, max_buildings)
+    # CLAIMS ARE VERIFIED EXHAUSTIVELY. A band indexed on the sampled value cannot
+    # catch the claims whose sampled value is most wrong -- a large error is exactly
+    # what pushes a building past the window's edge. Measured on the official
+    # dataset: a building with true coverage 0.1499 was claimed at tau=0.25 and sat
+    # outside the [0.20, 0.30) window, so it was never re-checked.
+    #
+    # An overclaim is a correctness failure; a missed recovery is only lost score.
+    # So claims get an unconditional exact check, and the band + cap govern recovery
+    # below tau, where approximation costs opportunity rather than validity.
+    recovery = [
+        bid
+        for bid in select_buildings_to_reverify(coverage, tau, band, max_buildings)
+        if coverage.get(bid, 0.0) < tau
+    ]
+    targets = list(dict.fromkeys(list(claimed) + recovery))
     report = VerificationReport(reverified_count=len(targets))
     if not targets:
         return list(claimed), report

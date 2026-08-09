@@ -409,6 +409,46 @@ sampling error decides the outcome.
 Re-measure at full scale once the matrix lands — 0.20% on 60 buildings may behave very
 differently on 12,860.
 
+### 17 — Claims must be verified exhaustively, not by band  (FIXED 2026-08-08)
+
+Found by the first full-scale audit of a correct nine-block run. Two blocks checked before it was
+stopped:
+
+| block | claims | overclaims | worst exact coverage |
+|---|---|---|---|
+| 0.25 / 50 | 1,689 | 4 | 0.2366 |
+| 0.25 / 500 | 8,942 | 24 | **0.1499** |
+
+**The mechanism.** Verification re-checked buildings whose **sampled** coverage landed near `tau`.
+But the error being corrected lives in that same sampled value, so *a large enough error carries a
+building past the window's edge and out of scope*. The worst case was claimed at `tau=0.25` with
+true coverage 0.1499 — its sampled value had to exceed 0.30 to escape the `[0.20, 0.30)` window,
+i.e. an over-report of 0.15+.
+
+**Why sampling errs that much.** Each boundary segment's midpoint decides the verdict for the whole
+segment, so per-building error scales with sample count. A large building with 200 samples errs by
+~0.5% per sample; a small one at the 8-sample floor errs by **12.5% per sample**. The ±0.03 figure
+the band was sized on came from two large buildings and never described the small ones — which are
+the majority.
+
+**Why widening the band does not fix it.** Catching a 0.15 error needs `[tau-0.15, tau+0.15)` —
+most of the population — and the 2,000 cap already bound in three blocks.
+
+**The fix, and the asymmetry behind it.** An overclaim is a *correctness* failure; a missed
+recovery is only lost score. So:
+
+- **every claim gets an unconditional exact check** — no band, no cap. This makes overclaims
+  structurally impossible rather than probabilistically unlikely.
+- **recovery below `tau` stays banded and capped**, where approximation costs opportunity only.
+
+Affordable: exact coverage runs ~50 ms/building at 400 m, so 1.7k–11.7k claims per block is
+1.5–10 min, ~35 min across all nine against a 20 h budget.
+
+**Audit cost note.** The audit was run at `--exact-radius 800` and projected to **8 hours** — 0.49 s
+per claim at k=500, worse at k=1000. My 51 ms/building figure was measured at 400 m; 800 m is ~10x
+that, not the 3–4x assumed. Audit at 400 m: a tighter radius under-reports coverage, so it flags
+*more* claims, never fewer — conservative in the safe direction and ~4x faster.
+
 ### 16 — Absolute tolerances at projected magnitudes  (FIXED 2026-08-08)
 
 A sweep for the bug class behind #13, #14 and #15, after three instances in one day made it clear
@@ -580,6 +620,46 @@ sampling error decides the outcome.
 
 Re-measure at full scale once the matrix lands — 0.20% on 60 buildings may behave very
 differently on 12,860.
+
+### 17 — Claims must be verified exhaustively, not by band  (FIXED 2026-08-08)
+
+Found by the first full-scale audit of a correct nine-block run. Two blocks checked before it was
+stopped:
+
+| block | claims | overclaims | worst exact coverage |
+|---|---|---|---|
+| 0.25 / 50 | 1,689 | 4 | 0.2366 |
+| 0.25 / 500 | 8,942 | 24 | **0.1499** |
+
+**The mechanism.** Verification re-checked buildings whose **sampled** coverage landed near `tau`.
+But the error being corrected lives in that same sampled value, so *a large enough error carries a
+building past the window's edge and out of scope*. The worst case was claimed at `tau=0.25` with
+true coverage 0.1499 — its sampled value had to exceed 0.30 to escape the `[0.20, 0.30)` window,
+i.e. an over-report of 0.15+.
+
+**Why sampling errs that much.** Each boundary segment's midpoint decides the verdict for the whole
+segment, so per-building error scales with sample count. A large building with 200 samples errs by
+~0.5% per sample; a small one at the 8-sample floor errs by **12.5% per sample**. The ±0.03 figure
+the band was sized on came from two large buildings and never described the small ones — which are
+the majority.
+
+**Why widening the band does not fix it.** Catching a 0.15 error needs `[tau-0.15, tau+0.15)` —
+most of the population — and the 2,000 cap already bound in three blocks.
+
+**The fix, and the asymmetry behind it.** An overclaim is a *correctness* failure; a missed
+recovery is only lost score. So:
+
+- **every claim gets an unconditional exact check** — no band, no cap. This makes overclaims
+  structurally impossible rather than probabilistically unlikely.
+- **recovery below `tau` stays banded and capped**, where approximation costs opportunity only.
+
+Affordable: exact coverage runs ~50 ms/building at 400 m, so 1.7k–11.7k claims per block is
+1.5–10 min, ~35 min across all nine against a 20 h budget.
+
+**Audit cost note.** The audit was run at `--exact-radius 800` and projected to **8 hours** — 0.49 s
+per claim at k=500, worse at k=1000. My 51 ms/building figure was measured at 400 m; 800 m is ~10x
+that, not the 3–4x assumed. Audit at 400 m: a tighter radius under-reports coverage, so it flags
+*more* claims, never fewer — conservative in the safe direction and ~4x faster.
 
 ### 16 — Absolute tolerances at projected magnitudes  (FIXED 2026-08-08)
 

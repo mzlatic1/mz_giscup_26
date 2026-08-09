@@ -188,13 +188,17 @@ def test_a_genuinely_covered_building_survives_verification():
     assert 0 not in report.dropped_ids
 
 
-def test_buildings_outside_the_band_are_left_untouched():
-    """Claims comfortably above tau are never re-checked and never dropped."""
+def test_unclaimed_buildings_far_below_tau_are_left_untouched():
+    """Recovery is banded: something at 0.02 against tau=0.50 cannot plausibly flip.
+
+    Note claims are NOT subject to this -- every claim is verified regardless of how
+    far its reported coverage sits from tau (#17). Only recovery is banded.
+    """
     buildings, samples = _scene()
     index = BlockerIndex.from_buildings(buildings)
-    final, report = verify_and_recover(
-        coverage={0: 0.99, 1: 0.02},
-        claimed=[0],
+    _, report = verify_and_recover(
+        coverage={1: 0.02},
+        claimed=[],
         tau=0.50,
         antenna_points=[(6.0, 0.0)],
         samples=samples,
@@ -202,9 +206,8 @@ def test_buildings_outside_the_band_are_left_untouched():
         blocker_index=index,
         band=0.10,
     )
-    assert 0 in final
     assert report.reverified_count == 0
-    assert report.checks_performed == 0
+    assert 1 not in report.coverage_after
 
 
 def test_report_bounds_what_the_cull_was_hiding():
@@ -248,3 +251,77 @@ def test_the_floor_does_not_shrink_a_wide_relative_band():
 def test_the_floor_can_be_disabled():
     coverage = {"just_over": 0.28}
     assert select_buildings_to_reverify(coverage, tau=0.25, band=0.10, band_floor=0.0) == []
+
+
+# --- claims are verified exhaustively, not by band (#17) ---------------------
+#
+# A band indexed on the SAMPLED value cannot catch the claims whose sampled value is
+# most wrong: a large error is precisely what carries a building past the window's
+# edge. Measured on the official dataset, a building with true coverage 0.1499 was
+# claimed at tau=0.25 and never re-checked.
+#
+# The asymmetry that matters: an overclaim is a CORRECTNESS failure, a missed
+# recovery is only lost score. So every claim is verified exactly; recovery below
+# tau stays banded and capped, where being approximate costs opportunity only.
+
+
+def test_every_claim_is_reverified_however_far_above_tau():
+    buildings, samples = _scene()
+    index = BlockerIndex.from_buildings(buildings)
+    # Reported far above tau and far outside any band -- must still be checked.
+    reported = {0: 0.99, 1: 0.85}
+    _, report = verify_and_recover(
+        coverage=reported,
+        claimed=[0, 1],
+        tau=0.25,
+        antenna_points=[(6.0, 0.0)],
+        samples=samples,
+        buildings=buildings,
+        blocker_index=index,
+        band=0.10,
+    )
+    assert set(report.coverage_after) >= {0, 1}, "claims outside the band were skipped"
+
+
+def test_an_overclaim_far_above_tau_is_still_dropped():
+    """The exact failure found in the audit: sampled says 0.99, truth is far below.
+
+    An antenna on building 0 sees exactly one of building 2's four edges, so its true
+    coverage is 0.25 -- fine at tau=0.25, an overclaim at tau=0.5. The reported 0.99
+    sits far outside any band around tau, which is precisely the case the old
+    band-only verification could not catch.
+    """
+    buildings, samples = _scene()
+    index = BlockerIndex.from_buildings(buildings)
+    final, report = verify_and_recover(
+        coverage={2: 0.99},
+        claimed=[2],
+        tau=0.5,
+        antenna_points=[(6.0, 0.0)],
+        samples=samples,
+        buildings=buildings,
+        blocker_index=index,
+        band=0.10,
+    )
+    assert 2 not in final
+    assert 2 in report.dropped_ids
+
+
+def test_the_cap_limits_recovery_but_never_claim_verification():
+    """max_buildings bounds the optional work, not the correctness work."""
+    buildings, samples = _scene()
+    index = BlockerIndex.from_buildings(buildings)
+    claimed = [0, 1, 2]
+    reported = {0: 0.99, 1: 0.98, 2: 0.97}
+    _, report = verify_and_recover(
+        coverage=reported,
+        claimed=claimed,
+        tau=0.25,
+        antenna_points=[(6.0, 0.0)],
+        samples=samples,
+        buildings=buildings,
+        blocker_index=index,
+        band=0.10,
+        max_buildings=1,
+    )
+    assert set(report.coverage_after) >= set(claimed), "a cap must not skip claim verification"
