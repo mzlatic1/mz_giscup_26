@@ -32,6 +32,13 @@ happens to be right.
 Capture against the pre-registered hard bound: **13.1%** (+1,019 of +7,756), against an estimate of
 ~14% made *before* the measurement existed. The sizing framework retrodicted the result.
 
+**These are upper estimates, not score predictions.** `scripts/sweep_near_tau.py` counts serviced
+buildings from the same sample grid the optimizer optimized on — the #12 defect, reproduced in the
+analysis script. The bias is **asymmetric**: baseline's serviced buildings mostly sit clear of tau,
+while lever A concentrates on buildings *at* the threshold, where in-sample error decides the
+outcome. Compare post-verification claim counts in `outputs/nine_real_400_v2.txt` (baseline) against
+`outputs/nine_leverA_400.txt` (lever A) — that is the honest measurement, and the first thing to do.
+
 **The schedule also depends on k** (k=50 sweep): at tau=0.75 q=25 gives **+460.7%**, and at tau=0.5
 q=25 (+37.7%) now beats q=50 (+22.1%) — the reverse of k=500. Smaller k → tighter quantile, same
 mechanism as tau. **The CLI expresses per-tau schedules only, not per-(tau, k).** That is the open

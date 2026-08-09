@@ -354,6 +354,29 @@ Wired as `--near-tau-quantile`, **default off**. Every figure here is the March 
 quantile is a *tuned* parameter and may not transfer to the August extract, which the baseline
 objective's lack of any knob does not risk.
 
+#### READ THIS BEFORE TREATING +77.7% AS A SCORE
+
+`scripts/sweep_near_tau.py` counts serviced buildings from `samples` — **the same grid the
+optimizer optimized on**. That is exactly the #12 defect ("claim decision must not use the
+optimizer's own samples"), which the solver fixed and this analysis script reproduces.
+
+**The bias is not symmetric between the two arms.** Baseline greedy accumulates coverage where it
+is cheapest, so most of its serviced buildings sit comfortably clear of tau and in-sample error
+rarely flips them. Lever A *deliberately concentrates on buildings near the threshold*, so its
+incremental wins are precisely the ones a small in-sample/out-of-sample discrepancy decides.
+
+So every sweep number above **inflates lever A more than baseline**. Treat them as an upper
+estimate and a ranking of quantiles, not as a score prediction. The honest measurement is the
+nine-block run, which decides claims off an independent grid and then verifies exhaustively:
+
+| | baseline | lever A |
+|---|---|---|
+| nine-block artifact | `outputs/nine_real_400_v2.txt` | `outputs/nine_leverA_400.txt` |
+
+**Comparing post-verification claim counts between those two files is the first thing to do.**
+If lever A's advantage largely survives verification, the lever is real. If it collapses, the
+sweep was measuring the sampling grid rather than the objective.
+
 ### 6 — Threshold-aware objective  (original framing)
 
 `optimize.greedy_select` scores `len(new_ids)` — raw newly visible sample count — and accepts
