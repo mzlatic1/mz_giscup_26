@@ -27,8 +27,19 @@ def format_solution_block(solution: Solution) -> str:
 
 
 def format_solution_file(solutions: list[Solution]) -> str:
-    """Format all solution blocks separated by blank lines."""
-    return "\n\n".join(format_solution_block(s) for s in solutions) + "\n"
+    """Format all solution blocks, three lines each, with no separators.
+
+    Nine subproblems produce exactly 27 lines. Blocks are NOT separated by blank lines,
+    despite that reading more nicely: the official spec is "three lines per sub-problem",
+    so an evaluator reading three lines at a time misaligns on the first separator and
+    every subsequent block shifts.
+
+    The separators are also ambiguous, which is what settles it. The spec allows an empty
+    third line ("may be empty but must still exist"). A block claiming nothing, followed
+    by a separator, yields two consecutive blank lines that no parser can tell apart.
+    The two features cannot coexist.
+    """
+    return "\n".join(format_solution_block(s) for s in solutions) + "\n"
 
 
 def parse_points(line: str) -> list[tuple[float, float]]:
