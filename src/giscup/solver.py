@@ -11,6 +11,7 @@ from giscup.matrix import build_visibility_matrix
 from giscup.models import Solution
 from giscup.optimize import greedy_select, greedy_select_matrix
 from giscup.output import nudge_off_interior
+from giscup.progress import ProgressReporter
 from giscup.sampling import get_profile, sample_boundaries
 from giscup.verify import verify_and_recover
 from giscup.visibility import BlockerIndex
@@ -34,6 +35,7 @@ def solve_one(
     verify_max_buildings: int | None = None,
     verify_profile: str = "accurate",
     verify_radius_factor: float = 2.0,
+    progress: ProgressReporter | None = None,
 ) -> Solution:
     """Solve one GIS Cup subproblem.
 
@@ -55,6 +57,10 @@ def solve_one(
     if optimizer != "greedy":
         raise ValueError(f"optimizer must be 'greedy'; got {optimizer!r}")
 
+    def _phase(name: str, detail: str = "") -> None:
+        if progress is not None:
+            progress.phase(name, detail)
+
     start = perf_counter()
     buildings, info = load_buildings(input_path)
     profile = get_profile(sampling_profile)
@@ -62,6 +68,7 @@ def solve_one(
     candidates = generate_boundary_candidates(
         buildings, mode=candidate_mode, candidate_spacing=candidate_spacing
     )
+    _phase("setup", f"{len(buildings):,} bldg  {len(candidates):,} cand")
     matrix_info: dict | None = None
     if visibility_radius is not None:
         matrix = build_visibility_matrix(
@@ -73,8 +80,20 @@ def solve_one(
             workers=matrix_workers,
             cache_dir=cache_dir,
         )
+        _phase("matrix", f"{matrix.nonzeros():,} pairs  cached={matrix.loaded_from_cache}")
         selected, visible = greedy_select_matrix(
-            matrix, candidates, samples, buildings, tau=tau, k=k, max_candidates=max_candidates
+            matrix,
+            candidates,
+            samples,
+            buildings,
+            tau=tau,
+            k=k,
+            max_candidates=max_candidates,
+            progress=(
+                None
+                if progress is None
+                else (lambda i, total: _phase("greedy", f"picked {i:,}/{total:,}"))
+            ),
         )
         matrix_info = {
             "key": matrix.spec.key,
@@ -111,6 +130,7 @@ def solve_one(
 
     coverage = coverage_by_building(visible, samples, buildings)
     claimed = serviced_buildings(coverage, tau, margin=claim_margin)
+    _phase("coverage", f"{len(claimed):,} claimed pre-verify")
 
     verification_info: dict | None = None
     if verify_band is not None:
@@ -140,6 +160,11 @@ def solve_one(
                 if visibility_radius is not None and verify_radius_factor > 0
                 else None
             ),
+        )
+        _phase(
+            "verify",
+            f"{report.reverified_count:,} checked  "
+            f"+{len(report.recovered_ids):,}/-{len(report.dropped_ids):,}",
         )
         verification_info = {
             "band": verify_band,

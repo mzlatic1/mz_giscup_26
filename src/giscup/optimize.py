@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from typing import Callable
+
 import numpy as np
 
 from giscup.coverage import coverage_by_building, serviced_buildings, visible_sample_ids
 from giscup.matrix import VisibilityMatrix
 from giscup.models import BoundarySample, Building, Candidate
+from giscup.progress import greedy_report_interval
 from giscup.visibility import BlockerIndex
 
 
@@ -65,6 +68,8 @@ def greedy_select_matrix(
     tau: float,
     k: int,
     max_candidates: int | None = None,
+    progress: Callable[[int, int], None] | None = None,
+    report_every: int | None = None,
 ) -> tuple[list[Candidate], set[int]]:
     """Greedy selection over a precomputed visibility matrix.
 
@@ -76,6 +81,10 @@ def greedy_select_matrix(
     The objective is still raw newly-visible-sample count, so `tau` and `buildings`
     are accepted but unused -- replacing that with a threshold-aware objective is
     task #6, kept separate so this change stays provably behaviour-preserving.
+
+    `progress`, when given, is called as `progress(picked, k)` every `report_every`
+    picks. This is the longest phase in a subproblem -- ~17 min at k=1000 -- so without
+    it the run looks stalled for that entire stretch.
     """
     if k <= 0:
         raise ValueError(f"k must be positive; got {k}")
@@ -95,8 +104,12 @@ def greedy_select_matrix(
     covered = matrix.empty_covered()
     selected: list[Candidate] = []
     taken = np.zeros(matrix.n_candidates, dtype=bool)
+    # Only consulted when a reporter is attached, so the silent path never depends on it.
+    every = 0
+    if progress is not None:
+        every = report_every if report_every is not None else greedy_report_interval(k)
 
-    for _ in range(k):
+    for i in range(k):
         gains = matrix.marginal_gains(covered)
         if pool_size < matrix.n_candidates:
             gains[pool_size:] = -1
@@ -107,6 +120,8 @@ def greedy_select_matrix(
         taken[best] = True
         matrix.add_to_covered(covered, best)
         selected.append(candidates[best])
+        if progress is not None and every > 0 and ((i + 1) % every == 0 or i + 1 == k):
+            progress(i + 1, k)
 
     return selected, set(matrix.covered_sample_ids(covered).tolist())
 

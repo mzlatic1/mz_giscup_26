@@ -10,6 +10,7 @@ from typing import Any
 from giscup.diagnostics import dataset_summary
 from giscup.io import load_buildings
 from giscup.output import format_solution_file
+from giscup.progress import ProgressReporter
 from giscup.solver import solve_one
 from giscup.validate import validate_solution_file
 
@@ -27,7 +28,10 @@ def cmd_inspect(args: argparse.Namespace) -> None:
 
 
 def cmd_solve_one(args: argparse.Namespace) -> None:
+    reporter = ProgressReporter([(args.tau, args.k)], enabled=not args.quiet)
+    reporter.start_subproblem(args.tau, args.k)
     solution = solve_one(
+        progress=reporter,
         input_path=args.input,
         tau=args.tau,
         k=args.k,
@@ -45,6 +49,7 @@ def cmd_solve_one(args: argparse.Namespace) -> None:
         verify_max_buildings=args.verify_max_buildings,
         verify_radius_factor=args.verify_radius_factor,
     )
+    reporter.finish_subproblem(claimed=len(solution.claimed_building_ids))
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
     Path(args.output).write_text(format_solution_file([solution]), encoding="utf-8")
     _write_json(args.diagnostics, solution.diagnostics)
@@ -53,9 +58,13 @@ def cmd_solve_one(args: argparse.Namespace) -> None:
 def cmd_solve_all(args: argparse.Namespace) -> None:
     solutions = []
     diagnostics = {}
+    plan = [(tau, k) for tau in args.taus for k in args.ks]
+    reporter = ProgressReporter(plan, enabled=not args.quiet)
     for tau in args.taus:
         for k in args.ks:
+            reporter.start_subproblem(tau, k)
             solution = solve_one(
+                progress=reporter,
                 input_path=args.input,
                 tau=tau,
                 k=k,
@@ -73,6 +82,7 @@ def cmd_solve_all(args: argparse.Namespace) -> None:
                 verify_max_buildings=args.verify_max_buildings,
                 verify_radius_factor=args.verify_radius_factor,
             )
+            reporter.finish_subproblem(claimed=len(solution.claimed_building_ids))
             solutions.append(solution)
             diagnostics[f"tau_{tau}_k_{k}"] = solution.diagnostics
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
@@ -194,6 +204,14 @@ def _add_solver_args(parser: argparse.ArgumentParser) -> None:
         type=int,
         default=None,
         help="Cap on buildings re-verified per subproblem, closest to tau first.",
+    )
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help=(
+            "Suppress per-subproblem progress. Progress is ON by default: a full run "
+            "takes hours, and silence is indistinguishable from a hang."
+        ),
     )
 
 

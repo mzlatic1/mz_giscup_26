@@ -55,16 +55,23 @@ Local head: `be0a2bf Verify every claim exactly instead of by band (#17)`. Every
 
 ## Known gaps, ranked
 
-1. **`solve-all` prints nothing until it finishes.** A 3 h silent run is indistinguishable from a
-   hung one. On submission day that is the difference between deciding and guessing.
-   `build_matrix.py` already does per-chunk progress with a wave-aware ETA; `solve-all` should
-   emit per-subproblem.
+1. **Submission packaging has never been done.** No artifact, no packaging dry run, no run
+   instructions. `docs/agent-roles-brief.md` names a `submission-packager` role but nothing has
+   produced or tested a bundle. It is the **only completely unrehearsed step** in the pipeline —
+   everything else has run end to end at full scale at least once. On a one-shot, no-feedback
+   submission this is the largest remaining risk.
 2. **Solution quality is baseline greedy.** The one lever sized and built did not earn its place.
    Remaining ideas: weight buildings *near* tau (opposite of what was built), and cap *within* a
    building rather than at building level.
 3. **Every figure comes from the March sample; August is a different extract.** Config tuned here
    may not transfer — an argument for keeping the generous headroom.
-4. **My timing estimates ran optimistic five times today** (800 m build 2.6x, audit 16x, nine-block
+4. **`solve-all` silence — FIXED 2026-08-08.** `src/giscup/progress.py` reports per-subproblem
+   with an ETA weighted by *antennas placed*, not subproblems finished. The measured fit over the
+   nine-block run is 2.16 s per antenna with a -24 s intercept, so cost is proportional to `k`;
+   count weighting is off by 14x after the first (k=50) block. Progress is on by default,
+   `--quiet` disables. The ETA is pessimistic early (131 min predicted vs 163 actual after one
+   block) and converges to <1% by block 7 — the safe direction.
+5. **My timing estimates ran optimistic five times today** (800 m build 2.6x, audit 16x, nine-block
    26%). Treat any projection of mine that is not calibrated against a measured run with suspicion.
 
 ## Repository
