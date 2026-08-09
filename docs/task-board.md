@@ -262,7 +262,7 @@ and correct any figure that moved.
 `data/**` is write-denied for `Write`/`Edit` but **not** for shell writes — place the file
 deliberately and let nothing overwrite it.
 
-### 6 — Threshold-aware objective  — BUILT, MEASURED, NOT ADOPTED
+### 6 — Threshold-aware objective  — LEVER A MEASURED AND WIRED (default off), 2026-08-09
 
 **Sized first** (CLAUDE.md rule 2), on official data at k=500, post-#14:
 
@@ -306,8 +306,53 @@ building-level mask also never caps *within* a building, so a footprint at 0.74 
 every sample at full weight; the finer form needs the segmented sum the mask avoids.
 
 `greedy_select_threshold` is kept, tested, and available. It is not wired into `solve_one`.
-Re-run this comparison once the 800 m matrix exists — the poor showing may partly be an artifact
-of the tighter radius.
+
+#### Lever A — measured 2026-08-09, and the prediction above was right
+
+`optimize.greedy_select_near_tau` masks to buildings that are unserviced **and** within a quantile
+of the live deficit distribution, so marginal coverage is spent where it can still flip something.
+The cutoff must adapt: at iteration zero every building is unserviced with deficit exactly
+`tau * perimeter`, so a fixed threshold would select everything or nothing.
+
+**The sweep carried its own control.** `quantile=100` targets every unserviced building, which *is*
+lever B. It reproduced lever B's three measured numbers exactly — `−1.1% / +0.3% / +6.4%` — so the
+rest of the table is trustworthy. Against baseline greedy, k=500:
+
+| tau | q=25 | q=50 | q=100 (= lever B) | best |
+|---|---|---|---|---|
+| 0.75 | **+77.7%** (1,312 → 2,331) | +60.1% | −1.1% | q=25 |
+| 0.50 | +3.5% | **+8.6%** | +0.3% | q=50 |
+| 0.25 | −8.3% | +0.2% | **+6.4%** | q=100 |
+
+**As tau rises, tighten the mask.** At tau=0.75 few buildings are reachable so concentrating pays
+enormously; at tau=0.25 nearly every unserviced building is winnable and discriminating hurts.
+Lever B is therefore not a failed lever — it is the **tau→0 corner of this one-parameter family**,
+and it had only ever been measured at the corner where it happens to be right.
+
+Capture against the pre-registered hard bound: **13.1%** (+1,019 of +7,756), versus a ~14% estimate
+made before the measurement existed.
+
+**The optimum also depends on k.** Full k=50 table, controls again exact (+0.0 / +1.0 / +0.4%,
+matching lever B on all three — **six-for-six across two k values**):
+
+| tau | q=25 | q=50 | q=100 (= lever B) | best |
+|---|---|---|---|---|
+| 0.75 | **+460.7%** (28 → 157) | +189.3% | +0.0% | q=25 |
+| 0.50 | **+37.7%** | +22.1% | +1.0% | q=25 |
+| 0.25 | −13.8% | −5.7% | **+0.4%** | q=100 |
+
+Smaller k → tighter quantile, same mechanism as tau. **Note the negatives**: at tau=0.25 the wrong
+quantile *loses* 13.8%. The schedule is not a free knob.
+
+Only **one** of the six measured cells disagrees between k=50 and k=500 — tau=0.5, which wants
+q=25 at k=50 and q=50 at k=500. So the shipped per-tau schedule `100 50 25` is optimal in 3/3 cells
+at k=500 and 2/3 at k=50, giving up 15.6pp in that one cell. The CLI expresses **per-tau**
+schedules only; whether per-(tau, k) is worth the surface is task #15, Marko's call. k=1000 was
+still measuring at hand-off.
+
+Wired as `--near-tau-quantile`, **default off**. Every figure here is the March sample; the
+quantile is a *tuned* parameter and may not transfer to the August extract, which the baseline
+objective's lack of any knob does not risk.
 
 ### 6 — Threshold-aware objective  (original framing)
 
@@ -375,218 +420,6 @@ deadline, not a start date.
 Verified good in the same run: `.17g` round-trips exactly (including
 `500000.1 → "500000.09999999998"`), exactly `k` points per block, every claimed ID present in the
 source, and every antenna on a boundary.
-
-### 12 — Claim decision must not use the optimizer's own samples
-
-Found 2026-08-07 running the nine-block CLI pipeline end to end at small scale (60 buildings at
-UTM 11N magnitudes). **`validate-output` rejected our own solution.**
-
-| tau | k | claimed | overclaims | worst gap |
-|---|---|---|---|---|
-| 0.75 | 5 | 28 | 1 | 0.0424 |
-
-1 of 489 claims across all nine blocks (0.20%). Every other block was clean.
-
-**Root cause.** `solve_one` optimizes on the `balanced` grid (10 m spacing) and then decides
-claims from those same samples. That is an *in-sample* estimate and is optimistically biased:
-greedy chose antennas specifically to light up those samples, so sampled coverage overstates true
-coverage for the selected set. Re-measuring on `accurate` (5 m) disagrees. The observed gap of
-0.0424 is nearly **10x** the current `claim_margin` of 0.005.
-
-Overclaims concentrate at **high tau and low k** — where coverage sits nearest the threshold and
-sampling error decides the outcome.
-
-**Options.**
-
-- (a) Decide claims on a denser, independent sampling than the one optimized on. Principled;
-  costs one extra coverage pass.
-- (b) Raise `claim_margin` to ~0.05. Crude — forfeits every building whose true coverage lies
-  between `tau` and `tau + margin`.
-- (c) Fold the claim decision into the un-culled verification pass of **#3**, which already
-  re-measures near-threshold buildings exactly. Probably the right home: one mechanism handles
-  both the cull's under-report and the sampling grid's over-report.
-
-Re-measure at full scale once the matrix lands — 0.20% on 60 buildings may behave very
-differently on 12,860.
-
-### 17 — Claims must be verified exhaustively, not by band  (FIXED 2026-08-08)
-
-Found by the first full-scale audit of a correct nine-block run. Two blocks checked before it was
-stopped:
-
-| block | claims | overclaims | worst exact coverage |
-|---|---|---|---|
-| 0.25 / 50 | 1,689 | 4 | 0.2366 |
-| 0.25 / 500 | 8,942 | 24 | **0.1499** |
-
-**The mechanism.** Verification re-checked buildings whose **sampled** coverage landed near `tau`.
-But the error being corrected lives in that same sampled value, so *a large enough error carries a
-building past the window's edge and out of scope*. The worst case was claimed at `tau=0.25` with
-true coverage 0.1499 — its sampled value had to exceed 0.30 to escape the `[0.20, 0.30)` window,
-i.e. an over-report of 0.15+.
-
-**Why sampling errs that much.** Each boundary segment's midpoint decides the verdict for the whole
-segment, so per-building error scales with sample count. A large building with 200 samples errs by
-~0.5% per sample; a small one at the 8-sample floor errs by **12.5% per sample**. The ±0.03 figure
-the band was sized on came from two large buildings and never described the small ones — which are
-the majority.
-
-**Why widening the band does not fix it.** Catching a 0.15 error needs `[tau-0.15, tau+0.15)` —
-most of the population — and the 2,000 cap already bound in three blocks.
-
-**The fix, and the asymmetry behind it.** An overclaim is a *correctness* failure; a missed
-recovery is only lost score. So:
-
-- **every claim gets an unconditional exact check** — no band, no cap. This makes overclaims
-  structurally impossible rather than probabilistically unlikely.
-- **recovery below `tau` stays banded and capped**, where approximation costs opportunity only.
-
-Affordable: exact coverage runs ~50 ms/building at 400 m, so 1.7k–11.7k claims per block is
-1.5–10 min, ~35 min across all nine against a 20 h budget.
-
-**Audit cost note.** The audit was run at `--exact-radius 800` and projected to **8 hours** — 0.49 s
-per claim at k=500, worse at k=1000. My 51 ms/building figure was measured at 400 m; 800 m is ~10x
-that, not the 3–4x assumed. Audit at 400 m: a tighter radius under-reports coverage, so it flags
-*more* claims, never fewer — conservative in the safe direction and ~4x faster.
-
-### 16 — Absolute tolerances at projected magnitudes  (FIXED 2026-08-08)
-
-A sweep for the bug class behind #13, #14 and #15, after three instances in one day made it clear
-this was a pattern rather than a coincidence.
-
-**`geometry.ring_edges`** decided whether to close a ring with `np.allclose(coords[0],
-coords[-1])`. Default `rtol=1e-5` is **37 metres** at a northing of 3.7e6, so a genuinely open
-ring would be treated as closed and its closing edge silently dropped — shortening the perimeter,
-which is the denominator of every coverage ratio. Latent in practice because Shapely always
-returns closed rings, but live for any other input path. Now an absolute
-`COINCIDENT_POINT_TOLERANCE = 1e-9` m, just above float64 resolution there.
-
-**`candidates._add_candidate`** deduped on `round(x, 12)`. Twelve decimals is meaningless at an
-easting of 5e5, where float64 resolution is already ~6e-11. It merges genuinely coincident points
-(a corner shared by two footprints) and cannot merge jittered near-duplicates. Changed to 9
-decimals and documented, so the code no longer implies a precision it does not have.
-
-**The rule is now in `CLAUDE.md`** under Geospatial rules: every geometric tolerance absolute, in
-CRS units, never relative and never below float64 resolution — with the three concrete failures
-and the instruction to test at real projected magnitudes with irregular coordinates. Unit-square
-tests cannot see any of this: 122 of them passed while a third of the boundary was unseeable.
-
-### 15 — Emitted antennas must not sit inside a footprint  (FIXED 2026-08-08)
-
-A sibling of #14, on the output side. Measured on the official dataset:
-
-| candidate kind | count | land inside their own footprint |
-|---|---|---|
-| vertex | 78,727 | 0 (0.0%) — copied verbatim from source data |
-| midpoint | 78,727 | 29,472 (**37.4%**) — computed as `(p0+p1)/2` |
-
-Median depth 7.9e-11 m, max 2.3e-10 m.
-
-Those points are **legal**: the official check is `polygon.boundary.distance(pt) <= eps` with eps
-1e-8..1e-7, and 1e-10 passes comfortably. The risk is different — an evaluator computing
-*visibility* against the raw polygon would see nothing at all from an antenna a hair inside it,
-exactly as this solver did before #14. We cannot know how the official evaluator handles it, and
-there is one submission with no feedback.
-
-**Fix:** `output.nudge_off_interior` moves emitted antennas just outside any footprint containing
-them, ~1e-9 m. Applied in `solve_one` **before** verification, so we verify exactly what we emit.
-Vertices are untouched. Verified end to end: 105 emitted antennas, 0 strictly inside, all still
-measuring 0.0 m from a boundary, `validate-output` green.
-
-Deliberately applied at output rather than in candidate generation: changing the candidate set
-would change the matrix cache key and discard the rebuild in flight, for no gain — a 1e-9 m shift
-cannot alter which candidates greedy would pick.
-
-### 14 — Boundary-point jitter made 32% of samples unseeable  (FIXED 2026-08-08)
-
-**The most damaging bug found in this project.** Every coverage number produced before
-2026-08-08 10:30 is wrong.
-
-Samples and candidates are produced by interpolation, `p0 + t*(p1 - p0)`. In float64 at EPSG:32611
-magnitudes (~5e5, 3.7e6) the result lands within an ULP of the true edge line — about 1e-10 m —
-and lands **inside** the polygon roughly half the time. Measured on the official dataset: **44.5%
-of samples sit microscopically inside their own footprint.** One ULP is the smallest displacement
-representable there; no amount of careful computation avoids it.
-
-Tested against the raw polygon, such a point makes every segment ending at it report blocked — the
-segment's interior genuinely does dip inside. The point became invisible from *everything*,
-including a candidate two metres away on its own edge.
-
-| | before | after |
-|---|---|---|
-| samples invisible from their own building | ~32% | **0.03%** |
-| samples visible from any candidate at all | 67.6% | — |
-| buildings "unreachable" at tau=0.75 | 76.1% | — |
-
-**Fix:** block when a segment penetrates more than `INTERIOR_TOLERANCE = 1e-6` m into the
-interior, by testing against the footprint eroded by that amount. Same official rule, stated so
-float64 can evaluate it. A micrometre is five orders above the jitter and five below the smallest
-real footprint, so nothing geometric rides on the value. Verified: 0 of 12,860 footprints collapse,
-minimum area retained 99.9998%.
-
-**This is the mechanism deleted in #10.** `negative_buffer` failed at `eps=1e-9`, which sits below
-float64 relative precision at 3.7e6. The mechanism was right; the epsilon was wrong. I deleted it
-on real evidence but drew too broad a conclusion. `_check_erosion` now makes collapse loud.
-
-**Why nothing caught it:** every geometry test used unit-square coordinates, where an ULP is ~2e-16
-and the jitter cannot occur. The regression suite (`tests/test_boundary_jitter.py`) now works at
-UTM magnitudes with irregular coordinates, and asserts the cheapest possible invariant — *a point
-on a boundary must be visible from that same boundary*.
-
-**Blast radius:** both visibility matrices deleted (7.5 GB); the 800 m build was killed at 26/48
-chunks; the real 400 m nine-block solve was killed mid-run; the #6 sizing must be redone. The
-"76% unreachable at tau=0.75" figure was mostly this bug, not geometry. `MatrixSpec` now carries
-`interior_tolerance` so a pre-fix matrix can never be silently reused, and metadata lacking the
-field is rejected rather than defaulted.
-
-### 13 — Exact interval coverage  (DONE 2026-08-08)
-
-**CORRECTION to the 2026-08-07 finding.** That entry claimed sampled coverage "does not
-converge". **That was wrong** — it was inferred from only four coarse densities. Sampling *does*
-converge; it just needs ~0.5 m spacing, far finer than anything in `PROFILES`:
-
-| spacing | samples | bldg 27 | bldg 6 |
-|---|---|---|---|
-| 5.00 m (`accurate`) | 26 | 0.7232 | 0.7076 |
-| 2.50 m (`final`) | 48 | 0.7693 | 0.7373 |
-| 0.50 m | 224 | 0.7528 | 0.7361 |
-| 0.02 m | 5,516 | 0.7538 | 0.7368 |
-| **exact** | — | **0.7537** | **0.7368** |
-
-The real defect is that the profiles we actually use carry errors up to **0.03**, moving
-non-monotonically, which misclassifies any building within ~0.03 of `tau`. That is smaller than
-the 0.07 originally claimed, but still larger than any usable `claim_margin`.
-
-**Exact coverage is both correct and cheaper** than the sampling density needed to match it:
-6.2 ms for two buildings versus 5,516 samples.
-
-**How it works** (`src/giscup/exact_coverage.py`). Visibility along an edge from a fixed point is
-piecewise constant, and its breakpoints are exactly where the sight line grazes a blocker vertex.
-So: cast rays from the antenna through every nearby blocker vertex, record where they cross the
-edge, and those parameters partition [0,1] into intervals of constant visibility. Test one
-interior point per interval with the official predicate, union across antennas, sum lengths. No
-grid, no tunable density.
-
-**Bug found and fixed during implementation** — same family as the `negative_buffer` failure.
-`np.allclose(p0, p1)` defaults to a **relative** tolerance of 1e-5. At UTM 11N northings (~3.7e6)
-a 16 m vertical edge differs by only 4.5e-6 relatively, so the degeneracy check declared real
-edges zero-length and returned no intervals. Only *vertical* edges broke, because eastings (~5e5)
-are an order of magnitude smaller. Unit-square tests at coordinates near 1 could never expose it;
-`tests/test_exact_coverage.py` now carries UTM-magnitude regression and brute-force cross-checks.
-
-**Scope (Marko's call):** exact coverage backs the **claim decision and validation**. Greedy keeps
-the fast sampled matrix — it is a search heuristic, not the scored quantity, and putting exact
-coverage in its inner loop would risk the 6.3x feasibility headroom.
-
-### 9 — Prune the candidate pool  (blocked on #2)
-
-160,198 candidates to choose at most 1,000 from is heavy overkill, and matrix cost is linear in
-candidate count — an 8x prune is an 8x saving on the dominant cost.
-
-Implement genuine pruning behind the existing mode names (`density`, `visibility_probe`,
-`hybrid`). Today those modes only add **more** candidates via `edge_sample` and prune nothing,
-which makes the names misleading. Prefer spatial diversity and high-visibility positions. Measure
-the quality cost of each prune level against runtime saved; stop before quality degrades measurably.
 
 ### 12 — Claim decision must not use the optimizer's own samples
 
