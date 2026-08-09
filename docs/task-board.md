@@ -3,30 +3,45 @@
 Durable task list. `/startup` reads this and recreates the in-session task list from it.
 Keep it current: when a task is finished, move it to **Done** with the date and the evidence.
 
-Last updated: 2026-08-07.
+Last updated: **2026-08-09**.
 
-## Critical path — CLEARED 2026-08-07
+## Feasibility — the 2026-08-07 figure was wrong; this supersedes it
 
-The feasibility gate reads **PASS, measured**: 3.18 h for all nine subproblems against a 20 h
-budget, **6.3x headroom**. Observed end to end, not extrapolated. Feasibility no longer outranks
-solution quality — but see #13 before trusting any threshold decision.
+The old header here claimed **PASS at 3.18 h / 6.3x headroom**, and the later re-run claimed
+4.01 h / 5.0x. **A real nine-block run then took 9.42 h.** The gate's verification constant was
+16.2x too small (#16). Do not quote either old figure.
 
-| # | Task | Blocked by |
+Current, after #16 (re-fit) and #18 (parallel verification), against a 20 h budget:
+
+| | serial | **--verify-workers 12** |
 |---|---|---|
-| 3b | Calibrate the cull radius (verification pass done; radius still a judgment call) | — |
+| upper bound (every building claimed) | 19.34 h / 1.0x | **6.87 h / 2.9x** |
+| likely (v2 claim fractions) | 11.18 h / 1.8x | **5.14 h / 3.9x** |
+
+**Always pass `--verify-workers` — to `rehearse.py` and to `solve-all` on the day.** Serial puts
+the bound back on the margin.
 
 ## Unblocked — can start any time
 
-| # | Task |
-|---|---|
-
-## Gated on feasibility
-
-| # | Task | Blocked by |
+| # | Task | Why now |
 |---|---|---|
-| 9 | Prune the candidate pool | 2 |
-| 6 | Replace the greedy objective with a threshold-aware one | 4 |
-| 8 | Full nine-block end-to-end dry run + submission audit | 4 |
+| 9 | Prune the candidate pool | **Re-ranked up.** Previously waved off as contraindicated by "robust over runtime" — that assumed 5.0x headroom. Runtime is a robustness property at 2.9x. |
+| — | Shrink the matrix build | It is now the **largest single line** (99.5 min of 6.87 h) and cannot be served from cache on the day. |
+
+## Blocked on machine time (no decision needed)
+
+| # | Task | Unblocks when |
+|---|---|---|
+| 17 | A/B lever A vs baseline claim counts | `outputs/nine_leverA_400.txt` finishes |
+| 8 | Audit the lever A artifact | after #17's file lands |
+| 3b | 600 m go/no-go | 600 m build + sizing finishes |
+
+## Blocked on Marko
+
+| # | Task | Waiting on |
+|---|---|---|
+| 15 | Does lever A become the submission default? | #17 |
+| — | Final packaging | which artifact wins (#15) |
 
 ---
 
