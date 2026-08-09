@@ -32,16 +32,18 @@ the bound back on the margin.
 
 | # | Task | Unblocks when |
 |---|---|---|
-| 17 | A/B lever A vs baseline claim counts | `outputs/nine_leverA_400.txt` finishes |
-| 8 | Audit the lever A artifact | after #17's file lands |
-| 3b | 600 m go/no-go | 600 m build + sizing finishes |
+| 17b | Measure lever A on `(0.75, 50)` and `(0.75, 500)` | nothing — ~22 min at 12 workers, machine is free |
 
 ## Blocked on Marko
 
 | # | Task | Waiting on |
 |---|---|---|
-| 15 | Does lever A become the submission default? | #17 |
+| 15 | Does lever A become the submission default? | 17b, plus the lever A overclaim audit |
 | — | Final packaging | which artifact wins (#15) |
+
+**#17 is answered** (see "Lever A" under #6): **+6.2% verified claims across 5 of 9 blocks**,
+winning four of five. **#3b is answered**: 600 m services +4.1% but leaves only ~1.6x headroom —
+recommendation is that 400 m stands, Marko's call. Both runs are done and the machine is free.
 
 ---
 
@@ -56,6 +58,15 @@ the bound back on the margin.
 - **#18** exact claim verification parallelised (`2a7ed77`). Was 81.7% of runtime on one
   core of sixteen. Measured floors: 1.77x / 3.10x / 4.20x / **4.70x** at 2/4/8/12 workers,
   **bit-identical to serial**. Gate: 19.34 h / 1.0x -> **6.87 h / 2.9x**.
+  **CONFIRMED AT FULL SCALE 2026-08-09** by a nine-block re-run at `--verify-workers 12`
+  (`outputs/nine_verifypar_400.txt`, 171.1 min): identical antenna coordinates in all nine
+  blocks and **identical claim sets** — 39,120 claims, zero IDs added or dropped in any block.
+  End to end **9.42 h -> 2.85 h, 3.30x**. Verification falls from dominating the run to about
+  half of it (86.6 min greedy vs 82.5 min verify over the seven logged blocks).
+  *The run's own auto-diff printed `DIFFERS`; that was the harness, not the solver.* It compared
+  bytes, and `nine_real_400_v2` launched ~22:11 on 2026-08-08 — an hour before the ID-sorting
+  commit `1da0db4` landed at 23:25 — so that process froze the pre-fix `list(set)` order at
+  import. Compare claim **sets**, never bytes, across runs that straddle a formatting change.
 - **#8 (baseline half)** `outputs/nine_real_400_v2_clean.txt` PASSES the full two-stage
   audit: 0 overclaims of 39,120 claims, exactly 4,650 antennas.
 - Audit defect fixed (`45c9766`): auditing at 400 m gave 25 false failures and 0 real ones.
@@ -466,13 +477,38 @@ So every sweep number above **inflates lever A more than baseline**. Treat them 
 estimate and a ranking of quantiles, not as a score prediction. The honest measurement is the
 nine-block run, which decides claims off an independent grid and then verifies exhaustively:
 
-| | baseline | lever A |
-|---|---|---|
-| nine-block artifact | `outputs/nine_real_400_v2.txt` | `outputs/nine_leverA_400.txt` |
+#### ANSWERED 2026-08-09 — the advantage survives verification (5 of 9 blocks)
 
-**Comparing post-verification claim counts between those two files is the first thing to do.**
-If lever A's advantage largely survives verification, the lever is real. If it collapses, the
-sweep was measuring the sampling grid rather than the objective.
+Baseline `outputs/nine_verifypar_400.txt` vs lever A `outputs/nine_leverA_400_5of9.txt`, both
+post-verification, schedule `--near-tau-quantile 100 50 25` mapped positionally onto
+`--taus 0.25 0.5 0.75`:
+
+| block | q | baseline | lever A | verified | sweep predicted |
+|---|---|---|---|---|---|
+| (0.25, 50) | 100 | 1,660 | 1,659 | **−0.1%** | +0.4% |
+| (0.25, 500) | 100 | 8,854 | 9,349 | **+5.6%** | +6.4% |
+| (0.25, 1000) | 100 | 11,630 | 12,279 | **+5.6%** | — |
+| (0.5, 50) | 50 | 144 | 269 | **+86.8%** | +22.1% |
+| (0.5, 500) | 50 | 3,903 | 4,247 | **+8.8%** | +8.6% |
+| **subtotal** | | **26,191** | **27,803** | **+6.2%** | |
+
+**The lever is real.** It wins four blocks of five; the single loss is one building.
+
+**The predicted in-sample asymmetry did not materialise — and at small k it ran the other way.**
+The warning above reasoned that lever A's wins sit near the threshold, so verification should
+punish lever A harder than baseline. At k=500 the bias turned out roughly symmetric (predicted
++6.4%/+8.6%, verified +5.6%/+8.8% — close enough to call the sweep honest there). At k=50,
+tau=0.5 verification cut the *baseline* from 390 in-sample to 144 verified (−63%) while cutting
+lever A from 476 to 269 (−43%), so the measured gap is **four times** what the sweep predicted.
+Baseline greedy at small k accumulates cheap coverage that in-sample scoring flatters and exact
+verification withdraws; lever A's picks are deliberate and hold up better. Keep the caution for
+future sweeps, but do not assume its sign.
+
+**The three tau=0.75 blocks and (0.5, 1000) are NOT measured.** The run was killed at 13:55 in
+block 6 of 9 after 10.4 h, because it was launched with serial verification before the
+`--verify-workers` default landed and had ~7.8 h still to go. `(0.75, 50)` is the highest-variance
+block in the submission — baseline claims just **27** buildings, so a relative-scored ratio swings
+enormously there — and it costs ~2 min at 12 workers. Measure it before finalising #15.
 
 ### 6 — Threshold-aware objective  (original framing)
 

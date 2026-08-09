@@ -93,6 +93,15 @@ verifies *more* claims, so it is strictly slower. The lever A nine-block run was
 after 142 min and projects to **~10–11 h**. On the day that is ~11 h of a ~24 h window, on a
 dataset that may be larger than the March sample.
 
+**Measured 2026-08-09, and the penalty is worse than "more claims" implies.** Lever A checks cost
+**~1.8× more per building** than baseline's, not just more of them — at (0.25, 1000) lever A spent
+261.6 min serial on 12,469 checks (1.26 s each) against baseline's 29.8 min parallel on 11,920
+(0.150 s each). Correcting for the 4.70× worker speedup leaves a genuine 1.8× per-check gap. The
+mechanism is the lever itself: near-tau selection parks buildings *at* the threshold, which is
+exactly the band `--verify-band` catches and where exact coverage must be computed rather than
+short-circuited. **Budget lever A at ~5 h on the day against baseline's 2.85 h**, and note that
+the same property is what makes an overclaim audit non-optional for the lever A artifact.
+
 **Rule 1 of the competition posture applies: feasibility outranks quality.** Re-run `/rehearsal`
 with the verification cost re-fitted to 0.87 s/claim before treating any headroom figure as real.
 
@@ -210,14 +219,20 @@ a foreign environment, or a changed dependency. Each produced output that looked
 ```bash
 conda activate mz-giscup-26
 
-# STILL RUNNING at hand-off (2026-08-09 07:45), all launched with Marko's
-# overnight authorisation. None need babysitting; all write their own logs.
+# ALL BACKGROUND JOBS ARE DONE as of 2026-08-09 14:00. The machine is free.
 #
-#   bpzzrkr5r  lever A nine-block re-solve   2/9 blocks, ETA ~14:00
-#              -> outputs/nine_leverA_400.txt(.partial)
-#   b5vcoaz15  600 m matrix build + sizing   chunk 8/24, ETA ~11:00 (nice 15)
-#   pid 113641 v2 audit at 400 m             -> outputs/audit_v2.log
-#   bv5i96lxd  unbounded re-check of the 25 flagged claims
+#   b5vcoaz15  600 m matrix build + sizing   DONE. 434.5 min, +4.1% serviced,
+#              ~1.6x headroom. Recommendation: 400 m stands (Marko's call, #3b).
+#   bk22xn0vm  nine-block re-run at 12 verify workers  DONE. 171.1 min.
+#              -> outputs/nine_verifypar_400.txt. EXACTLY equivalent to the
+#              audited serial baseline: same antennas, same 39,120 claim IDs.
+#              9.42 h -> 2.85 h, 3.30x. (Its auto-diff said DIFFERS; that was
+#              the harness comparing bytes across a formatting change.)
+#   bpzzrkr5r  lever A nine-block re-solve   KILLED 13:55 at block 6/9, on
+#              Marko's instruction, after 10.4 h with ~7.8 h still to go --
+#              it was launched before the --verify-workers default landed and
+#              was verifying on one core. Five completed blocks preserved as
+#              outputs/nine_leverA_400_5of9.txt; they answer #17 (+6.2%).
 
 # 1. DONE (#16, #18). The gate is re-fitted and verification is parallel.
 #    ALWAYS pass --verify-workers; serial puts the bound at 1.0x headroom.
