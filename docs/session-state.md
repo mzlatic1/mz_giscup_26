@@ -30,6 +30,12 @@ which #17 fixed. A re-run with the fix was in flight when this was written.
   neutral elsewhere, **−1.1% at tau=0.75/k=500**. The mask pushes greedy outward toward unserviced
   buildings, but high tau needs concentration. `greedy_select_threshold` is kept and tested but not
   wired into `solve_one`.
+- **Feasibility gate: PASS at 4.01 h / 5.0x headroom** (re-run 2026-08-08 on official data,
+  15 cores). Supersedes the earlier 3.74 h / 5.3x figure, which predated #17. The gate's
+  verification model was itself stale -- it costed the old band-capped pass at 7.9 min while
+  #17 re-checks every claim. Now split into claim re-check (bounded by building count,
+  50.8 min) and band recovery (7.9 min). Bounding claims by 12,860 is pessimistic at high
+  tau and near-tight at low tau, which is the right direction for a gate.
 - **Claims are verified exhaustively (#17)**, recovery stays banded. An overclaim is a correctness
   failure; a missed recovery is only lost score.
 - **Audit at 400 m, not 800 m.** At 800 m it projected to 8 hours. A tighter radius under-reports

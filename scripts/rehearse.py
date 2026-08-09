@@ -326,9 +326,17 @@ def measured_gate(
     # gap was the near-threshold re-verification pass. Measured cost of exact
     # interval coverage at a 400 m cull: ~1.5 ms/building at k=50, ~21.5 at k=500,
     # ~51 at k=1000, i.e. roughly linear in k at ~51 us per building per 1000 antennas.
-    verify_s = sum(
-        verify_buildings * (k / 1000.0) * 0.051 for k in KS
-    ) * len(TAUS)
+    #
+    # Task #17 (2026-08-08) made CLAIM verification exhaustive: every claimed building is
+    # re-measured, not just those inside the band. The band cap still applies to recovery
+    # only. So the count is `claims + <=verify_buildings`, and claims is not knowable
+    # before solving -- at tau=0.25/k=1000 the real run claimed 11,693 of 12,860.
+    #
+    # The gate must not under-report, so it bounds claims by the building count. That is
+    # pessimistic at high tau (27 claims at tau=0.75/k=50) and near-tight at low tau.
+    exhaustive_s = sum(len(buildings) * (k / 1000.0) * 0.051 for k in KS) * len(TAUS)
+    recovery_s = sum(verify_buildings * (k / 1000.0) * 0.051 for k in KS) * len(TAUS)
+    verify_s = exhaustive_s + recovery_s
     total_s = build_s + solve_s + verify_s
 
     print("\n" + "-" * 78)
@@ -337,7 +345,14 @@ def measured_gate(
     print(f"{'visibility matrix (once, all 9)':40s} {build_s / 60:>13,.1f} min")
     for k in KS:
         print(f"{f'greedy x3 taus at k={k}':40s} {k * per_iter * len(TAUS) / 60:>13,.1f} min")
-    print(f"{f'verification (<={verify_buildings} bldgs/block)':40s} {verify_s / 60:>13,.1f} min")
+    print(
+        f"{f'  claim re-check (<={len(buildings):,} bldgs/block)':40s} "
+        f"{exhaustive_s / 60:>13,.1f} min"
+    )
+    print(
+        f"{f'  band recovery (<={verify_buildings:,} bldgs/block)':40s} "
+        f"{recovery_s / 60:>13,.1f} min"
+    )
     print(f"{'TOTAL for all nine subproblems':40s} {total_s / 3600:>13,.2f} h")
     print("-" * 78)
 
