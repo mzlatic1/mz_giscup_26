@@ -77,3 +77,7 @@ class DatasetInfo:
     feature_count: int
     geometry_types: list[str]
     id_property: str
+    #: True when `id_property` was absent and building IDs fell back to the row index.
+    #: Legitimate for a dataset with no ID field, catastrophic otherwise -- every
+    #: claimed ID would be wrong while the output still passes every structural check.
+    id_fallback_used: bool = False

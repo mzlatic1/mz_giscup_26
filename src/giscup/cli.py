@@ -33,6 +33,7 @@ def cmd_solve_one(args: argparse.Namespace) -> None:
     solution = solve_one(
         progress=reporter,
         input_path=args.input,
+        id_property=args.id_property,
         tau=args.tau,
         k=args.k,
         sampling_profile=args.sampling_profile,
@@ -66,6 +67,7 @@ def cmd_solve_all(args: argparse.Namespace) -> None:
             solution = solve_one(
                 progress=reporter,
                 input_path=args.input,
+                id_property=args.id_property,
                 tau=tau,
                 k=k,
                 sampling_profile=args.sampling_profile,
@@ -153,6 +155,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _add_solver_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--input", required=True)
+    parser.add_argument(
+        "--id-property",
+        default="id",
+        help=(
+            "Dataset field holding the building ID. If absent, IDs fall back to the row "
+            "index and every claim is wrong -- run `giscup inspect` first to confirm."
+        ),
+    )
     parser.add_argument("--candidate-mode", default="basic")
     parser.add_argument("--candidate-spacing", type=float, default=25.0)
     parser.add_argument("--sampling-profile", default="balanced")

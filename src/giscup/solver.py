@@ -21,6 +21,7 @@ def solve_one(
     input_path: str,
     tau: float,
     k: int,
+    id_property: str = "id",
     sampling_profile: str = "balanced",
     candidate_mode: str = "basic",
     optimizer: str = "greedy",
@@ -62,7 +63,7 @@ def solve_one(
             progress.phase(name, detail)
 
     start = perf_counter()
-    buildings, info = load_buildings(input_path)
+    buildings, info = load_buildings(input_path, id_property=id_property)
     profile = get_profile(sampling_profile)
     samples = sample_boundaries(buildings, profile)
     candidates = generate_boundary_candidates(
@@ -177,7 +178,13 @@ def solve_one(
             "max_coverage_delta": report.max_coverage_delta,
         }
     diagnostics = {
-        "dataset": {"path": info.path, "feature_count": info.feature_count, "crs": info.crs},
+        "dataset": {
+            "path": info.path,
+            "feature_count": info.feature_count,
+            "crs": info.crs,
+            "id_property": info.id_property,
+            "id_fallback_used": info.id_fallback_used,
+        },
         "parameters": {"tau": tau, "k": k},
         "counts": {
             "candidate_count": len(candidates),

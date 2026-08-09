@@ -63,3 +63,32 @@ def test_a_block_claiming_nothing_still_emits_its_third_line():
     assert len(lines) == 6
     assert lines[2] == "", "empty claims line must be present"
     assert lines[3] == "(0.75, 1)", "the next block must start immediately after it"
+
+
+def test_claimed_ids_are_emitted_in_sorted_order():
+    """Claim order is incidental today -- verify.py returns list(set), so the order is
+    whatever the set happened to iterate. The spec imposes no order, but sorting is free
+    and makes the file reproducible: the bundle ships source, so an evaluator may re-run
+    and diff against ours."""
+    solutions = [
+        Solution(tau=0.5, k=1, antenna_points=[(1.0, 2.0)], claimed_building_ids=[9448, 7, 1200, 3])
+    ]
+    assert format_solution_file(solutions).split("\n")[2] == "3, 7, 1200, 9448"
+
+
+def test_claimed_ids_sort_numerically_not_lexicographically():
+    """Lexicographic order would put 1200 before 7, which reads as corrupted output."""
+    solutions = [
+        Solution(tau=0.5, k=1, antenna_points=[(1.0, 2.0)], claimed_building_ids=[7, 1200, 30])
+    ]
+    ids = format_solution_file(solutions).split("\n")[2].split(", ")
+    assert ids == ["7", "30", "1200"]
+
+
+def test_string_ids_still_sort_without_raising():
+    """Building.id is typed `int | str`. A dataset with string IDs must not crash the
+    emitter on a mixed or non-numeric sort."""
+    solutions = [
+        Solution(tau=0.5, k=1, antenna_points=[(1.0, 2.0)], claimed_building_ids=["b10", "a2"])
+    ]
+    assert format_solution_file(solutions).split("\n")[2] == "a2, b10"

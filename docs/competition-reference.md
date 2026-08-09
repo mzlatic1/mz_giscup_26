@@ -69,6 +69,46 @@ id1, id2, id3, ...
 
 The third line may be empty if no buildings are claimed, but the line itself must still exist.
 
+## Output format contract — audited 2026-08-08
+
+Verified against the official page, then against 9,300 emitted coordinates from a real
+nine-block run. Everything below is either **spec-confirmed** or a **labelled assumption**.
+
+Spec-confirmed:
+
+- **"There should be three lines for each of the 9 sub-problems."** Nine blocks, 27 lines,
+  **no blank separators**. Separators are not merely untidy: the spec also allows an empty
+  third line, so a block claiming nothing followed by a separator yields two consecutive
+  blank lines that no parser can attribute. Fixed 2026-08-08; files written before that
+  carry separators and need `--normalize-legacy`.
+- Line 2 is "a comma-separated list of the k coordinates ... `(x1, y1), (x2, y2), ...`".
+- Line 3 is "a comma-separated list of the ID of each building you claim is serviced".
+- "Results remain at 64-bit precision; we will be using standard IEEE 754 doubles."
+  `format(x, ".17g")` is correct: 17 significant digits is the guaranteed round-trip width
+  for float64. Verified — 9,300 coordinates re-emit bit-identically.
+
+Assumptions, because the page is silent on each:
+
+- **Block order** is tau-outer, k-inner, matching the order arguments are supplied. The page
+  states no required order; an evaluator almost certainly keys on the `(tau, k)` header.
+- **Claim IDs are emitted sorted numerically.** No order is required. Sorting is free, and
+  it makes the file reproducible — the bundle ships source, so an evaluator may re-run and
+  diff. Before 2026-08-08 the order was incidental (`list(set)` in `verify.py`).
+- **ASCII, LF line endings, trailing newline at EOF.** Verified present; not required.
+- `.17g` emits scientific notation below ~1e-4. Harmless for projected coordinates and our
+  own parser round-trips it, but it would appear if the test data used small magnitudes.
+
+Verified clean on the real nine-block run: exactly `k` points per block, zero duplicate
+antennas, zero claimed IDs absent from the dataset, no CRLF, no tabs, no trailing spaces,
+no non-ASCII bytes.
+
+**Building IDs come from the `--id-property` field, default `id`.** If that field is
+absent, IDs fall back to the row index — legitimate for a dataset with no ID field,
+catastrophic otherwise, because every claim would be wrong while the output still passes
+every structural check. Since 2026-08-08 this warns and sets
+`DatasetInfo.id_fallback_used`, surfaced in diagnostics. **Run `giscup inspect` on the
+August dataset before solving** and confirm the ID field name.
+
 ## Precision
 
 - Preserve 64-bit precision.

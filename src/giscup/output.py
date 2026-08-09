@@ -14,6 +14,23 @@ def format_float(value: float) -> str:
     return format(float(value), ".17g")
 
 
+def _sorted_ids(ids: list[int | str]) -> list[int | str]:
+    """Claim IDs in a stable, canonical order.
+
+    The spec imposes no order, but upstream `claimed` is a set, so today's order is
+    incidental. Sorting is free and makes the file reproducible -- the bundle ships
+    source, so an evaluator may re-run and diff.
+
+    Numeric IDs sort numerically: lexicographic order would place 1200 before 7, which
+    reads as corrupted output. `Building.id` is typed `int | str`, so non-numeric IDs
+    fall back to string order rather than raising on a mixed comparison.
+    """
+    try:
+        return sorted(ids, key=lambda v: (0, float(v), ""))
+    except (TypeError, ValueError):
+        return sorted(ids, key=str)
+
+
 def format_solution_block(solution: Solution) -> str:
     """Format one three-line GIS Cup subproblem block."""
     if len(solution.antenna_points) != solution.k:
@@ -22,7 +39,7 @@ def format_solution_block(solution: Solution) -> str:
             f"{len(solution.antenna_points)} antenna points"
         )
     points = ", ".join(f"({format_float(x)}, {format_float(y)})" for x, y in solution.antenna_points)
-    claimed = ", ".join(str(v) for v in solution.claimed_building_ids)
+    claimed = ", ".join(str(v) for v in _sorted_ids(solution.claimed_building_ids))
     return f"({solution.tau}, {solution.k})\n{points}\n{claimed}"
 
 
