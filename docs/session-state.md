@@ -124,8 +124,19 @@ a foreign environment, or a changed dependency. Each produced output that looked
   tau and near-tight at low tau, which is the right direction for a gate.
 - **Claims are verified exhaustively (#17)**, recovery stays banded. An overclaim is a correctness
   failure; a missed recovery is only lost score.
-- **Audit at 400 m, not 800 m.** At 800 m it projected to 8 hours. A tighter radius under-reports
-  coverage so it flags more, never fewer — conservative and ~4x faster.
+- **Audit at 400 m, not 800 m — REVISED 2026-08-09, the guidance was practically wrong.**
+  The logic ("a tighter radius under-reports coverage, so it flags more, never fewer") is sound,
+  but measured against v2 it produced **25 false failures and zero true ones** in block 1 alone.
+  An alarm that only ever fires falsely cannot distinguish a real defect from noise.
+
+  Every one of the 25 flagged claims at tau=0.25/k=50 holds when re-measured at 800 m — the radius
+  the solver's own verification uses (`visibility_radius x verify_radius_factor`, 400 x 2). Worst
+  case, building 8787: **0.1853 at 400 m, 0.5000 at 800 m.**
+
+  **Audit at the verification radius or wider.** Auditing tighter than the solver verified is not
+  conservatism, it is a guaranteed false-positive generator. Note the 25 were selected for having
+  the lowest 400 m readings, so this does not show the cull costs that much generally — but it does
+  show it can understate badly for buildings *near tau*, which are the ones that decide the score.
 
 ## Resume here
 
