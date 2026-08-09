@@ -192,9 +192,14 @@ conda activate mz-giscup-26
 #   pid 113641 v2 audit at 400 m             -> outputs/audit_v2.log
 #   bv5i96lxd  unbounded re-check of the 25 flagged claims
 
-# 1. THE FEASIBILITY NUMBER IS WRONG. v2 took 9h25m vs the gate's 4.01 h.
-#    Re-fit the gate's verification cost to 0.87 s/claim and re-run it.
-python scripts/rehearse.py --input data/GIS-cup-sample-dataset.geojson --cores 16
+# 1. DONE (#16, #18). The gate is re-fitted and verification is parallel.
+#    ALWAYS pass --verify-workers; serial puts the bound at 1.0x headroom.
+python scripts/rehearse.py --input data/GIS-cup-sample-dataset.geojson \
+    --cores 16 --measured-radius 400 --verify-workers 12
+#    -> upper bound 6.87 h / 2.9x, likely 5.14 h / 3.9x
+#
+#    AND USE IT ON THE DAY -- solve-all takes --verify-workers too:
+#    giscup solve-all ... --verify-workers 12
 
 # 2. BASELINE IS DONE AND FULLY AUDITED -- AUDIT PASSED, 0 overclaims of 39,120
 #    claims across all nine blocks (outputs/audit_v2.log). Task #8 is closed for

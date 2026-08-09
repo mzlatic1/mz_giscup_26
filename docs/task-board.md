@@ -30,6 +30,26 @@ solution quality — but see #13 before trusting any threshold decision.
 
 ---
 
+## Closed 2026-08-09 (overnight + morning)
+
+- **#14** scene reuse + per-block partial writes (`4c947d6`). NOTE: the "~40% of a run"
+  justification was WRONG -- setup is 3.32 s, the waste was 27 s (0.08%). The `SceneSpec`
+  guard and the partial writes are the real value.
+- **#16** feasibility gate re-fitted (`06e9d4f`). One constant, 16.2x wrong: 0.051 ->
+  **0.826** s per building per 1000 antennas. Gate now prints an upper bound AND a likely
+  estimate; the likely one predicts v2 within 1%. Pinned by `tests/test_gate_calibration.py`.
+- **#18** exact claim verification parallelised (`2a7ed77`). Was 81.7% of runtime on one
+  core of sixteen. Measured floors: 1.77x / 3.10x / 4.20x / **4.70x** at 2/4/8/12 workers,
+  **bit-identical to serial**. Gate: 19.34 h / 1.0x -> **6.87 h / 2.9x**.
+- **#8 (baseline half)** `outputs/nine_real_400_v2_clean.txt` PASSES the full two-stage
+  audit: 0 overclaims of 39,120 claims, exactly 4,650 antennas.
+- Audit defect fixed (`45c9766`): auditing at 400 m gave 25 false failures and 0 real ones.
+  Now screens cheap, confirms at 800 m via `giscup.audit.confirm_overclaims`.
+
+**New item this surfaced:** with verification down to 49% of the projected total, the
+**99.5 min matrix build is now the largest single line** -- and unlike the sample run it
+cannot be served from cache on submission day.
+
 ## Details
 
 ### 2 — Radius-culled cached visibility matrix  ← THE BLOCKER
