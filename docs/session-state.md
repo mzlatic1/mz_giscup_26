@@ -172,6 +172,20 @@ Local head: `be0a2bf Verify every claim exactly instead of by band (#17)`. Every
 conda activate mz-giscup-26      # Python 3.11; required for all work
 ```
 
+### Managing the multi-hour background jobs
+
+This project runs several CPU-bound jobs for hours at a time, and they contend for **memory
+bandwidth**, not just cores — four jobs on 16 cores cut the greedy pick rate from 59/min to 34/min.
+
+- **Use `nice -n 15` when launching the low-priority job**, and let the scheduler arbitrate. Do not
+  try to `renice`/`SIGSTOP` after the fact.
+- **`pgrep -f <pattern>` matches your own shell**, because the pattern appears in that shell's own
+  command line. On 2026-08-09 this suspended my own subshell and killed an authorised 600 m build
+  outright (exit 147 = 128+19). Match on something narrower, or filter out the current shell's PID.
+- A killed matrix build is **safe by design**: the metadata JSON is the completion marker, so a
+  `.bits` file without its `.json` is rebuilt rather than trusted. One 2.6 GB orphan
+  (`visibility-89846a10….bits`, no JSON) is in `outputs/cache` — harmless, overwritten on rebuild.
+
 Host: **16 cores, 24 GB RAM** (the gate's 8-core assumption is conservative — 16 are available).
 NumPy 2.4.6 (`np.bitwise_count` available), Shapely 2.1.2, SciPy 1.17.1.
 **`ruff` and `mypy` are NOT installed** — `pip install -e .[dev]` if lint is needed.
