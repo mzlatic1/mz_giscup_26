@@ -209,6 +209,7 @@ def verify_and_recover(
     verify_profile: SamplingProfile | None = None,
     use_exact: bool = True,
     exact_radius: float | None = None,
+    workers: int = 1,
 ) -> tuple[list[int | str], VerificationReport]:
     """Re-measure buildings near `tau` exactly, then recover and drop accordingly.
 
@@ -247,7 +248,7 @@ def verify_and_recover(
         # thousands of blockers and thousands of breakpoints per edge.
         exact = exact_coverage_by_building(
             targets, antenna_points, buildings, blocker_index,
-            strategy=strategy, radius=exact_radius,
+            strategy=strategy, radius=exact_radius, workers=workers,
         )
         checks = 0
     else:

@@ -30,7 +30,20 @@ Verification is not a correction term on the greedy model — **it is the runtim
 single constant is the whole 2.35× error. It now lives in `giscup.gate_model`, pinned by
 `tests/test_gate_calibration.py` against the observed run.
 
-The gate now reports **two** numbers, because either alone misleads:
+**#18 done — verification is now parallel (`--verify-workers`).** It was single-core on a 16-core
+host despite every building being independent. Measured on a real block under contention (so these
+are floors): **1.77x at 2 workers, 3.10x at 4, 4.20x at 8, 4.70x at 12**, and **bit-identical to
+serial at every level** — coverage decides which claims survive, so "close enough" is not enough.
+
+| gate, 20 h budget | serial | 12 verify workers |
+|---|---|---|
+| upper bound | 19.34 h / **1.0x** | **6.87 h / 2.9x** |
+| likely | 11.18 h / 1.8x | **5.14 h / 3.9x** |
+
+Verification fell from 82% of the projected total to 49%. **The matrix build (99.5 min) is now the
+largest single line** — and unlike the sample run it cannot be served from cache on the day.
+
+The gate reports **two** numbers, because either alone misleads:
 
 | | verify | total | headroom |
 |---|---|---|---|

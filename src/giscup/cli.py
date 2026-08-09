@@ -76,6 +76,7 @@ def cmd_solve_one(args: argparse.Namespace) -> None:
         verify_max_buildings=args.verify_max_buildings,
         verify_radius_factor=args.verify_radius_factor,
         near_tau_quantile=args.near_tau_quantile,
+        verify_workers=args.verify_workers,
     )
     reporter.finish_subproblem(claimed=len(solution.claimed_building_ids))
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
@@ -126,6 +127,7 @@ def cmd_solve_all(args: argparse.Namespace) -> None:
                 verify_max_buildings=args.verify_max_buildings,
                 verify_radius_factor=args.verify_radius_factor,
                 near_tau_quantile=near_tau_quantile,
+                verify_workers=args.verify_workers,
             )
             reporter.finish_subproblem(claimed=len(solution.claimed_building_ids))
             solutions.append(solution)
@@ -273,6 +275,14 @@ def _add_solver_args(parser: argparse.ArgumentParser) -> None:
         type=int,
         default=None,
         help="Cap on buildings re-verified per subproblem, closest to tau first.",
+    )
+    parser.add_argument(
+        "--verify-workers", type=int, default=1,
+        help=(
+            "Processes for exact claim verification. Verification is ~82%% of a full "
+            "run and every building is independent, so this is the cheapest large "
+            "speedup available. Results are bit-identical to serial."
+        ),
     )
     parser.add_argument(
         "--quiet",

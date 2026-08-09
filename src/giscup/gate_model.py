@@ -46,6 +46,27 @@ def calibrated_verify_seconds(
     )
 
 
+#: Speedup from parallel verification (#18), measured on a real block --
+#: tau=0.75/k=500, 150 claims x 500 antennas -- while the lever A re-solve and the
+#: 600 m matrix build were both running. Contended, so these are FLOORS.
+#: Efficiency falls off hard: 88% at 2 workers, 78% at 4, 53% at 8, 39% at 12.
+MEASURED_VERIFY_SPEEDUP: dict[int, float] = {1: 1.00, 2: 1.77, 4: 3.10, 8: 4.20, 12: 4.70}
+
+
+def verify_speedup(workers: int) -> float:
+    """Speedup for `workers` processes, never extrapolated beyond what was measured.
+
+    An unmeasured count rounds *down* to the nearest measured one, and anything above
+    12 gets 12's figure. Scaling had already decayed to 39% efficiency there; assuming
+    it keeps improving is exactly how this gate came to be optimistic in the first
+    place.
+    """
+    if workers < 1:
+        raise ValueError(f"workers must be at least 1, got {workers}")
+    usable = [w for w in sorted(MEASURED_VERIFY_SPEEDUP) if w <= workers]
+    return MEASURED_VERIFY_SPEEDUP[usable[-1]] if usable else 1.0
+
+
 #: Fraction of all buildings re-verified in each block, measured on the v2 run
 #: (12,860 buildings, 400 m). Ratios transfer to a new extract far better than raw
 #: counts do: they encode how tau and k govern how much of the stock gets claimed.

@@ -39,6 +39,8 @@ deliberately permissive rather than trying to identify only true silhouette vert
 
 from __future__ import annotations
 
+import multiprocessing as mp
+
 import numpy as np
 from shapely.geometry import Polygon, box
 
@@ -222,6 +224,33 @@ def exact_building_coverage(
     return visible_length / building.perimeter
 
 
+_SHARED: dict = {}
+
+
+def _init_coverage_worker(payload: dict) -> None:
+    """Rebuild the spatial index per process. GEOS objects do not survive fork cleanly."""
+    _SHARED.update(payload)
+    _SHARED["index"] = BlockerIndex.from_buildings(payload["buildings"])
+
+
+def _coverage_chunk(chunk: list[int]) -> list[tuple[int | str, float]]:
+    buildings: list[Building] = _SHARED["buildings"]
+    return [
+        (
+            buildings[i].id,
+            exact_building_coverage(
+                buildings[i],
+                _SHARED["antenna_points"],
+                _SHARED["index"],
+                strategy=_SHARED["strategy"],
+                eps=_SHARED["eps"],
+                radius=_SHARED["radius"],
+            ),
+        )
+        for i in chunk
+    ]
+
+
 def exact_coverage_by_building(
     building_ids: list[int | str],
     antenna_points: list[PointLike],
@@ -230,17 +259,49 @@ def exact_coverage_by_building(
     strategy: str = "relate",
     eps: float = 1e-9,
     radius: float | None = None,
+    workers: int = 1,
 ) -> dict[int | str, float]:
     """Exact coverage for the requested buildings only.
 
     Cost scales with the selection, not the dataset, so this is affordable for the
     near-threshold band even though it is far too slow to run over every building.
+
+    `workers > 1` spreads the buildings across processes. Each building's coverage is
+    independent of every other's, so the result is identical to the serial one --
+    identical, not merely close: coverage decides which claims survive, and the
+    competition allows one submission with no score feedback.
     """
+    if workers < 1:
+        raise ValueError(f"workers must be at least 1, got {workers}")
     wanted = set(building_ids)
-    return {
-        b.id: exact_building_coverage(
-            b, antenna_points, blocker_index, strategy=strategy, eps=eps, radius=radius
-        )
-        for b in buildings
-        if b.id in wanted
+    indices = [i for i, b in enumerate(buildings) if b.id in wanted]
+    if not indices:
+        return {}
+
+    if workers == 1 or len(indices) < 2:
+        return {
+            buildings[i].id: exact_building_coverage(
+                buildings[i], antenna_points, blocker_index,
+                strategy=strategy, eps=eps, radius=radius,
+            )
+            for i in indices
+        }
+
+    n = min(workers, len(indices))
+    # Round-robin rather than contiguous slices: adjacent buildings sit in the same
+    # neighbourhood and cost similarly, so contiguous chunks would leave one worker
+    # holding the whole dense downtown while the others idle.
+    chunks = [indices[j::n] for j in range(n)]
+    payload = {
+        "buildings": buildings,
+        "antenna_points": antenna_points,
+        "strategy": strategy,
+        "eps": eps,
+        "radius": radius,
     }
+    ctx = mp.get_context("fork")
+    out: dict[int | str, float] = {}
+    with ctx.Pool(n, initializer=_init_coverage_worker, initargs=(payload,)) as pool:
+        for part in pool.imap_unordered(_coverage_chunk, chunks):
+            out.update(part)
+    return out

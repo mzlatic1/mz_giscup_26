@@ -27,6 +27,7 @@ from giscup.gate_model import (
     calibrated_verify_seconds,
     pessimistic_verify_seconds,
     projected_verify_seconds,
+    verify_speedup,
 )
 
 # The v2 run, measured 2026-08-09. (tau, k) -> buildings re-verified in that block.
@@ -113,3 +114,41 @@ def test_the_projection_sits_below_the_pessimistic_bound():
     assert projected_verify_seconds(V2_BUILDINGS) < pessimistic_verify_seconds(
         V2_BUILDINGS, verify_buildings=2000
     )
+
+
+# --- parallel verification (#18) --------------------------------------------
+
+
+def test_speedup_matches_the_measured_points():
+    """Measured on a real block (tau=0.75/k=500, 150 claims x 500 antennas) while two
+    other jobs were running, so these are floors, not ceilings."""
+    assert verify_speedup(1) == pytest.approx(1.00)
+    assert verify_speedup(4) == pytest.approx(3.10)
+    assert verify_speedup(12) == pytest.approx(4.70)
+
+
+def test_speedup_never_extrapolates_above_what_was_measured():
+    """Scaling stopped paying at 12 workers (39% efficiency). Assuming it keeps
+    improving is how a gate starts lying again."""
+    assert verify_speedup(64) == verify_speedup(12)
+    assert verify_speedup(1000) == pytest.approx(4.70)
+
+
+def test_an_unmeasured_worker_count_rounds_down_to_a_measured_one():
+    """6 workers gets 4 workers' speedup, not an interpolated guess."""
+    assert verify_speedup(6) == verify_speedup(4)
+    assert verify_speedup(3) == verify_speedup(2)
+
+
+def test_speedup_is_monotonic():
+    values = [verify_speedup(w) for w in (1, 2, 4, 8, 12)]
+    assert values == sorted(values)
+
+
+def test_parallel_verification_moves_the_gate_off_the_margin():
+    """The point of #18. Serial verification put the pessimistic bound at 1.0x
+    headroom against a 20 h budget -- no margin for a denser August extract."""
+    serial = pessimistic_verify_seconds(V2_BUILDINGS, verify_buildings=2000)
+    parallel = serial / verify_speedup(12)
+    assert serial / 3600 > 15.0
+    assert parallel / 3600 < 4.0

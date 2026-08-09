@@ -31,7 +31,11 @@ import numpy as np
 from shapely.geometry import LineString
 
 from giscup.candidates import generate_boundary_candidates
-from giscup.gate_model import MEASURED_VERIFY_S_PER_BUILDING_PER_1K, projected_verify_seconds
+from giscup.gate_model import (
+    MEASURED_VERIFY_S_PER_BUILDING_PER_1K,
+    projected_verify_seconds,
+    verify_speedup,
+)
 from giscup.io import load_buildings
 from giscup.sampling import get_profile, sample_boundaries
 from giscup.visibility import BlockerIndex, is_visible
@@ -114,6 +118,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--cache-dir", default="outputs/cache")
     parser.add_argument("--greedy-probe-iterations", type=int, default=5)
+    parser.add_argument(
+        "--verify-workers", type=int, default=1,
+        help=(
+            "Processes for exact claim verification. Measured speedups (floors, taken "
+            "under contention): 1.77x at 2, 3.10x at 4, 4.20x at 8, 4.70x at 12."
+        ),
+    )
     parser.add_argument(
         "--verify-buildings", type=int, default=2000,
         help="Buildings re-verified per subproblem, for the verification cost line.",
@@ -263,6 +274,7 @@ def main(argv: list[str] | None = None) -> int:
             budget_s=budget_s,
             greedy_probe_iterations=args.greedy_probe_iterations,
             verify_buildings=args.verify_buildings,
+            verify_workers=args.verify_workers,
         )
 
     print("\nReminder (see memory: rogii-lessons-that-transfer): measure a lever's best-case")
@@ -282,6 +294,7 @@ def measured_gate(
     budget_s: float,
     greedy_probe_iterations: int,
     verify_buildings: int = 2000,
+    verify_workers: int = 1,
 ) -> int:
     """Observe the real pipeline cost instead of projecting it.
 
@@ -294,7 +307,8 @@ def measured_gate(
     from giscup.matrix import build_visibility_matrix
 
     print("\n" + "=" * 78)
-    print(f"MEASURED GATE — radius {radius:g} m, {workers} workers")
+    print(f"MEASURED GATE — radius {radius:g} m, {workers} matrix workers, "
+          f"{verify_workers} verify workers ({verify_speedup(verify_workers):.2f}x)")
     print("=" * 78)
 
     t0 = time.perf_counter()
@@ -340,8 +354,9 @@ def measured_gate(
     # larger, and the entire reason this gate read 4.01 h for a 9.42 h run.
     # See giscup.gate_model and tests/test_gate_calibration.py.
     c = MEASURED_VERIFY_S_PER_BUILDING_PER_1K
-    exhaustive_s = sum(len(buildings) * (k / 1000.0) * c for k in KS) * len(TAUS)
-    recovery_s = sum(verify_buildings * (k / 1000.0) * c for k in KS) * len(TAUS)
+    speedup = verify_speedup(verify_workers)
+    exhaustive_s = sum(len(buildings) * (k / 1000.0) * c for k in KS) * len(TAUS) / speedup
+    recovery_s = sum(verify_buildings * (k / 1000.0) * c for k in KS) * len(TAUS) / speedup
     verify_s = exhaustive_s + recovery_s
     total_s = build_s + solve_s + verify_s
 
@@ -370,7 +385,7 @@ def measured_gate(
     # claim FRACTIONS the v2 run actually produced. Reporting only the bound reads as
     # a near-failure on a run with 2x headroom; reporting only the estimate is how
     # this gate came to say 4.01 h for a 9.42 h run.
-    likely_verify_s = projected_verify_seconds(len(buildings))
+    likely_verify_s = projected_verify_seconds(len(buildings)) / speedup
     likely_total_s = build_s + solve_s + likely_verify_s
     print("\n" + "-" * 78)
     print(f"{'':40s} {'verify':>12s} {'TOTAL':>12s} {'headroom':>10s}")

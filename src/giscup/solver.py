@@ -38,6 +38,7 @@ def solve_one(
     progress: ProgressReporter | None = None,
     scene: Scene | None = None,
     near_tau_quantile: float | None = None,
+    verify_workers: int = 1,
 ) -> Solution:
     """Solve one GIS Cup subproblem.
 
@@ -196,6 +197,7 @@ def solve_one(
             claim_margin=claim_margin,
             strategy=visibility_strategy,
             verify_profile=get_profile(verify_profile),
+            workers=verify_workers,
             # Deliberately WIDER than the solver's cull. Measured on the official
             # sample: a 400 m cull captures ~91% of visible pairs, 800 m ~98%. If the
             # verification pass reused the solver's radius it would inherit the exact
@@ -248,6 +250,7 @@ def solve_one(
             "verify_band": verify_band,
             "verify_radius_factor": verify_radius_factor,
             "near_tau_quantile": near_tau_quantile,
+            "verify_workers": verify_workers,
         },
         "runtime_seconds": {"total": perf_counter() - start},
         "warnings": [],
