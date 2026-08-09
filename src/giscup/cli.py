@@ -16,6 +16,31 @@ from giscup.solver import solve_one
 from giscup.validate import validate_solution_file
 
 
+_NEAR_TAU_HELP = (
+    "Enable the near-tau objective (lever A): each greedy pick is scored only against "
+    "buildings that are unserviced AND within this percentile of the live deficit "
+    "distribution, so coverage is spent where it can still flip a building. 100 targets "
+    "every unserviced building. Requires --visibility-radius. OFF by default: measured "
+    "at k=500 on the sample dataset only."
+)
+
+
+def _resolve_near_tau_schedule(
+    quantiles: list[float] | None, taus: list[float]
+) -> list[float | None]:
+    """Map --near-tau-quantile onto --taus positionally."""
+    if quantiles is None:
+        return [None] * len(taus)
+    if len(quantiles) == 1:
+        return [quantiles[0]] * len(taus)
+    if len(quantiles) != len(taus):
+        raise SystemExit(
+            f"--near-tau-quantile got {len(quantiles)} values for {len(taus)} taus. "
+            "Give exactly one value, or one per tau in --taus order."
+        )
+    return list(quantiles)
+
+
 def _write_json(path: str | None, payload: Any) -> None:
     if path is None:
         return
@@ -50,6 +75,7 @@ def cmd_solve_one(args: argparse.Namespace) -> None:
         verify_band=args.verify_band,
         verify_max_buildings=args.verify_max_buildings,
         verify_radius_factor=args.verify_radius_factor,
+        near_tau_quantile=args.near_tau_quantile,
     )
     reporter.finish_subproblem(claimed=len(solution.claimed_building_ids))
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
@@ -61,6 +87,7 @@ def cmd_solve_all(args: argparse.Namespace) -> None:
     solutions = []
     diagnostics = {}
     plan = [(tau, k) for tau in args.taus for k in args.ks]
+    schedule = _resolve_near_tau_schedule(args.near_tau_quantile, args.taus)
     reporter = ProgressReporter(plan, enabled=not args.quiet)
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -74,7 +101,7 @@ def cmd_solve_all(args: argparse.Namespace) -> None:
         candidate_mode=args.candidate_mode,
         candidate_spacing=args.candidate_spacing,
     )
-    for tau in args.taus:
+    for tau, near_tau_quantile in zip(args.taus, schedule):
         for k in args.ks:
             reporter.start_subproblem(tau, k)
             solution = solve_one(
@@ -97,6 +124,7 @@ def cmd_solve_all(args: argparse.Namespace) -> None:
                 verify_band=args.verify_band,
                 verify_max_buildings=args.verify_max_buildings,
                 verify_radius_factor=args.verify_radius_factor,
+                near_tau_quantile=near_tau_quantile,
             )
             reporter.finish_subproblem(claimed=len(solution.claimed_building_ids))
             solutions.append(solution)
@@ -138,6 +166,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_solver_args(solve_one_p)
     solve_one_p.add_argument("--tau", type=float, required=True)
     solve_one_p.add_argument("--k", type=int, required=True)
+    solve_one_p.add_argument("--near-tau-quantile", type=float, default=None, help=_NEAR_TAU_HELP)
     solve_one_p.add_argument("--output", required=True)
     solve_one_p.add_argument("--diagnostics")
     solve_one_p.set_defaults(func=cmd_solve_one)
@@ -146,6 +175,17 @@ def build_parser() -> argparse.ArgumentParser:
     _add_solver_args(solve_all_p)
     solve_all_p.add_argument("--taus", type=float, nargs="+", required=True)
     solve_all_p.add_argument("--ks", type=int, nargs="+", required=True)
+    solve_all_p.add_argument(
+        "--near-tau-quantile",
+        type=float,
+        nargs="+",
+        default=None,
+        help=(
+            _NEAR_TAU_HELP
+            + " Give one value to apply everywhere, or one per --taus entry, in that "
+            "order. The measured schedule at k=500 is 100 50 25 for taus 0.25 0.5 0.75."
+        ),
+    )
     solve_all_p.add_argument("--output", required=True)
     solve_all_p.add_argument("--diagnostics")
     solve_all_p.set_defaults(func=cmd_solve_all)

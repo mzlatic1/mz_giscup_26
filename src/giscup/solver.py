@@ -7,7 +7,7 @@ from time import perf_counter
 from giscup.coverage import coverage_by_building, serviced_buildings
 from giscup.matrix import build_visibility_matrix
 from giscup.models import Solution
-from giscup.optimize import greedy_select, greedy_select_matrix
+from giscup.optimize import greedy_select, greedy_select_matrix, greedy_select_near_tau
 from giscup.output import nudge_off_interior
 from giscup.progress import ProgressReporter
 from giscup.sampling import get_profile
@@ -37,6 +37,7 @@ def solve_one(
     verify_radius_factor: float = 2.0,
     progress: ProgressReporter | None = None,
     scene: Scene | None = None,
+    near_tau_quantile: float | None = None,
 ) -> Solution:
     """Solve one GIS Cup subproblem.
 
@@ -57,6 +58,16 @@ def solve_one(
         raise ValueError(f"max_candidates ({max_candidates}) must be at least k ({k})")
     if optimizer != "greedy":
         raise ValueError(f"optimizer must be 'greedy'; got {optimizer!r}")
+    if near_tau_quantile is not None:
+        if not (0 < near_tau_quantile <= 100):
+            raise ValueError(
+                f"near_tau_quantile must be in (0, 100], got {near_tau_quantile}"
+            )
+        if visibility_radius is None:
+            raise ValueError(
+                "near_tau_quantile requires visibility_radius: the near-tau objective "
+                "exists only on the cached-matrix path."
+            )
 
     def _phase(name: str, detail: str = "") -> None:
         if progress is not None:
@@ -101,20 +112,34 @@ def solve_one(
             cache_dir=cache_dir,
         )
         _phase("matrix", f"{matrix.nonzeros():,} pairs  cached={matrix.loaded_from_cache}")
-        selected, visible = greedy_select_matrix(
-            matrix,
-            candidates,
-            samples,
-            buildings,
-            tau=tau,
-            k=k,
-            max_candidates=max_candidates,
-            progress=(
-                None
-                if progress is None
-                else (lambda i, total: _phase("greedy", f"picked {i:,}/{total:,}"))
-            ),
+        greedy_progress = (
+            None
+            if progress is None
+            else (lambda i, total: _phase("greedy", f"picked {i:,}/{total:,}"))
         )
+        if near_tau_quantile is None:
+            selected, visible = greedy_select_matrix(
+                matrix,
+                candidates,
+                samples,
+                buildings,
+                tau=tau,
+                k=k,
+                max_candidates=max_candidates,
+                progress=greedy_progress,
+            )
+        else:
+            selected, visible = greedy_select_near_tau(
+                matrix,
+                candidates,
+                samples,
+                buildings,
+                tau=tau,
+                k=k,
+                max_candidates=max_candidates,
+                quantile=near_tau_quantile,
+                progress=greedy_progress,
+            )
         matrix_info = {
             "key": matrix.spec.key,
             "radius": visibility_radius,
@@ -222,6 +247,7 @@ def solve_one(
             "visibility_radius": visibility_radius,
             "verify_band": verify_band,
             "verify_radius_factor": verify_radius_factor,
+            "near_tau_quantile": near_tau_quantile,
         },
         "runtime_seconds": {"total": perf_counter() - start},
         "warnings": [],
