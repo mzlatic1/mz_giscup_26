@@ -1,0 +1,115 @@
+"""The feasibility gate must reproduce a run that actually happened.
+
+The gate read PASS at 4.01 h / 5.0x headroom. The v2 nine-block run then took
+9.42 h (33,898 s measured, 9 h 25 m wall) on the same dataset, same 400 m radius,
+same flags. A gate wrong by 2.35x in the optimistic direction is not a gate.
+
+Root cause: the verification constant. The model used 0.051 s per building per 1000
+antennas, carried from an early measurement. Decomposing v2 against measured greedy
+timings gives 0.826 -- **16.2x** larger:
+
+    setup x9            30 s   0.1%   (3.32 s measured, not the 8.5 min once claimed)
+    greedy           6,174 s  18.2%   (48 / 510 / 1500 s at k=50 / 500 / 1000, x3 taus)
+    verification    27,694 s  81.7%   -> 27,694 / 33,540 building-k units = 0.826
+
+So verification is not a correction term on the greedy model; it *is* the runtime.
+
+This file pins the gate against that observed run. Any future change to the cost
+model has to keep predicting it.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from giscup.gate_model import (
+    MEASURED_VERIFY_S_PER_BUILDING_PER_1K,
+    calibrated_verify_seconds,
+    pessimistic_verify_seconds,
+    projected_verify_seconds,
+)
+
+# The v2 run, measured 2026-08-09. (tau, k) -> buildings re-verified in that block.
+V2_REVERIFIED = {
+    (0.25, 50): 1_931, (0.25, 500): 9_468, (0.25, 1000): 11_920,
+    (0.5, 50): 451, (0.5, 500): 4_659, (0.5, 1000): 8_815,
+    (0.75, 50): 52, (0.75, 500): 1_990, (0.75, 1000): 4_625,
+}
+V2_VERIFY_SECONDS = 27_694.0
+V2_BUILDINGS = 12_860
+
+
+def test_the_calibrated_model_reproduces_the_v2_run():
+    """The whole point of the file. Within 10% of what was actually observed."""
+    predicted = calibrated_verify_seconds(V2_REVERIFIED)
+    ratio = predicted / V2_VERIFY_SECONDS
+    assert 0.90 <= ratio <= 1.10, (
+        f"gate predicts {predicted/3600:.2f} h of verification, v2 measured "
+        f"{V2_VERIFY_SECONDS/3600:.2f} h (ratio {ratio:.2f})"
+    )
+
+
+def test_the_old_constant_would_have_failed_this_test():
+    """Guards against silently reverting to 0.051. That constant under-predicts the
+    observed run by more than 15x, which is how the gate came to read PASS at 4.01 h."""
+    old = 0.051
+    predicted = calibrated_verify_seconds(V2_REVERIFIED, seconds_per_building_per_1k=old)
+    assert predicted / V2_VERIFY_SECONDS < 0.10
+
+
+def test_the_pessimistic_bound_is_above_the_calibrated_estimate():
+    """A gate may be wrong, but only in the safe direction. Bounding claims by the
+    building count must never come out below what was actually observed."""
+    bound = pessimistic_verify_seconds(V2_BUILDINGS, verify_buildings=2000)
+    assert bound > V2_VERIFY_SECONDS
+
+
+def test_the_pessimistic_bound_is_not_absurdly_loose():
+    """Pessimism has to stay useful. More than 4x the observed cost would make the
+    gate fail runs that comfortably fit, which is its own way of being useless."""
+    bound = pessimistic_verify_seconds(V2_BUILDINGS, verify_buildings=2000)
+    assert bound / V2_VERIFY_SECONDS < 4.0
+
+
+def test_cost_scales_linearly_in_k():
+    """Each claimed building is re-measured against every antenna, so doubling k
+    doubles the work. If this ever stops holding the constant is meaningless."""
+    one = calibrated_verify_seconds({(0.5, 500): 1_000})
+    two = calibrated_verify_seconds({(0.5, 1000): 1_000})
+    assert two == pytest.approx(2 * one, rel=1e-9)
+
+
+def test_cost_scales_linearly_in_buildings():
+    one = calibrated_verify_seconds({(0.5, 500): 1_000})
+    two = calibrated_verify_seconds({(0.5, 500): 2_000})
+    assert two == pytest.approx(2 * one, rel=1e-9)
+
+
+def test_the_constant_is_the_measured_one():
+    assert MEASURED_VERIFY_S_PER_BUILDING_PER_1K == pytest.approx(0.826, abs=0.005)
+
+
+# --- projecting onto a dataset you have not solved yet -----------------------
+
+
+def test_the_projection_reproduces_v2_at_v2s_size():
+    """Claim ratios, not claim counts, are what transfers to a new extract. At the
+    size they were measured on, they must give back the observed cost."""
+    predicted = projected_verify_seconds(V2_BUILDINGS)
+    assert predicted / V2_VERIFY_SECONDS == pytest.approx(1.0, abs=0.05)
+
+
+def test_the_projection_scales_with_dataset_size():
+    small = projected_verify_seconds(V2_BUILDINGS)
+    big = projected_verify_seconds(2 * V2_BUILDINGS)
+    assert big == pytest.approx(2 * small, rel=1e-9)
+
+
+def test_the_projection_sits_below_the_pessimistic_bound():
+    """Two numbers, and the gate must report both: a bound that cannot be exceeded and
+    an estimate of what will actually happen. Reporting only the bound reads as a
+    near-failure on a run with 2x headroom; reporting only the estimate is how the
+    gate came to say 5.0x."""
+    assert projected_verify_seconds(V2_BUILDINGS) < pessimistic_verify_seconds(
+        V2_BUILDINGS, verify_buildings=2000
+    )

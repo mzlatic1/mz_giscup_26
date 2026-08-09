@@ -4,9 +4,13 @@ Two defects motivate this file, both found while watching the v2 nine-block run:
 
 1. `cmd_solve_all` called `solve_one(input_path=...)` nine times, and every call
    re-read the GeoJSON, re-sampled every boundary, and re-generated all 157,454
-   candidates. Only the visibility matrix was shared (via `cache_dir`). On the
-   official sample that setup work is ~8.5 min, so eight of the nine repeats are
-   pure waste -- roughly 40% of the run.
+   candidates. Only the visibility matrix was shared (via `cache_dir`).
+
+   **The speedup is negligible and was originally overstated.** Setup measures
+   3.32 s on the official sample, so eight redundant repeats cost 27 s of a
+   33,898 s run -- 0.08%, not the "~40%" first claimed. What makes the change
+   worth keeping is the `SceneSpec` guard: sharing setup silently across
+   differently-configured solves would answer a question nobody posed.
 
 2. `cmd_solve_all` wrote its output file only after all nine blocks finished. The
    v2 run passed five hours with nothing on disk. In a one-submission competition

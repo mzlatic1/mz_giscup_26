@@ -2,8 +2,15 @@
 
 Loading the dataset, sampling boundaries, and generating candidates are functions of
 the *dataset and its configuration only*. `solve-all` runs nine subproblems over one
-dataset, so doing this work nine times is pure waste -- on the official sample it is
-about 8.5 minutes per repeat, roughly 40% of a nine-block run.
+dataset, so doing this work nine times is waste.
+
+**Corrected 2026-08-09: the waste is small.** This was originally justified as "~8.5
+min per repeat, roughly 40% of a nine-block run". That was wrong -- it misread the
+sweep's `baseline greedy done [8.5 min]`, a *greedy* timing at k=500, as a setup
+timing. Measured on the official sample, setup is **3.32 s** (load 1.96, sample 0.67,
+candidates 0.69), so eight redundant repeats cost **27 s of a 33,898 s run: 0.08%**.
+
+The real justification is the guard below, not the speedup.
 
 Sharing it is only safe when the sharing is checked. A scene built with one sampling
 profile handed to a solver asked for another would answer a question nobody posed, and

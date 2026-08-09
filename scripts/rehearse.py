@@ -31,6 +31,7 @@ import numpy as np
 from shapely.geometry import LineString
 
 from giscup.candidates import generate_boundary_candidates
+from giscup.gate_model import MEASURED_VERIFY_S_PER_BUILDING_PER_1K, projected_verify_seconds
 from giscup.io import load_buildings
 from giscup.sampling import get_profile, sample_boundaries
 from giscup.visibility import BlockerIndex, is_visible
@@ -334,8 +335,13 @@ def measured_gate(
     #
     # The gate must not under-report, so it bounds claims by the building count. That is
     # pessimistic at high tau (27 claims at tau=0.75/k=50) and near-tight at low tau.
-    exhaustive_s = sum(len(buildings) * (k / 1000.0) * 0.051 for k in KS) * len(TAUS)
-    recovery_s = sum(verify_buildings * (k / 1000.0) * 0.051 for k in KS) * len(TAUS)
+    # RE-FITTED 2026-08-09 against the v2 run. The constant was 0.051 s per building
+    # per 1000 antennas; decomposing v2's measured 33,898 s gives 0.826 -- 16.2x
+    # larger, and the entire reason this gate read 4.01 h for a 9.42 h run.
+    # See giscup.gate_model and tests/test_gate_calibration.py.
+    c = MEASURED_VERIFY_S_PER_BUILDING_PER_1K
+    exhaustive_s = sum(len(buildings) * (k / 1000.0) * c for k in KS) * len(TAUS)
+    recovery_s = sum(verify_buildings * (k / 1000.0) * c for k in KS) * len(TAUS)
     verify_s = exhaustive_s + recovery_s
     total_s = build_s + solve_s + verify_s
 
@@ -355,6 +361,26 @@ def measured_gate(
     )
     print(f"{'TOTAL for all nine subproblems':40s} {total_s / 3600:>13,.2f} h")
     print("-" * 78)
+    print(f"\nverification is {verify_s / total_s * 100:.0f}% of the projected total.")
+    print("It is not a correction term on the greedy model -- it IS the runtime.")
+    print("The v2 run measured 81.7%: setup 0.1%, greedy 18.2%, verification 81.7%.")
+
+    # Two numbers, because one alone misleads in opposite directions. The bound above
+    # assumes every building is claimed in every block; the estimate below uses the
+    # claim FRACTIONS the v2 run actually produced. Reporting only the bound reads as
+    # a near-failure on a run with 2x headroom; reporting only the estimate is how
+    # this gate came to say 4.01 h for a 9.42 h run.
+    likely_verify_s = projected_verify_seconds(len(buildings))
+    likely_total_s = build_s + solve_s + likely_verify_s
+    print("\n" + "-" * 78)
+    print(f"{'':40s} {'verify':>12s} {'TOTAL':>12s} {'headroom':>10s}")
+    print(f"{'upper bound (all buildings claimed)':40s} {verify_s/3600:>10,.2f} h "
+          f"{total_s/3600:>10,.2f} h {budget_s/total_s:>9,.1f}x")
+    print(f"{'likely (v2 claim fractions)':40s} {likely_verify_s/3600:>10,.2f} h "
+          f"{likely_total_s/3600:>10,.2f} h {budget_s/likely_total_s:>9,.1f}x")
+    print("-" * 78)
+    print("The bound sets the verdict. The likely figure is what to plan around --")
+    print("but it assumes August claims a similar FRACTION of its buildings as March.")
 
     ok = total_s <= budget_s
     print(f"\nbudget       : {budget_s / 3600:.1f} h")

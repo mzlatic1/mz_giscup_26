@@ -93,7 +93,8 @@ def cmd_solve_all(args: argparse.Namespace) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     partial = output.with_suffix(output.suffix + ".partial")
     # Loading, sampling, and candidate generation depend on the dataset, not on
-    # (tau, k). Doing them once instead of nine times saves ~40% of a full run.
+    # (tau, k). Doing them once is worth ~27 s of a 33,898 s run (0.08%) -- the
+    # point is the SceneSpec guard, not the speedup. See giscup.scene.
     scene = prepare_scene(
         args.input,
         id_property=args.id_property,

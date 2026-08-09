@@ -17,9 +17,36 @@ with the exact flags the gate models.
 | nine-block run | 4.01 h | **9.42 h** |
 | headroom vs 20 h budget | 5.0x | **2.1x** |
 
-Cost tracks **claims**, not antennas: 565 min / 39,120 verified claims ≈ **0.87 s per claim**, and
-exhaustive claim verification (#17) dominates. The gate's model bounds claims by building count,
-which is near-tight at low tau and pessimistic at high tau — right direction, wrong magnitude.
+**RE-FITTED 2026-08-09 (#16 done).** Decomposing v2's measured 33,898 s:
+
+| phase | seconds | share |
+|---|---|---|
+| setup ×9 | 30 | **0.1%** |
+| greedy | 6,174 | 18.2% |
+| **verification** | **27,694** | **81.7%** |
+
+Verification is not a correction term on the greedy model — **it is the runtime.** The constant was
+`0.051` s per building per 1000 antennas; the measured value is **`0.826`**, **16.2× larger**. That
+single constant is the whole 2.35× error. It now lives in `giscup.gate_model`, pinned by
+`tests/test_gate_calibration.py` against the observed run.
+
+The gate now reports **two** numbers, because either alone misleads:
+
+| | verify | total | headroom |
+|---|---|---|---|
+| upper bound (every building claimed) | 15.85 h | **19.34 h** | **1.0×** |
+| likely (v2 claim fractions) | 7.70 h | 11.18 h | 1.8× |
+
+The bound sets the verdict; the likely figure is what to plan around. Subtracting the 1.66 h matrix
+build that v2 didn't pay (cached), the likely model predicts **9.52 h against 9.42 h actual — within
+1%**.
+
+**A correction to my own earlier claim.** I wrote that `solve-all`'s repeated setup cost "~8.5 min
+per repeat, roughly 40% of a run". That was wrong — it misread the sweep's
+`baseline greedy done [8.5 min]`, a *greedy* timing at k=500, as a setup timing. Setup measures
+**3.32 s**; eight redundant repeats cost **27 s, 0.08%** of the run. The scene fix is still worth
+keeping for its `SceneSpec` guard, and the partial-write half of that commit is unaffected — but
+the speedup justification was fabricated from a misreading.
 
 **This matters more for lever A than for baseline.** Lever A services *more* buildings, so it
 verifies *more* claims, so it is strictly slower. The lever A nine-block run was at 2/9 blocks
