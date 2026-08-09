@@ -3,7 +3,7 @@
 Operational state so the next session starts without rereading history.
 Task list lives in `docs/task-board.md`. Say **"start session"** and `/startup` handles the rest.
 
-Last session: **2026-08-08**. Working tree clean; **everything pushed**.
+Last session: **2026-08-08 / 09**. Working tree clean; **everything pushed through `50cd1a4`**.
 
 ## The one thing that matters
 
@@ -19,6 +19,27 @@ The largest, #14, made **32% of all boundary samples permanently unseeable** and
 official dataset completed in 164 min, 27 content lines, 40,118 claims. The audit passed every
 structural check — nine blocks, exactly-k counted, boundary legality, IDs — but found overclaims,
 which #17 fixed. A re-run with the fix was in flight when this was written.
+
+## What 2026-08-08 evening added
+
+Four defects found, all by checking code against something *outside itself* -- the spec,
+a foreign environment, or a changed dependency. Each produced output that looked perfect.
+
+1. **Blank separator lines** (`output.py`). Nine blocks emitted 35 lines, not 27. The spec
+   says three lines per subproblem AND allows an empty third line; a block claiming
+   nothing plus a separator gives two consecutive blanks no parser can attribute. Could
+   have invalidated every block. Files written before this carry separators --
+   `--normalize-legacy` strips them, and refuses when a block claims nothing.
+2. **`--id-property` never reached the solver.** `io.py` falls back to the row index when
+   the field is missing. If August's extract names its ID field anything but `id`, every
+   claim would reference a nonexistent building while passing every structural check.
+   Now plumbed through both solve commands, warns and names the real fields, and records
+   `DatasetInfo.id_fallback_used` in diagnostics. **Run `giscup inspect` first on the day.**
+3. **`numpy>=1.26` declared, `np.bitwise_count` needs 2.0.** Four hot-path call sites.
+   Surfaced only because a clean venv resolved 2.5.1 where the dev env has 2.4.6. Fixed
+   in all three dependency files; four unused deps (tqdm, joblib, bitarray, orjson) dropped.
+4. **The feasibility gate modelled deleted code.** It costed verification at the old
+   band cap of 2,000/block while #17 re-checks every claim -- short by ~4x.
 
 ## Decisions settled
 
@@ -46,13 +67,27 @@ which #17 fixed. A re-run with the fix was in flight when this was written.
 ```bash
 conda activate mz-giscup-26
 
+# 1. Did the near-tau sweep finish? Check the quantile=100 CONTROL first --
+#    it must reproduce lever B's -1.1% at tau=0.75/k=500, or the numbers are junk.
+#    (background shell byshh2wln, ~90 min from 2026-08-09 ~00:15)
+
+# 2. Did the v2 re-solve land?
+
 # Was running at hand-off: re-solve with exhaustive claim verification (~3 h)
 ls -la outputs/nine_real_400_v2.txt outputs/nine_real_400_v2.json
 
-# Then audit it -- at 400 m, NOT 800 m
+# 3. Then audit it -- at 400 m, NOT 800 m
 python scripts/audit_submission.py --input data/GIS-cup-sample-dataset.geojson \
     --solution outputs/nine_real_400_v2.txt --exact-radius 400
+
+# 4. Then package. v2 predates the separator fix, so it needs --normalize-legacy.
+python scripts/package_submission.py --solution outputs/nine_real_400_v2.txt \
+    --normalize-legacy
 ```
+
+**Packaging is rehearsed and verified** -- bundle extracted to a clean directory, fresh
+venv, installed per the shipped instructions, CLI works, real dataset loads, shipped
+source passes its own tests, SHA-256 matches across source/bundle/manifest.
 
 Matrices in `outputs/cache` are keyed on `interior_tolerance`, so pre-#14 ones can never be reused.
 The official 400 m matrix (key `7a385189…`, 8,194,226 pairs) is current and valid.
@@ -66,9 +101,13 @@ Local head: `be0a2bf Verify every claim exactly instead of by band (#17)`. Every
    produced or tested a bundle. It is the **only completely unrehearsed step** in the pipeline —
    everything else has run end to end at full scale at least once. On a one-shot, no-feedback
    submission this is the largest remaining risk.
-2. **Solution quality is baseline greedy.** The one lever sized and built did not earn its place.
-   Remaining ideas: weight buildings *near* tau (opposite of what was built), and cap *within* a
-   building rather than at building level.
+2. **Solution quality is baseline greedy.** Lever B (cap at building level) was built,
+   measured, rejected -- it is a low-tau lever and tau=0.75 is where relative scoring pays.
+   Lever A (weight buildings near tau) is now BUILT and TESTED but **not measured and not
+   wired into `solve_one`**. Sizing says its resource is 10.1x B's at tau=0.75/k=500 and its
+   best-case bound there is +591%; B captured 14% of its own bound, which would put A near
+   +83%. That extrapolation rests on **one data point** and A's bound is the softer of the
+   two (heuristic long tail vs exact overshoot). Sweep results decide it.
 3. **Every figure comes from the March sample; August is a different extract.** Config tuned here
    may not transfer — an argument for keeping the generous headroom.
 4. **`solve-all` silence — FIXED 2026-08-08.** `src/giscup/progress.py` reports per-subproblem
