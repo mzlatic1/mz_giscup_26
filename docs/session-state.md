@@ -7,62 +7,65 @@ Last session: **2026-08-08**. Working tree clean; **everything pushed**.
 
 ## The one thing that matters
 
-**Four numerical bugs were found and fixed on 2026-08-08, and they invalidate every
-solution-quality figure recorded before ~10:30 that day.** All four are the same class: relative
-tolerances, or tolerances below float64 resolution, applied at projected-CRS magnitudes. See
-`docs/task-board.md` #13, #14, #15, #16, and the rule now in `CLAUDE.md` under Geospatial rules.
+**2026-08-08 was a bug-fixing day, not a tuning day.** Six defects were found and fixed, four of
+them the same class (relative or sub-resolution tolerances at projected magnitudes). **Every
+solution-quality figure recorded before 2026-08-08 ~10:30 is void.** Feasibility timings are
+unaffected; correctness figures are not. See task board #13–#17.
 
-The worst of them (#14) made **32% of all boundary samples permanently unseeable**, because
-interpolated points land an ULP inside their own footprint about half the time and were then
-treated as interior penetration. Everything downstream — coverage, claims, the "76% unreachable at
-tau=0.75" figure, the #6 lever sizing — was distorted by it.
+The largest, #14, made **32% of all boundary samples permanently unseeable** and alone delivered
+**101x at tau=0.75** (13 → 1,312 serviced). No amount of objective tuning came close.
 
-**Do not trust any measured solution-quality number in this repo dated before 2026-08-08 10:30.**
-Feasibility timings are unaffected; correctness figures are not.
+**Current status: the pipeline is proven end-to-end on correct data.** A full nine-block run on the
+official dataset completed in 164 min, 27 content lines, 40,118 claims. The audit passed every
+structural check — nine blocks, exactly-k counted, boundary legality, IDs — but found overclaims,
+which #17 fixed. A re-run with the fix was in flight when this was written.
 
-**The feasibility blocker is CLEARED.** `scripts/rehearse.py --measured-radius 400` reads
-**PASS, measured end to end**: 3.18 h for all nine subproblems against a 20 h budget, **6.3x
-headroom**. At the start of 2026-08-07 this gate read FAIL by ~5e8x. Feasibility no longer
-outranks solution quality.
+## Decisions settled
 
-What matters now is **solution quality and claim correctness**, plus one open decision:
-
-**The 400 m cull radius discards ~9% of real visibility** (measured on the official dataset).
-800 m would cut that to ~2% for a ~6.4 h matrix build instead of 110 min, still passing the gate
-at 2.6x headroom. 400 m was Marko's call, made before that data existed. **This is the open
-decision.**
-
-**7 days to test-data release (2026-08-15); submission 2026-08-16.** One shot, no score feedback
-ever. Treat Aug 15 as a rehearsal deadline, not a start date.
+- **Cull radius: 400 m.** 800 m was attempted and abandoned — killed at 12/48 chunks tracking to
+  ~15 h, leaving only 1.1x headroom on the day. Not robust: on unseen data a denser extract
+  evaporates the window and all nine subproblems score zero. 600 m (~5.4 h, 2.5x headroom) remains
+  the upgrade candidate if measured results justify it. Full cost model in task board #3b.
+- **Threshold-aware objective (#6): built, measured, NOT adopted.** +6.4% at tau=0.25/k=500,
+  neutral elsewhere, **−1.1% at tau=0.75/k=500**. The mask pushes greedy outward toward unserviced
+  buildings, but high tau needs concentration. `greedy_select_threshold` is kept and tested but not
+  wired into `solve_one`.
+- **Claims are verified exhaustively (#17)**, recovery stays banded. An overclaim is a correctness
+  failure; a missed recovery is only lost score.
+- **Audit at 400 m, not 800 m.** At 800 m it projected to 8 hours. A tighter radius under-reports
+  coverage so it flags more, never fewer — conservative and ~4x faster.
 
 ## Resume here
 
 ```bash
 conda activate mz-giscup-26
 
-# Which matrices exist? One key per (dataset, candidates, samples, radius, strategy, eps).
-ls outputs/cache/visibility-*.json
+# Was running at hand-off: re-solve with exhaustive claim verification (~3 h)
+ls -la outputs/nine_real_400_v2.txt outputs/nine_real_400_v2.json
 
-# Full-scale solve on the OFFICIAL dataset (needs a real-data matrix; see below).
-giscup solve-all --input data/GIS-cup-sample-dataset.geojson \
-    --taus 0.25 0.5 0.75 --ks 50 500 1000 \
-    --visibility-radius 400 --cache-dir outputs/cache --matrix-workers 8 \
-    --verify-band 0.10 --verify-max-buildings 2000 \
-    --output outputs/nine_blocks_real.txt --diagnostics outputs/nine_blocks_real.json
-
-# Mechanical audit of the result -- trusts nothing from the solver.
+# Then audit it -- at 400 m, NOT 800 m
 python scripts/audit_submission.py --input data/GIS-cup-sample-dataset.geojson \
-    --solution outputs/nine_blocks_real.txt --exact-radius 800
+    --solution outputs/nine_real_400_v2.txt --exact-radius 400
 ```
 
-**State at 2026-08-08 ~11:00.** All matrices were deleted after #14 (7.5 GB) because they encoded
-the broken notion of visibility. `MatrixSpec` now carries `interior_tolerance`, so a pre-fix matrix
-can never be silently reused, and metadata lacking that field is rejected rather than defaulted.
+Matrices in `outputs/cache` are keyed on `interior_tolerance`, so pre-#14 ones can never be reused.
+The official 400 m matrix (key `7a385189…`, 8,194,226 pairs) is current and valid.
 
-A rebuild of the **official-dataset 400 m matrix** was running when this was written. Once it
-lands, the immediate next step is to **re-run the #6 lever sizing**, which was voided by #14.
+Local head: `be0a2bf Verify every claim exactly instead of by band (#17)`. Everything pushed.
 
-Local head: `1e7f6da Harden exact_coverage against a degenerate blocker region; sync the output skill`.
+## Known gaps, ranked
+
+1. **`solve-all` prints nothing until it finishes.** A 3 h silent run is indistinguishable from a
+   hung one. On submission day that is the difference between deciding and guessing.
+   `build_matrix.py` already does per-chunk progress with a wave-aware ETA; `solve-all` should
+   emit per-subproblem.
+2. **Solution quality is baseline greedy.** The one lever sized and built did not earn its place.
+   Remaining ideas: weight buildings *near* tau (opposite of what was built), and cap *within* a
+   building rather than at building level.
+3. **Every figure comes from the March sample; August is a different extract.** Config tuned here
+   may not transfer — an argument for keeping the generous headroom.
+4. **My timing estimates ran optimistic five times today** (800 m build 2.6x, audit 16x, nine-block
+   26%). Treat any projection of mine that is not calibrated against a measured run with suspicion.
 
 ## Repository
 
