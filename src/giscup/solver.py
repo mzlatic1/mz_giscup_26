@@ -4,15 +4,14 @@ from __future__ import annotations
 
 from time import perf_counter
 
-from giscup.candidates import generate_boundary_candidates
 from giscup.coverage import coverage_by_building, serviced_buildings
-from giscup.io import load_buildings
 from giscup.matrix import build_visibility_matrix
 from giscup.models import Solution
 from giscup.optimize import greedy_select, greedy_select_matrix
 from giscup.output import nudge_off_interior
 from giscup.progress import ProgressReporter
-from giscup.sampling import get_profile, sample_boundaries
+from giscup.sampling import get_profile
+from giscup.scene import Scene, SceneSpec, prepare_scene
 from giscup.verify import verify_and_recover
 from giscup.visibility import BlockerIndex
 
@@ -37,6 +36,7 @@ def solve_one(
     verify_profile: str = "accurate",
     verify_radius_factor: float = 2.0,
     progress: ProgressReporter | None = None,
+    scene: Scene | None = None,
 ) -> Solution:
     """Solve one GIS Cup subproblem.
 
@@ -63,12 +63,31 @@ def solve_one(
             progress.phase(name, detail)
 
     start = perf_counter()
-    buildings, info = load_buildings(input_path, id_property=id_property)
-    profile = get_profile(sampling_profile)
-    samples = sample_boundaries(buildings, profile)
-    candidates = generate_boundary_candidates(
-        buildings, mode=candidate_mode, candidate_spacing=candidate_spacing
+    requested = SceneSpec(
+        input_path=input_path,
+        id_property=id_property,
+        sampling_profile=sampling_profile,
+        candidate_mode=candidate_mode,
+        candidate_spacing=candidate_spacing,
     )
+    if scene is None:
+        scene = prepare_scene(
+            input_path,
+            id_property=id_property,
+            sampling_profile=sampling_profile,
+            candidate_mode=candidate_mode,
+            candidate_spacing=candidate_spacing,
+        )
+    else:
+        differing = scene.mismatches(requested)
+        if differing:
+            raise ValueError(
+                "scene does not match the requested configuration; differs in "
+                f"{', '.join(differing)}. Reusing it would solve a different problem "
+                "than the one asked for."
+            )
+    buildings, info = scene.buildings, scene.info
+    samples, candidates = scene.samples, scene.candidates
     _phase("setup", f"{len(buildings):,} bldg  {len(candidates):,} cand")
     matrix_info: dict | None = None
     if visibility_radius is not None:

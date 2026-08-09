@@ -11,6 +11,7 @@ from giscup.diagnostics import dataset_summary
 from giscup.io import load_buildings
 from giscup.output import format_solution_file
 from giscup.progress import ProgressReporter
+from giscup.scene import prepare_scene
 from giscup.solver import solve_one
 from giscup.validate import validate_solution_file
 
@@ -61,11 +62,24 @@ def cmd_solve_all(args: argparse.Namespace) -> None:
     diagnostics = {}
     plan = [(tau, k) for tau in args.taus for k in args.ks]
     reporter = ProgressReporter(plan, enabled=not args.quiet)
+    output = Path(args.output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    partial = output.with_suffix(output.suffix + ".partial")
+    # Loading, sampling, and candidate generation depend on the dataset, not on
+    # (tau, k). Doing them once instead of nine times saves ~40% of a full run.
+    scene = prepare_scene(
+        args.input,
+        id_property=args.id_property,
+        sampling_profile=args.sampling_profile,
+        candidate_mode=args.candidate_mode,
+        candidate_spacing=args.candidate_spacing,
+    )
     for tau in args.taus:
         for k in args.ks:
             reporter.start_subproblem(tau, k)
             solution = solve_one(
                 progress=reporter,
+                scene=scene,
                 input_path=args.input,
                 id_property=args.id_property,
                 tau=tau,
@@ -87,8 +101,12 @@ def cmd_solve_all(args: argparse.Namespace) -> None:
             reporter.finish_subproblem(claimed=len(solution.claimed_building_ids))
             solutions.append(solution)
             diagnostics[f"tau_{tau}_k_{k}"] = solution.diagnostics
-    Path(args.output).parent.mkdir(parents=True, exist_ok=True)
-    Path(args.output).write_text(format_solution_file(solutions), encoding="utf-8")
+            # A nine-block run takes hours. A failure in the last block must not
+            # destroy the eight that already succeeded.
+            partial.write_text(format_solution_file(solutions), encoding="utf-8")
+    output.write_text(format_solution_file(solutions), encoding="utf-8")
+    # Leaving a stale .partial beside a finished run invites submitting the wrong file.
+    partial.unlink(missing_ok=True)
     _write_json(args.diagnostics, diagnostics)
 
 
