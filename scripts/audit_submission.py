@@ -21,6 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from giscup.audit import confirm_overclaims  # noqa: E402
+from giscup.gate_model import default_verify_workers  # noqa: E402
 from giscup.geometry import BoundaryIndex  # noqa: E402
 from giscup.io import load_buildings  # noqa: E402
 from giscup.output import parse_points  # noqa: E402
@@ -48,8 +49,14 @@ class Audit:
 
 
 def parse_blocks(text: str) -> list[tuple[float, int, str, str, int]]:
-    """Return (tau, k, points_line, claims_line, first_line_number) per block."""
-    lines = text.splitlines()
+    """Return (tau, k, points_line, claims_line, first_line_number) per block.
+
+    Split on newlines rather than with `splitlines()`: the latter drops a trailing
+    empty string, so a final block with an empty claims line -- legal, since the third
+    line may be empty -- parsed as truncated and failed a valid submission. Found
+    2026-08-09; `giscup.assemble.parse_blocks` had the identical defect.
+    """
+    lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
     blocks = []
     i = 0
     while i < len(lines):
@@ -66,7 +73,7 @@ def parse_blocks(text: str) -> list[tuple[float, int, str, str, int]]:
     return blocks
 
 
-def main(argv: list[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--input", required=True)
     ap.add_argument("--solution", required=True)
@@ -93,7 +100,21 @@ def main(argv: list[str] | None = None) -> int:
             "overclaim through -- useful as a fast pre-check, not as the final word."
         ),
     )
-    args = ap.parse_args(argv)
+    ap.add_argument(
+        "--workers", type=int, default=default_verify_workers(),
+        help=(
+            "Processes for the coverage measurements. Each building is independent, so "
+            "the result is identical to serial. The audit is the LAST step before "
+            "submission and ran single-core until 2026-08-09: 32 min for five lever A "
+            "blocks, projecting to ~48 min for a nine-block artifact. On this host: "
+            "%(default)s."
+        ),
+    )
+    return ap
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
 
     audit = Audit()
     text = Path(args.solution).read_text(encoding="utf-8")
@@ -175,6 +196,7 @@ def main(argv: list[str] | None = None) -> int:
             screen_radius=args.exact_radius,
             confirm_radius=args.confirm_radius,
             claim_margin=args.claim_margin,
+            workers=args.workers,
         )
         total_bad += len(bad)
         worst = f", worst {min(r for _, r in bad):.4f}" if bad else ""

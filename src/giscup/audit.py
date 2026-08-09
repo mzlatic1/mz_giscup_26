@@ -29,6 +29,7 @@ def confirm_overclaims(
     screen_radius: float | None = 400.0,
     confirm_radius: float | None = 800.0,
     claim_margin: float = 0.0,
+    workers: int = 1,
 ) -> list[tuple[int | str, float]]:
     """Claims that fail at *both* radii, with the confirmed coverage fraction.
 
@@ -38,6 +39,14 @@ def confirm_overclaims(
     Returns `(building_id, confirmed_fraction)` pairs. The fraction is the one measured
     at `confirm_radius`, never the screen's: a failure report has to quote the number
     that justifies it.
+
+    `workers > 1` parallelises both stages. The audit is the last step before
+    submission and was single-core on a 16-core host: 32 min for five lever A blocks
+    (27,803 claims), projecting to ~48 min for a full nine-block artifact. Each
+    building's coverage is independent of every other's, so the result is identical to
+    the serial one — identical, not merely close, and pinned by
+    `tests/test_audit_two_stage.py`. The screen is the expensive stage in practice; it
+    measures every claim, while the confirm stage sees only what the screen flagged.
     """
     if confirm_radius is not None and screen_radius is not None and confirm_radius < screen_radius:
         raise ValueError(
@@ -50,14 +59,16 @@ def confirm_overclaims(
 
     threshold = tau + claim_margin
     screened = exact_coverage_by_building(
-        list(claimed), antenna_points, buildings, blocker_index, radius=screen_radius
+        list(claimed), antenna_points, buildings, blocker_index,
+        radius=screen_radius, workers=workers,
     )
     flagged = [bid for bid in claimed if screened.get(bid, 0.0) < threshold]
     if not flagged:
         return []
 
     confirmed = exact_coverage_by_building(
-        flagged, antenna_points, buildings, blocker_index, radius=confirm_radius
+        flagged, antenna_points, buildings, blocker_index,
+        radius=confirm_radius, workers=workers,
     )
     return [
         (bid, confirmed.get(bid, 0.0))

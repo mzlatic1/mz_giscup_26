@@ -91,6 +91,24 @@ Notes that cost hours if forgotten:
   rebuilds from scratch — ~100 min at 400 m on the March sample. This is the largest single line.
 - **Partial output is written after every block** to `outputs/final.txt.partial`. If the run dies
   at block 7, you still have six blocks. The `.partial` file is removed on success.
+
+  **To use them**, re-solve only what is missing and merge — do not re-run all nine:
+
+  ```bash
+  giscup solve-all --input data/<file>.geojson --taus 0.75 --ks 500 1000 \
+      ... --output outputs/blocks_89.txt          # only the missing subproblems
+
+  python scripts/assemble_blocks.py \
+      --input outputs/final.txt.partial outputs/blocks_89.txt \
+      --output outputs/final.txt
+  ```
+
+  The assembler emits tau-outer/k-inner, copies coordinates verbatim, and **refuses** on a
+  duplicated subproblem, a missing one, or a block whose coordinate count does not match its own
+  `k`. It checks structure, not correctness — audit the assembled file afterwards.
+
+  Watch the quantile mapping if you are shipping lever A: `--near-tau-quantile` maps positionally
+  onto `--taus`, so a `--taus 0.75`-only re-run takes a single value (`25`), not all three.
 - Progress prints per subproblem with an ETA weighted by antennas placed. It is pessimistic early
   and converges to <1% by block 7.
 
@@ -98,8 +116,13 @@ Notes that cost hours if forgotten:
 
 ```bash
 python scripts/audit_submission.py --input data/<the-new-file>.geojson \
-    --solution outputs/final.txt --confirm-radius 800
+    --solution outputs/final.txt --confirm-radius 800 --workers 12
 ```
+
+`--workers` now defaults to `min(cores, 12)`; pass it explicitly so the log records what ran.
+This step was single-core until 2026-08-09 — 32 min for five lever A blocks, projecting to ~48 min
+for a nine-block artifact, spent at the point in the day with the least slack. Each building's
+coverage is independent, so the parallel result is identical to serial, not merely close.
 
 Must report: 9 blocks, exactly `k` coordinates **counted** per block, 0 off-boundary at
 eps=1e-7, 0 unknown IDs, **0 overclaims**. The March baseline passed with 0 overclaims of

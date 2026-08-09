@@ -121,3 +121,159 @@ def test_it_reports_the_confirmed_coverage_not_the_screened_one():
     assert len(confirmed) == 1
     _, fraction = confirmed[0]
     assert 0.0 <= fraction < 0.9
+
+
+# ---------------------------------------------------------------------------
+# The audit is the LAST step before submission, and it was single-core.
+#
+# #18 parallelised the solver's verification and left `confirm_overclaims`
+# passing workers=1 into `exact_coverage_by_building`, which has accepted a
+# `workers` argument since that commit. Measured 2026-08-09: auditing five lever A
+# blocks (27,803 claims) took 32 min at 100% of one core on a 16-core host, which
+# projects to ~48 min for a full nine-block lever A artifact.
+#
+# That is 48 minutes spent at the point in submission day with the least slack --
+# after a five-hour solve, on the check that gates submission.
+#
+# Same proof obligation as #18: identical to serial, not merely close. Coverage
+# decides which claims survive and there is one submission with no feedback.
+# ---------------------------------------------------------------------------
+
+
+def _row(n: int = 12):
+    """Irregular footprints at real projected magnitudes, mutually blocking."""
+    buildings = []
+    for i in range(n):
+        x = E0 + (i % 4) * 37.0
+        y = N0 + (i // 4) * 29.0
+        w = 15.0 + (i % 3) * 4.0
+        h = 11.0 + (i % 2) * 6.0
+        buildings.append(
+            make_building(i, Polygon([(x, y), (x + w, y), (x + w, y + h), (x, y + h), (x, y)]))
+        )
+    return buildings, BlockerIndex.from_buildings(buildings)
+
+
+def _points(buildings):
+    pts = []
+    for b in buildings:
+        x0, y0, x1, y1 = b.bounds
+        pts.append((x0, (y0 + y1) / 2.0))
+    return pts
+
+
+@pytest.mark.parametrize("workers", [2, 4])
+def test_parallel_confirmation_is_identical_to_serial(workers):
+    """The contract. Same overclaims, same order, same floats -- not approx."""
+    buildings, index = _row()
+    claimed = [b.id for b in buildings]
+    points = _points(buildings)
+
+    serial = confirm_overclaims(
+        claimed=claimed, antenna_points=points, buildings=buildings,
+        blocker_index=index, tau=0.85, screen_radius=400.0, confirm_radius=800.0,
+    )
+    parallel = confirm_overclaims(
+        claimed=claimed, antenna_points=points, buildings=buildings,
+        blocker_index=index, tau=0.85, screen_radius=400.0, confirm_radius=800.0,
+        workers=workers,
+    )
+    assert parallel == serial
+
+
+def test_the_parallel_path_is_actually_exercised_by_that_test():
+    """Guards the test above from passing vacuously. If the scene produced no
+    overclaims, comparing [] to [] would prove nothing about parallelism."""
+    buildings, index = _row()
+    found = confirm_overclaims(
+        claimed=[b.id for b in buildings], antenna_points=_points(buildings),
+        buildings=buildings, blocker_index=index, tau=0.85,
+        screen_radius=400.0, confirm_radius=800.0,
+    )
+    assert len(found) >= 2
+
+
+def test_confirmation_is_serial_unless_asked():
+    """Changing the library default would silently re-shape every existing caller."""
+    import inspect
+
+    assert inspect.signature(confirm_overclaims).parameters["workers"].default == 1
+
+
+def test_a_nonsensical_worker_count_is_rejected():
+    buildings, index = _row()
+    with pytest.raises(ValueError):
+        confirm_overclaims(
+            claimed=[b.id for b in buildings], antenna_points=_points(buildings),
+            buildings=buildings, blocker_index=index, tau=0.85, workers=0,
+        )
+
+
+def test_an_empty_claim_list_is_still_free_with_workers_set():
+    """No pool for nothing to do. A block may legitimately claim zero buildings."""
+    buildings, index = _row()
+    assert confirm_overclaims(
+        claimed=[], antenna_points=_points(buildings), buildings=buildings,
+        blocker_index=index, tau=0.85, workers=4,
+    ) == []
+
+
+def _load_audit_script():
+    """`scripts/` is not a package, so import the audit script by path."""
+    import importlib.util
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    spec = importlib.util.spec_from_file_location(
+        "audit_submission", root / "scripts" / "audit_submission.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_the_audit_script_defaults_to_the_same_worker_count_as_the_solver():
+    """Load-bearing, and the reason #18's speedup went unused here for a day: the
+    capability existed, every entry point defaulted to 1, and the documented command
+    therefore described serial work. Pinned to `default_verify_workers` so the audit
+    and the solver cannot drift apart."""
+    from giscup.gate_model import default_verify_workers
+
+    parser = _load_audit_script().build_parser()
+    args = parser.parse_args(["--input", "x.geojson", "--solution", "y.txt"])
+    assert args.workers == default_verify_workers()
+
+
+def test_the_audit_script_lets_you_force_serial():
+    """Serial stays reachable -- it is the reference the parallel path is proven
+    against, and a host that cannot fork needs it."""
+    parser = _load_audit_script().build_parser()
+    args = parser.parse_args(
+        ["--input", "x.geojson", "--solution", "y.txt", "--workers", "1"]
+    )
+    assert args.workers == 1
+
+
+def test_the_audit_parses_a_final_block_that_claims_nothing():
+    """Found 2026-08-09 while building the assembler, which had the same defect.
+
+    `"(0.25, 1)\\n(1.0, 2.0)\\n".splitlines()` yields TWO elements -- the trailing
+    empty string is dropped -- so a final block with an empty claims line parsed as
+    truncated and raised "incomplete block". The third line is explicitly allowed to
+    be empty, so that is a legal file, and the audit is the last gate before
+    submission: this defect fails a valid submission rather than passing an invalid
+    one, but on a one-shot competition both are fatal.
+    """
+    parse_blocks = _load_audit_script().parse_blocks
+    blocks = parse_blocks("(0.25, 1)\n(1.0, 2.0)\n")
+    assert len(blocks) == 1
+    tau, k, points, claims, _line = blocks[0]
+    assert (tau, k, claims) == (0.25, 1, "")
+
+
+def test_the_audit_still_rejects_a_genuinely_truncated_block():
+    """The fix must not turn a real truncation into a silent pass. A header with no
+    points line at all is broken, not empty-claimed."""
+    parse_blocks = _load_audit_script().parse_blocks
+    with pytest.raises(ValueError):
+        parse_blocks("(0.25, 1)\n")

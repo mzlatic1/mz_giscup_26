@@ -12,14 +12,20 @@ src/giscup/
   visibility.py   # STRtree blocker index and LOS predicates
   coverage.py     # sampled coverage and serviced-building checks
   bitsets.py      # integer bitset abstraction (superseded by matrix.py; unused)
-  exact_coverage.py # grid-free visible-interval coverage for claims/validation
-  verify.py       # two-sided near-threshold re-verification
+  exact_coverage.py # grid-free visible-interval coverage for claims/validation (parallel)
+  verify.py       # two-sided near-threshold re-verification (parallel, #18)
+  audit.py        # two-stage overclaim confirmation: cheap screen, wide confirm (parallel)
+  assemble.py     # build one nine-block submission from separately-solved block files
   matrix.py       # radius-culled cached visibility matrix (dense bitset, memmap, parallel)
-  optimize.py     # greedy selection: predicate-based and matrix-backed
+  optimize.py     # greedy selection: predicate-based, matrix-backed, threshold, near-tau
+  scene.py        # SceneSpec: prepare buildings/candidates/samples once per solve-all
   solver.py       # solve-one orchestration
-  output.py       # official formatting/parsing; exact-k guard
+  output.py       # official formatting/parsing; exact-k guard; sorted claim IDs
   validate.py     # solution validation and sampled claim coverage
   diagnostics.py  # dataset summary diagnostics
+  gate_model.py   # calibrated cost model behind the feasibility gate
+  packaging.py    # submission bundle assembly and manifest
+  progress.py     # per-block progress and ETA reporting
   cli.py          # inspect / solve-one / solve-all / validate-output
 ```
 
@@ -79,12 +85,21 @@ scripts/make_synthetic_dataset.py  # full-scale stand-in matching documented sam
 scripts/rehearse.py                # gate: analytic projection, plus --measured-radius for an
                                    #   observed end-to-end verdict off the real matrix
 scripts/build_matrix.py            # build/reuse the visibility matrix at full scale
+scripts/audit_submission.py        # mechanical audit of a nine-block file (two-stage, parallel)
+scripts/assemble_blocks.py         # recover a nine-block file from partials / separate runs
+scripts/package_submission.py      # build and verify the submission bundle
+scripts/size_candidate_prune.py    # #9 sizing: quality cost of pruning the candidate pool
+scripts/sweep_near_tau.py          # lever A quantile sweep (IN-SAMPLE — see task board)
 ```
 
-`data/` has no official dataset yet, so all scaling work runs against the synthetic
-stand-in. It reproduces documented aggregate statistics only — no real street
-topology, and the large-building tail is absent. Never use it for solution-quality
-claims.
+**`data/` now holds the official March sample dataset** (`GIS-cup-sample-dataset.geojson`,
+12,860 buildings, EPSG:32611). Task #5 is closed, and every figure quoted in the task
+board since 2026-08-08 is measured against it rather than the stand-in.
+
+`outputs/synthetic_full.geojson` is still generated and still useful for feasibility and
+scaling rehearsals when the official file must not be touched. It reproduces documented
+aggregate statistics only — no real street topology, and the large-building tail is
+absent. Never use it for solution-quality claims.
 
 ## Implemented CLI
 
@@ -129,12 +144,32 @@ Visibility strategy: **`relate` only** — the exact official predicate. `negati
 
 ## Known limitations
 
-- Greedy objective is still raw newly visible sample count, not serviced-building count (task #6).
-- Candidate pruning modes only add candidates; they prune nothing (task #9).
+- **The shipped default objective is still raw newly visible sample count** (task #6). Two
+  threshold-aware alternatives are implemented and tested — `greedy_select_threshold` and
+  `greedy_select_near_tau` (lever A, `--near-tau-quantile`) — but neither is the default.
+  Lever A is measured on seven of nine blocks at **+9.7% verified claims**, winning six of
+  seven; adoption is task #15 and is Marko's call. `lazy-greedy`, `stochastic-greedy` and
+  `hybrid` remain **unimplemented and raise** — do not describe them as available.
+- **`--near-tau-quantile` maps positionally onto `--taus`, so it is per-tau only**, while the
+  measured optimum is per-`(tau, k)`. Six of nine blocks already run at their best quantile;
+  `(0.5, 50)` is the one leaving material value. Expressing a per-`(tau, k)` schedule needs a
+  CLI change that has not been made.
+- Candidate pruning modes only add candidates; they prune nothing (task #9). A per-building
+  2x stride is **sized** at zero quality cost (one serviced building of 14,708) and ~1.7 h saved,
+  but it is not implemented as a flag, and adopting it changes the matrix cache key.
+- `--max-candidates` is **not a prune**: it truncates by generation order, and generation walks
+  building by building, so it deletes whole neighbourhoods. Documented as a footgun in the CLI
+  help and in `greedy_select_matrix`.
 - The cull radius is a heuristic: it discards genuinely visible pairs beyond the radius and loses
   score with no feedback. The near-threshold verification pass exists (#3a) and now re-measures at
-  a **wider** radius than the solver's cull. The 400 m vs 800 m comparison (#3b) is unresolved —
-  both matrices must be rebuilt post-#14.
+  a **wider** radius than the solver's cull. #3b is **measured**: a 600 m matrix services +4.1%
+  more buildings than 400 m but leaves only ~1.6x runtime headroom against 400 m's ~3x. The
+  recommendation on record is that 400 m stands; the decision is Marko's.
+- **The gate's verification constant belongs to a radius pair AND an objective.** 0.826 s per
+  building per 1000 antennas was measured at (400 m solve, 800 m verify) with baseline greedy;
+  lever A measured 1.26. `verify_constant_for` refuses any combination it was not measured at
+  rather than returning a number, because an unknown objective defaulting to baseline would
+  inherit the cheapest constant in the module.
 - **Geometry tolerances are load-bearing.** `visibility.INTERIOR_TOLERANCE` (1e-6 m),
   `geometry.COINCIDENT_POINT_TOLERANCE` (1e-9 m) and
   `exact_coverage.DEGENERATE_EDGE_LENGTH` (1e-9 m) are all ABSOLUTE, in CRS units, and each exists
@@ -142,7 +177,10 @@ Visibility strategy: **`relate` only** — the exact official predicate. `negati
   without reading `CLAUDE.md` Geospatial rules first.
 - Greedy still optimizes on the sampled matrix. That is deliberate — it is a search heuristic, not
   the scored quantity — but it means the objective and the claim decision measure different things.
-- No official dataset: every figure is measured against the synthetic stand-in (#5).
+  Analysis *scripts* that score off `samples` are therefore in-sample and optimistic; the
+  nine-block run is the honest measurement. Measured 2026-08-09: for lever A the in-sample sweep
+  turned out to be a good predictor of verified reality in five of six blocks, and where it erred
+  it understated lever A rather than inflating it.
 
 ## Resolved since 2026-08-07
 
@@ -153,6 +191,28 @@ Visibility strategy: **`relate` only** — the exact official predicate. `negati
   `configs/defaults.yaml`. `relate` is now the only visibility strategy.
 - Bitset acceleration in the optimizer: **implemented** (`optimize.greedy_select_matrix`).
 - Validation scaling: **implemented** (`geometry.BoundaryIndex`, `validate.visible_sample_ids_from_points`).
+
+## Resolved 2026-08-08 / 2026-08-09
+
+- Official dataset obtained and every measured figure re-validated against it (task #5).
+- Claim re-checking is exhaustive, not band-limited; claim IDs are emitted sorted (#17-defect).
+- Scene prepared once per `solve-all`; **partial output written after every block** (#14).
+- Feasibility gate re-fitted, 0.051 → 0.826 s per building per 1000 antennas, 16.2x (#16), and
+  since pinned to both its radius pair and its objective.
+- **Verification parallelised** (#18) and confirmed at full scale: a nine-block re-run at
+  `--verify-workers 12` produced identical antennas and identical claim sets to the audited
+  serial baseline, 9.42 h → 2.85 h (3.30x). `--verify-workers` now defaults to `min(cores, 12)`
+  in both `solve-all` and the gate.
+- **The audit is parallel too** (2026-08-09). It was the last single-core stage: 32 min for five
+  lever A blocks on a 16-core host, projecting to ~48 min for a nine-block artifact, spent at the
+  point in submission day with the least slack.
+- **Partial recovery exists** (`assemble.py`, `scripts/assemble_blocks.py`). `solve-all` had
+  written `.partial` since #14, but nothing could consume it, so a run dying at block 7 still
+  meant re-solving all nine. Round-trips a real nine-block file byte for byte.
+- A parsing defect found while building that: `splitlines()` drops the trailing empty string, so
+  a **final block that legitimately claims nothing** parsed as truncated. It would have failed a
+  valid submission in `scripts/audit_submission.py`, the last gate before submitting. Fixed in
+  both parsers.
 
 ## Safe development checks
 
