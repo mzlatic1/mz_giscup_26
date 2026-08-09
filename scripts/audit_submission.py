@@ -20,7 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from giscup.exact_coverage import exact_coverage_by_building  # noqa: E402
+from giscup.audit import confirm_overclaims  # noqa: E402
 from giscup.geometry import BoundaryIndex  # noqa: E402
 from giscup.io import load_buildings  # noqa: E402
 from giscup.output import parse_points  # noqa: E402
@@ -72,6 +72,18 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--solution", required=True)
     ap.add_argument("--eps", type=float, default=1e-7)
     ap.add_argument("--claim-margin", type=float, default=0.0)
+    ap.add_argument(
+        "--confirm-radius",
+        type=float,
+        default=800.0,
+        help=(
+            "Anything the --exact-radius screen flags is re-measured at this radius "
+            "before being reported. Must be >= --exact-radius. Set at or beyond the "
+            "solver's verification radius (visibility-radius x verify-radius-factor, "
+            "800 m by default). Auditing at the screen radius alone produced 25 false "
+            "failures and zero real ones on the v2 run."
+        ),
+    )
     ap.add_argument(
         "--exact-radius", type=float, default=None,
         help=(
@@ -151,10 +163,19 @@ def main(argv: list[str] | None = None) -> int:
             continue
         points = parse_points(pts_line)
         ids = [int(c) if c.isdigit() else c for c in claims]
-        coverage = exact_coverage_by_building(
-            ids, points, buildings, blocker_index, radius=args.exact_radius
+        # Two stages. The screen radius under-reports coverage, so it flags more and
+        # never fewer -- a sound screen and a useless verdict. Auditing v2 at 400 m
+        # alone gave 25 false failures and zero true ones in this very block.
+        bad = confirm_overclaims(
+            claimed=ids,
+            antenna_points=points,
+            buildings=buildings,
+            blocker_index=blocker_index,
+            tau=tau,
+            screen_radius=args.exact_radius,
+            confirm_radius=args.confirm_radius,
+            claim_margin=args.claim_margin,
         )
-        bad = [(b, coverage.get(b, 0.0)) for b in ids if coverage.get(b, 0.0) < tau + args.claim_margin]
         total_bad += len(bad)
         worst = f", worst {min(r for _, r in bad):.4f}" if bad else ""
         audit.check(not bad, f"tau={tau} k={k}: all {len(claims)} claims hold exactly",
