@@ -6,6 +6,29 @@ Task list lives in `docs/task-board.md`. Say **"start session"** and `/startup` 
 Last session: **2026-08-09 (overnight)**. Local head `f4e7b81`. **`4c947d6` and `f4e7b81` are
 committed LOCALLY AND UNPUSHED** — Marko authorised local commits only while asleep.
 
+## READ FIRST — the feasibility gate is optimistic by 2.35x
+
+**The v2 nine-block run took 9 h 25 m (`real 564m58s`), against the gate's 4.01 h estimate.**
+That is not a rounding error, and it is measured on the official sample at the settled 400 m radius
+with the exact flags the gate models.
+
+| | gate says | actually measured |
+|---|---|---|
+| nine-block run | 4.01 h | **9.42 h** |
+| headroom vs 20 h budget | 5.0x | **2.1x** |
+
+Cost tracks **claims**, not antennas: 565 min / 39,120 verified claims ≈ **0.87 s per claim**, and
+exhaustive claim verification (#17) dominates. The gate's model bounds claims by building count,
+which is near-tight at low tau and pessimistic at high tau — right direction, wrong magnitude.
+
+**This matters more for lever A than for baseline.** Lever A services *more* buildings, so it
+verifies *more* claims, so it is strictly slower. The lever A nine-block run was at 2/9 blocks
+after 142 min and projects to **~10–11 h**. On the day that is ~11 h of a ~24 h window, on a
+dataset that may be larger than the March sample.
+
+**Rule 1 of the competition posture applies: feasibility outranks quality.** Re-run `/rehearsal`
+with the verification cost re-fitted to 0.87 s/claim before treating any headroom figure as real.
+
 ## 2026-08-09 overnight — lever A is real, and its knob depends on tau
 
 **The sweep control validated exactly.** `quantile=100` degenerates to the already-measured
@@ -109,22 +132,37 @@ a foreign environment, or a changed dependency. Each produced output that looked
 ```bash
 conda activate mz-giscup-26
 
-# 1. Did the near-tau sweep finish? Check the quantile=100 CONTROL first --
-#    it must reproduce lever B's -1.1% at tau=0.75/k=500, or the numbers are junk.
-#    (background shell byshh2wln, ~90 min from 2026-08-09 ~00:15)
+# STILL RUNNING at hand-off (2026-08-09 07:45), all launched with Marko's
+# overnight authorisation. None need babysitting; all write their own logs.
+#
+#   bpzzrkr5r  lever A nine-block re-solve   2/9 blocks, ETA ~14:00
+#              -> outputs/nine_leverA_400.txt(.partial)
+#   b5vcoaz15  600 m matrix build + sizing   chunk 8/24, ETA ~11:00 (nice 15)
+#   pid 113641 v2 audit at 400 m             -> outputs/audit_v2.log
+#   bv5i96lxd  unbounded re-check of the 25 flagged claims
 
-# 2. Did the v2 re-solve land?
+# 1. THE FEASIBILITY NUMBER IS WRONG. v2 took 9h25m vs the gate's 4.01 h.
+#    Re-fit the gate's verification cost to 0.87 s/claim and re-run it.
+python scripts/rehearse.py --input data/GIS-cup-sample-dataset.geojson --cores 16
 
-# Was running at hand-off: re-solve with exhaustive claim verification (~3 h)
-ls -la outputs/nine_real_400_v2.txt outputs/nine_real_400_v2.json
+# 2. Baseline artifact is DONE and structurally clean:
+#    outputs/nine_real_400_v2.txt      (8 blank separator lines -- predates the fix)
+#    outputs/nine_real_400_v2_clean.txt (normalised: 27 lines, 0 blanks, 39,120 claims)
 
-# 3. Then audit it -- at 400 m, NOT 800 m
-python scripts/audit_submission.py --input data/GIS-cup-sample-dataset.geojson \
-    --solution outputs/nine_real_400_v2.txt --exact-radius 400
+# 3. The A/B that decides lever A. Baseline claims are known: 39,120.
+#    Compare against lever A's total once its run finishes.
+python - <<'EOF'
+import sys; sys.path.insert(0,'src')
+from pathlib import Path
+from giscup.packaging import inspect_solution
+for name in ("outputs/nine_real_400_v2_clean.txt", "outputs/nine_leverA_400.txt"):
+    if Path(name).exists():
+        bl = inspect_solution(Path(name).read_text())
+        print(f"{name}: {sum(b.n_claims for b in bl):,} claims")
+EOF
 
-# 4. Then package. v2 predates the separator fix, so it needs --normalize-legacy.
-python scripts/package_submission.py --solution outputs/nine_real_400_v2.txt \
-    --normalize-legacy
+# 4. Package (the clean file needs no --normalize-legacy)
+python scripts/package_submission.py --solution outputs/nine_real_400_v2_clean.txt
 ```
 
 **Packaging is rehearsed and verified** -- bundle extracted to a clean directory, fresh
