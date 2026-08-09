@@ -112,11 +112,40 @@ curve as void; the relative conclusion in fact survived.)*
 **400 m discards ~9% of real visibility; 800 m discards ~1.5%.** Cost scales with
 neighbours/candidate: 800 m is 3.45x the pairs of 400 m, 1600 m is 11.4x.
 
-| radius | est. matrix build (12 workers) | + greedy | total | verdict |
-|---|---|---|---|---|
-| 400 m | 1.7 h *(measured)* | 1.3 h | ~3.7 h | leaves 16 h spare |
-| **800 m** | ~5.7 h | 1.3 h | **~7.5 h** | **recommended under "robust over runtime"** |
-| 1600 m | ~19 h | 1.3 h | ~20 h+ | blows the budget for +1.5% |
+**Build-cost model, measured 2026-08-08** (probe throughput + neighbour counts, calibrated
+against the measured 400 m build of 99.5 min on 12 workers):
+
+| radius | neigh/cand | checks/s | model | **corrected** | capture | day total | headroom |
+|---|---|---|---|---|---|---|---|
+| 400 m | 3,217 | 16,481 | 100 min | **1.7 h** *(measured)* | 91.1% | 4.2 h | **4.8x** |
+| 500 m | 4,909 | 14,801 | 169 min | ~3.2 h | ~93% | 5.7 h | 3.5x |
+| 600 m | 6,825 | 13,486 | 258 min | **~5.4 h** | ~95% | 7.9 h | **2.5x** |
+| 700 m | 9,300 | 10,046 | 472 min | ~11 h | ~97% | 13.5 h | 1.5x |
+| 800 m | 11,297 | 9,516 | 605 min | ~15 h *(observed)* | 98.5% | 17.6 h | 1.1x |
+
+`corrected` applies the gap between model and reality: the model predicted 6.0x for 800 m over
+400 m; the observed ratio was **9.1x**. Single-threaded probes cannot capture 12-way
+memory-bandwidth contention, and that penalty grows with radius. Day total adds ~2.5 h for greedy,
+verification, validation and packaging.
+
+**800 m was attempted and abandoned.** It was killed at 12/48 chunks after 4.4 h, tracking to
+~15.1 h. At 1.1x headroom a config is not robust — on unseen data, if the August extract is larger
+or denser, the window evaporates and **all nine subproblems score zero**. Capturing 7% more
+visibility is not worth risking the finishing guarantee.
+
+**600 m is the largest radius that keeps a real margin** (2.5x) and is the upgrade candidate if
+400 m's measured results justify it.
+
+**Mitigation that weakens the whole radius argument:** the verification pass already re-measures
+near-threshold buildings at **2x the solver's radius** (`--verify-radius-factor`, default 2.0). A
+400 m solve verifies at 800 m, so the buildings that actually decide score already get the wide
+view. The cull's cost falls mainly on buildings far from `tau`, which were not going to flip.
+
+**Method note.** The first attempt at this measurement was wrong: `BlockerIndex.eroded` is computed
+lazily, so the first timed loop absorbed the one-time erosion of 12,860 footprints. That made 400 m
+read 1,245 checks/s against 500 m's 16,717 — throughput apparently *rising* with radius. Since
+400 m was also the calibration base, every derived estimate was inflated. Warm the index before
+timing anything.
 
 **DECIDED 2026-08-08 (Marko): "whatever produced better results."** Being taken as a measurement
 rather than an assumption — both radii are being built on the official dataset so the nine-block
