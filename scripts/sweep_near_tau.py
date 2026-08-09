@@ -83,6 +83,22 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{tau:>5g} {q:>9g} {base:>9,} {got:>9,} {delta:>+8,} "
                   f"{100*delta/max(base,1):>+8.1f}% {note:<22} "
                   f"[{(time.perf_counter()-t1)/60:.1f} min]", flush=True)
+
+    print("\n" + "!" * 78)
+    print("THESE ARE UPPER ESTIMATES, NOT SCORE PREDICTIONS.")
+    print("!" * 78)
+    print("`serviced()` above counts from `samples` -- the same grid the optimizer")
+    print("optimized on. That is the #12 defect, which the solver fixed and this")
+    print("script reproduces. The bias is NOT symmetric between the two arms:")
+    print()
+    print("  * baseline greedy takes coverage where it is cheapest, so most of its")
+    print("    serviced buildings sit clear of tau and in-sample error rarely flips them;")
+    print("  * near-tau concentrates on buildings AT the threshold by construction, so")
+    print("    its incremental wins are exactly the ones in-sample error decides.")
+    print()
+    print("So every number above inflates near-tau more than baseline. Use this table")
+    print("to RANK quantiles. For a score, compare post-verification claim counts from")
+    print("a full `giscup solve-all` run, which decides claims off an independent grid.")
     return 0
 
 
