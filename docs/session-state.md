@@ -3,7 +3,39 @@
 Operational state so the next session starts without rereading history.
 Task list lives in `docs/task-board.md`. Say **"start session"** and `/startup` handles the rest.
 
-Last session: **2026-08-08 / 09**. Working tree clean; **everything pushed through `50cd1a4`**.
+Last session: **2026-08-09 (overnight)**. Local head `f4e7b81`. **`4c947d6` and `f4e7b81` are
+committed LOCALLY AND UNPUSHED** — Marko authorised local commits only while asleep.
+
+## 2026-08-09 overnight — lever A is real, and its knob depends on tau
+
+**The sweep control validated exactly.** `quantile=100` degenerates to the already-measured
+threshold objective (lever B) and reproduced it at all three taus — `-1.1% / +0.3% / +6.4%`,
+matching the prior measurement to the decimal. An independently written code path reproducing
+three prior numbers is what makes the rest of the table trustworthy.
+
+Measured against baseline greedy on the official sample, **k=500**:
+
+| tau | q=25 | q=50 | q=100 | best |
+|---|---|---|---|---|
+| 0.75 | **+77.7%** | +60.1% | −1.1% | q=25 |
+| 0.5 | +3.5% | **+8.6%** | +0.3% | q=50 |
+| 0.25 | −8.3% | +0.2% | **+6.4%** | q=100 |
+
+**The optimum moves monotonically: as tau rises, tighten the mask.** At tau=0.75 few buildings are
+reachable, so concentrating fire pays enormously (1,312 → 2,331). At tau=0.25 nearly every
+unserviced building is winnable and discriminating actively *hurts*.
+
+This reframes lever B, which looked like a failure. It is not a bad lever — it is the **tau→0
+corner of a one-parameter family**, and it had only ever been measured at the corner where it
+happens to be right.
+
+Capture against the pre-registered hard bound: **13.1%** (+1,019 of +7,756), against an estimate of
+~14% made *before* the measurement existed. The sizing framework retrodicted the result.
+
+**The schedule also depends on k** (k=50 sweep): at tau=0.75 q=25 gives **+460.7%**, and at tau=0.5
+q=25 (+37.7%) now beats q=50 (+22.1%) — the reverse of k=500. Smaller k → tighter quantile, same
+mechanism as tau. **The CLI expresses per-tau schedules only, not per-(tau, k).** That is the open
+design question, recorded as task #15.
 
 ## The one thing that matters
 
@@ -47,10 +79,13 @@ a foreign environment, or a changed dependency. Each produced output that looked
   ~15 h, leaving only 1.1x headroom on the day. Not robust: on unseen data a denser extract
   evaporates the window and all nine subproblems score zero. 600 m (~5.4 h, 2.5x headroom) remains
   the upgrade candidate if measured results justify it. Full cost model in task board #3b.
-- **Threshold-aware objective (#6): built, measured, NOT adopted.** +6.4% at tau=0.25/k=500,
-  neutral elsewhere, **−1.1% at tau=0.75/k=500**. The mask pushes greedy outward toward unserviced
-  buildings, but high tau needs concentration. `greedy_select_threshold` is kept and tested but not
-  wired into `solve_one`.
+- **Threshold-aware objective (#6): superseded by lever A.** Lever B (`greedy_select_threshold`)
+  is the `quantile=100` special case of the near-tau family. Kept, tested, still not wired.
+- **Lever A (#6): built, measured, wired behind `--near-tau-quantile`, DEFAULT OFF.** The
+  default does not change without Marko's call (task #15) — it is measured at k=500 and k=50
+  on the **March sample only**, and the competition allows one submission with no feedback.
+  `solve-all` takes one value per tau, aligned positionally with `--taus`; a count that does not
+  line up is refused rather than guessed at.
 - **Feasibility gate: PASS at 4.01 h / 5.0x headroom** (re-run 2026-08-08 on official data,
   15 cores). Supersedes the earlier 3.74 h / 5.3x figure, which predated #17. The gate's
   verification model was itself stale -- it costed the old band-capped pass at 7.9 min while
@@ -96,18 +131,13 @@ Local head: `be0a2bf Verify every claim exactly instead of by band (#17)`. Every
 
 ## Known gaps, ranked
 
-1. **Submission packaging has never been done.** No artifact, no packaging dry run, no run
-   instructions. `docs/agent-roles-brief.md` names a `submission-packager` role but nothing has
-   produced or tested a bundle. It is the **only completely unrehearsed step** in the pipeline —
-   everything else has run end to end at full scale at least once. On a one-shot, no-feedback
-   submission this is the largest remaining risk.
-2. **Solution quality is baseline greedy.** Lever B (cap at building level) was built,
-   measured, rejected -- it is a low-tau lever and tau=0.75 is where relative scoring pays.
-   Lever A (weight buildings near tau) is now BUILT and TESTED but **not measured and not
-   wired into `solve_one`**. Sizing says its resource is 10.1x B's at tau=0.75/k=500 and its
-   best-case bound there is +591%; B captured 14% of its own bound, which would put A near
-   +83%. That extrapolation rests on **one data point** and A's bound is the softer of the
-   two (heuristic long tail vs exact overshoot). Sweep results decide it.
+1. **The lever A schedule is fitted per-tau but the optimum is per-(tau, k).** Measured at k=500
+   and k=50; k=1000 was in flight overnight. The nine-block artifact
+   `outputs/nine_leverA_400.txt` was produced with the k=500-fitted schedule `100 50 25`, which
+   is positive in every measured cell but optimal in only some. **Task #15 — Marko's call.**
+2. **Everything is fitted on the March sample; August is a different extract.** This now matters
+   more than it did: lever A's quantile is a *tuned* parameter, and the tuning may not transfer.
+   The baseline objective has no such knob. An argument for keeping the default off.
 3. **Every figure comes from the March sample; August is a different extract.** Config tuned here
    may not transfer — an argument for keeping the generous headroom.
 4. **`solve-all` silence — FIXED 2026-08-08.** `src/giscup/progress.py` reports per-subproblem
