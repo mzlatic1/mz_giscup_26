@@ -164,6 +164,8 @@ def test_solve_all_prepares_the_dataset_exactly_once(dataset_path, tmp_path, mon
     main(
         [
             "solve-all",
+            "--objective",
+            "baseline",
             "--input", dataset_path,
             "--taus", "0.25", "0.5", "0.75",
             "--ks", "1", "2", "3",
@@ -181,6 +183,8 @@ def test_solve_all_still_emits_one_block_per_subproblem(dataset_path, tmp_path):
     main(
         [
             "solve-all",
+            "--objective",
+            "baseline",
             "--input", dataset_path,
             "--taus", "0.25", "0.5",
             "--ks", "1", "2",
@@ -217,6 +221,8 @@ def test_finished_blocks_survive_a_crash_mid_run(dataset_path, tmp_path, monkeyp
         cli.main(
             [
                 "solve-all",
+            "--objective",
+            "baseline",
                 "--input", dataset_path,
                 "--taus", "0.25", "0.5",
                 "--ks", "1", "2",
@@ -238,6 +244,8 @@ def test_the_partial_file_is_removed_once_the_real_output_lands(dataset_path, tm
     main(
         [
             "solve-all",
+            "--objective",
+            "baseline",
             "--input", dataset_path,
             "--taus", "0.5",
             "--ks", "1", "2",

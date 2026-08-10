@@ -247,6 +247,30 @@ def near_tau_target(got: np.ndarray, need: np.ndarray, quantile: float = 50.0) -
     return unserviced & (deficit <= cutoff)
 
 
+#: Measured 2026-08-09 on the March sample, full nine-block runs with exhaustive
+#: verification. The optimal quantile tightens monotonically as tau rises, because
+#: higher tau means fewer buildings are realistically winnable and concentrating
+#: fire pays; at low tau nearly every unserviced building is winnable and
+#: discriminating actively hurts. Boundaries sit at the midpoints between the three
+#: measured taus, so the sample's 0.25 / 0.5 / 0.75 reproduce 100 / 50 / 25.
+#:
+#: **This is a heuristic fitted to one dataset.** It is expressed as a function of
+#: tau rather than as a positional list precisely so it survives an August extract
+#: whose thresholds are not 0.25/0.5/0.75 -- the official page calls those example
+#: values. The monotone shape is mechanistically justified; the exact breakpoints
+#: are not.
+NEAR_TAU_QUANTILE_BY_TAU: tuple[tuple[float, float], ...] = ((0.375, 100.0), (0.625, 50.0))
+NEAR_TAU_QUANTILE_HIGH_TAU: float = 25.0
+
+
+def default_near_tau_quantile(tau: float) -> float:
+    """The measured-best near-tau quantile for `tau`, monotone non-increasing."""
+    for upper, quantile in NEAR_TAU_QUANTILE_BY_TAU:
+        if tau <= upper:
+            return quantile
+    return NEAR_TAU_QUANTILE_HIGH_TAU
+
+
 def greedy_select_near_tau(
     matrix: VisibilityMatrix,
     candidates: list[Candidate],

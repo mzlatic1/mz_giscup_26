@@ -65,11 +65,18 @@ def dataset_path(tmp_path):
     return str(path)
 
 
-# --- default stays off ------------------------------------------------------
+# --- library default vs shipped default -------------------------------------
+#
+# These differ deliberately as of 2026-08-09 (#15). The CLI -- the submission path --
+# defaults to lever A. `solve_one` as a Python API still defaults to `None`, so every
+# existing caller and test keeps the objective it was written against, and a solve is
+# never silently re-objectived by an import. The resolution lives in one place,
+# `cli._resolve_near_tau_schedule`.
 
 
-def test_the_baseline_objective_is_still_the_default(dataset_path, tmp_path, monkeypatch):
-    """Nothing about the submission path changes until someone asks for it."""
+def test_the_library_api_default_is_still_explicit_off(dataset_path, tmp_path, monkeypatch):
+    """`solve_one(...)` with no quantile runs baseline greedy. The CLI default is
+    lever A; this pins that the *library* does not decide an objective for you."""
     from giscup import solver
 
     called = []
@@ -198,7 +205,47 @@ def test_a_schedule_that_does_not_line_up_with_taus_is_rejected(dataset_path, tm
         _run_solve_all(dataset_path, tmp_path, ["--near-tau-quantile", "100", "50"])
 
 
-def test_omitting_the_flag_leaves_every_subproblem_on_the_baseline(dataset_path, tmp_path):
+def test_omitting_the_flag_now_applies_the_measured_schedule(dataset_path, tmp_path):
+    """CHANGED 2026-08-09 (#15, Marko's call). This test used to assert that omitting
+    the flag left every subproblem on the baseline objective. Lever A is now the
+    shipped default, so the same omission must produce the measured tau->quantile
+    schedule instead. The old assertion is not obsolete noise -- it pinned a real
+    decision, and it is replaced rather than deleted so the flip stays visible."""
     diag = _run_solve_all(dataset_path, tmp_path, [])
+    assert diag["tau_0.25_k_2"]["config"]["near_tau_quantile"] == 100.0
+    assert diag["tau_0.5_k_2"]["config"]["near_tau_quantile"] == 50.0
+    assert diag["tau_0.75_k_2"]["config"]["near_tau_quantile"] == 25.0
+
+
+def test_objective_baseline_turns_lever_a_off(dataset_path, tmp_path):
+    """The escape hatch. Lever A loses (0.5, 1000) at every quantile, so the ability
+    to get plain greedy back is load-bearing for the shipped artifact, not a
+    convenience."""
+    diag = _run_solve_all(dataset_path, tmp_path, ["--objective", "baseline"])
     for tau in (0.25, 0.5, 0.75):
         assert diag[f"tau_{tau}_k_2"]["config"]["near_tau_quantile"] is None
+
+
+def test_baseline_objective_with_an_explicit_quantile_is_refused(dataset_path, tmp_path):
+    """Contradictory flags. Silently honouring one would solve every subproblem under
+    a configuration nobody chose -- the same class as the schedule-length guard."""
+    with pytest.raises(SystemExit):
+        _run_solve_all(
+            dataset_path, tmp_path, ["--objective", "baseline", "--near-tau-quantile", "50"]
+        )
+
+
+def test_the_default_schedule_is_monotone_and_hits_the_measured_points():
+    """The mapping is a function of tau, not a positional list, so it survives an
+    August extract whose thresholds are not 0.25/0.5/0.75 -- the official page calls
+    those example values. Monotonicity is the part that is mechanistically justified:
+    higher tau means fewer winnable buildings, so the mask must tighten."""
+    from giscup.optimize import default_near_tau_quantile
+
+    assert default_near_tau_quantile(0.25) == 100.0
+    assert default_near_tau_quantile(0.5) == 50.0
+    assert default_near_tau_quantile(0.75) == 25.0
+
+    taus = [i / 100 for i in range(1, 101)]
+    quantiles = [default_near_tau_quantile(t) for t in taus]
+    assert quantiles == sorted(quantiles, reverse=True)

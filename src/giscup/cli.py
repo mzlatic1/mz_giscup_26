@@ -12,6 +12,7 @@ from giscup.gate_model import default_verify_workers
 from giscup.io import load_buildings
 from giscup.output import format_solution_file
 from giscup.progress import ProgressReporter
+from giscup.optimize import default_near_tau_quantile
 from giscup.scene import prepare_scene
 from giscup.solver import solve_one
 from giscup.validate import validate_solution_file
@@ -21,17 +22,44 @@ _NEAR_TAU_HELP = (
     "Enable the near-tau objective (lever A): each greedy pick is scored only against "
     "buildings that are unserviced AND within this percentile of the live deficit "
     "distribution, so coverage is spent where it can still flip a building. 100 targets "
-    "every unserviced building. Requires --visibility-radius. OFF by default: measured "
-    "at k=500 on the sample dataset only."
+    "every unserviced building. Requires --visibility-radius. ON by default since "
+    "2026-08-09 (#15) via --objective near-tau; pass --objective baseline to disable. "
+    "Giving an explicit value overrides the measured tau->quantile schedule."
 )
 
 
 def _resolve_near_tau_schedule(
-    quantiles: list[float] | None, taus: list[float]
+    quantiles: list[float] | None,
+    taus: list[float],
+    objective: str = "near-tau",
+    visibility_radius: float | None = None,
 ) -> list[float | None]:
-    """Map --near-tau-quantile onto --taus positionally."""
-    if quantiles is None:
+    """Decide the near-tau quantile for each tau.
+
+    `--objective baseline` disables lever A outright. Otherwise an explicit
+    `--near-tau-quantile` maps onto `--taus` positionally, and an absent one falls
+    back to the measured tau->quantile schedule rather than to "off": lever A is the
+    shipped default as of 2026-08-09 (task #15).
+    """
+    if objective == "baseline":
+        if quantiles is not None:
+            raise SystemExit(
+                "--objective baseline disables the near-tau objective, but "
+                "--near-tau-quantile was also given. Pass one or the other."
+            )
         return [None] * len(taus)
+    if quantiles is None:
+        if visibility_radius is None:
+            # The default objective needs the cached matrix. Refusing beats falling
+            # back to baseline: a silent objective swap would produce a structurally
+            # perfect file solved for a different problem than the one requested.
+            raise SystemExit(
+                "the default objective is 'near-tau' (lever A), which exists only on "
+                "the cached-matrix path, but --visibility-radius was not given. Pass "
+                "--visibility-radius 400 (the settled value), or --objective baseline "
+                "for plain greedy."
+            )
+        return [default_near_tau_quantile(tau) for tau in taus]
     if len(quantiles) == 1:
         return [quantiles[0]] * len(taus)
     if len(quantiles) != len(taus):
@@ -77,7 +105,12 @@ def cmd_solve_one(args: argparse.Namespace) -> None:
         verify_band=args.verify_band,
         verify_max_buildings=args.verify_max_buildings,
         verify_radius_factor=args.verify_radius_factor,
-        near_tau_quantile=args.near_tau_quantile,
+        near_tau_quantile=_resolve_near_tau_schedule(
+            None if args.near_tau_quantile is None else [args.near_tau_quantile],
+            [args.tau],
+            args.objective,
+            args.visibility_radius,
+        )[0],
         verify_workers=args.verify_workers,
     )
     reporter.finish_subproblem(claimed=len(solution.claimed_building_ids))
@@ -90,7 +123,9 @@ def cmd_solve_all(args: argparse.Namespace) -> None:
     solutions = []
     diagnostics = {}
     plan = [(tau, k) for tau in args.taus for k in args.ks]
-    schedule = _resolve_near_tau_schedule(args.near_tau_quantile, args.taus)
+    schedule = _resolve_near_tau_schedule(
+        args.near_tau_quantile, args.taus, args.objective, args.visibility_radius
+    )
     reporter = ProgressReporter(plan, enabled=not args.quiet)
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -230,6 +265,22 @@ def _add_solver_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--candidate-mode", default="basic")
     parser.add_argument("--candidate-spacing", type=float, default=25.0)
+    parser.add_argument(
+        "--objective",
+        choices=("near-tau", "baseline"),
+        default="near-tau",
+        help=(
+            "Greedy's scoring objective. 'near-tau' (lever A, THE DEFAULT since "
+            "2026-08-09) scores each pick only against buildings that are unserviced "
+            "and near the threshold, so budget goes where it can still flip something; "
+            "with no --near-tau-quantile it uses the measured schedule "
+            "(tau<=0.375 -> 100, <=0.625 -> 50, else 25). 'baseline' is the raw "
+            "newly-visible-sample count. Measured across nine verified blocks on the "
+            "March sample: near-tau wins eight and loses (0.5, 1000) by 2.1%%, where it "
+            "loses at EVERY quantile -- so the shipped artifact takes baseline for that "
+            "one block. near-tau also verifies ~1.8x more expensively per building."
+        ),
+    )
     parser.add_argument(
         "--candidate-stride",
         type=int,
