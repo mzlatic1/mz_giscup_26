@@ -22,7 +22,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from giscup.candidates import generate_boundary_candidates  # noqa: E402
+from giscup.candidates import generate_boundary_candidates, prune_candidates  # noqa: E402
 from giscup.io import load_buildings  # noqa: E402
 from giscup.matrix import build_visibility_matrix  # noqa: E402
 from giscup.sampling import get_profile, sample_boundaries  # noqa: E402
@@ -39,6 +39,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--sampling-profile", default="balanced")
     parser.add_argument("--candidate-mode", default="basic")
     parser.add_argument("--candidate-spacing", type=float, default=25.0)
+    parser.add_argument(
+        "--candidate-stride",
+        type=int,
+        default=1,
+        help=(
+            "Keep every Nth candidate within each building (task #9). Must match the "
+            "stride the solver will run at -- the candidate set is part of the cache "
+            "key, so a mismatch rebuilds rather than reuses."
+        ),
+    )
     parser.add_argument("--visibility-strategy", default="relate")
     parser.add_argument("--eps", type=float, default=1e-9)
     parser.add_argument("--workers", type=int, default=8)
@@ -50,14 +60,17 @@ def main(argv: list[str] | None = None) -> int:
     buildings, info = load_buildings(args.input)
     profile = get_profile(args.sampling_profile)
     samples = sample_boundaries(buildings, profile)
-    candidates = generate_boundary_candidates(
-        buildings, mode=args.candidate_mode, candidate_spacing=args.candidate_spacing
+    candidates = prune_candidates(
+        generate_boundary_candidates(
+            buildings, mode=args.candidate_mode, candidate_spacing=args.candidate_spacing
+        ),
+        stride=args.candidate_stride,
     )
     print(f"dataset      : {info.path}")
     print(f"CRS          : {info.crs}")
     print(f"buildings    : {len(buildings):,}")
     print(f"samples      : {len(samples):,}  (profile {args.sampling_profile})")
-    print(f"candidates   : {len(candidates):,}  (mode {args.candidate_mode})")
+    print(f"candidates   : {len(candidates):,}  (mode {args.candidate_mode}, stride {args.candidate_stride})")
     print(f"setup        : {time.perf_counter() - t0:.1f} s\n")
 
     matrix = build_visibility_matrix(

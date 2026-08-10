@@ -5,6 +5,94 @@ Task list lives in `docs/task-board.md`. Say **"start session"** and `/startup` 
 
 ---
 
+# HANDOFF — 2026-08-09 ~20:15
+
+**Read this block first. It supersedes every block below it where they disagree.**
+
+## The submission artifact exists and is audited
+
+`outputs/nine_bestof_400.txt` — **9 blocks, 4,650 antennas, 42,728 claims, AUDIT PASSED with 0
+overclaims.** This is the file to package unless something changes it.
+
+It is **per-block best-of**: lever A in eight blocks, **baseline in `(0.5, 1000)`**. That is not a
+hedge — subproblems score independently, and lever A measurably loses that one block.
+
+| artifact | claims | subproblems (of 9, scored against the better of our own two) |
+|---|---|---|
+| baseline `outputs/nine_verifypar_400.txt` | 39,120 | 6.90 |
+| lever A `outputs/nine_leverA_400_full.txt` | 42,556 | 8.98 |
+| **best-of `outputs/nine_bestof_400.txt`** | **42,728** | **9.00** |
+
+All three are audited clean (`outputs/audit_v2.log`, `audit_leverA_full.log`, `audit_bestof.log`).
+
+## Decisions — all three settled 2026-08-09, by Marko
+
+| # | Decision | Status |
+|---|---|---|
+| **15** | Lever A is the shipped default | **DONE** (`54f5c33`). `--objective {near-tau,baseline}`, default `near-tau`. |
+| **3b** | 400 m stands | **DONE.** Docs-only; the radius is opt-in and never implied. |
+| **9** | Adopt the 2x candidate prune | **Code DONE** (`30b8c08`). `--candidate-stride N`, default **1**. Matrix rebuild in flight. |
+
+## What is running right now
+
+**A stride-2 400 m matrix build**, started ~20:15, ~50 min expected:
+
+```
+python scripts/build_matrix.py --input data/GIS-cup-sample-dataset.geojson \
+    --radius 400 --candidate-stride 2 --workers 12 --cache-dir outputs/cache
+```
+
+Log: `outputs/build_stride2_400.log`. It writes a NEW cache key; the existing 400 m
+(`7a385189`) and 600 m (`89846a10`) matrices are untouched and still valid for stride 1.
+
+**The open question it feeds:** `--candidate-stride` defaults to **1 (off)**, not 2, deliberately.
+The 2x prune was sized **in-sample, with baseline greedy, at k=500**. We now ship **lever A**, which
+works by placing antennas precisely against near-threshold buildings, so halving the candidate pool
+may cost lever A more than it cost baseline. **Next step: re-solve `(0.75, 500)` at stride 2 with
+`--near-tau-quantile 25` and compare against lever A's audited 2,222.** High tau is where prune
+degradation is always worst, so it is the right stress test. If quality holds, flip the default to
+2; if not, keep it opt-in and record why.
+
+## The finding that changed a recommendation
+
+**Lever A loses `(0.5, 1000)` at every quantile.** Baseline 8,063; lever A 7,891 at q=50, 7,903 at
+q=100. The board had carried a recommendation to build a per-`(tau, k)` CLI schedule whose entire
+justification was the sweep's claim that q=100 rescues this cell (+3.5%). Measured: −2.0%. **The
+task is retired, not deferred** — building it would have been machinery on the one prediction this
+project has proven unreliable.
+
+The mechanism is understood: at high `k` and middling tau most winnable buildings are already
+winnable, so concentrating on near-threshold buildings re-secures what baseline would have taken
+anyway. Lever A's objective is wrong for that regime; the knob is not mistuned.
+
+**Method note, twice-confirmed today: the sweep is a good ranking of quantiles and a poor predictor
+of margins.** It missed by 3.2 points at `(0.5, 1000)` q=50 and 5.5 at q=100 — both enough to flip
+a decision.
+
+## Verification is ~1.6x faster than the gate assumes
+
+Measured uncontended on the k=1000 blocks: **0.143 and 0.172 s per building per 1000 antennas**,
+i.e. **8.8x and 7.3x at 12 workers**, against `gate_model`'s 4.70x contention floor. **Plan with
+7.3x** — the higher figure belongs to the block with more buildings in the band, consistent with the
+documented batch-size effect. **Not folded into `gate_model`**: `verify_speedup` refuses to
+extrapolate past its last measurement, and changing it is a separate, tested edit. This closes the
+open "re-measure verification speedup uncontended" item as a by-product.
+
+## Timing calibration — my estimate ran PESSIMISTIC for once
+
+The two k=1000 blocks took **70 m 39 s** against my 110-minute projection, 56% over. Every prior
+miss in this project ran optimistic. Greedy came in at 1.05 s/antenna against 1.33 assumed, and
+verification at roughly half the modelled cost (see above). The audit, by contrast, landed almost
+exactly on its projection: 10 m 51 s and 10 m 46 s against ~9.6 min, so the 0.090
+s/building/1000-antennas audit constant is sound.
+
+## Uncommitted / unpushed
+
+Six commits ahead of `origin/main` as of this block; **the push is deliberate and pending** — Marko
+asked for one push at the end of the run. Check `git log origin/main..HEAD`.
+
+---
+
 # HANDOFF — 2026-08-09 ~18:00, written for a `/clear`
 
 **Read this block first.** Everything below it is older narrative, still accurate but superseded
