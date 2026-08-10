@@ -8,7 +8,7 @@ src/giscup/
   io.py           # GeoJSON/geospatial loading via GeoPandas with fallback
   geometry.py     # boundary extraction, legality checks, bounds, segment lengths
   sampling.py     # weighted boundary samples, including interior rings by default
-  candidates.py   # boundary-derived antenna candidates and dedupe
+  candidates.py   # boundary-derived antenna candidates, dedupe, per-building prune (#9)
   visibility.py   # STRtree blocker index and LOS predicates
   coverage.py     # sampled coverage and serviced-building checks
   bitsets.py      # integer bitset abstraction (superseded by matrix.py; unused)
@@ -36,6 +36,7 @@ tests/test_antenna_placement.py  # emitted antennas never inside a footprint (#1
 tests/test_assemble_blocks.py    # nine-block recovery from partials; exact-k, duplicate, gap
 tests/test_audit_two_stage.py    # screen/confirm radii, parallel==serial, empty final claims
 tests/test_boundary_jitter.py    # THE invariant: a boundary point is visible from its boundary
+tests/test_candidate_prune.py    # #9 per-building stride: identity control, row re-indexing
 tests/test_dependencies.py       # imports declared in packaging metadata
 tests/test_exact_coverage.py     # grid-free coverage vs analytic + brute-force truth
 tests/test_exact_coverage_parallel.py  # parallel coverage is bit-identical to serial
@@ -63,7 +64,9 @@ tests/test_visibility.py
 tests/test_visibility_strategy.py  # official predicate, degeneracies, relate default
 ```
 
-Current latest result: **`326 passed`** in Conda env `mz-giscup-26` (2026-08-09), 29 files.
+Current latest result: **`343 passed`** in Conda env `mz-giscup-26` (2026-08-09), 30 files.
+*(The `326` recorded here previously was stale; `docs/session-state.md`'s 333 was the correct
+pre-#9 figure, and the ten new `test_candidate_prune.py` cases bring it to 343.)*
 
 ## Compact documentation layer
 
@@ -172,9 +175,13 @@ Visibility strategy: **`relate` only** — the exact official predicate. `negati
   measured optimum is per-`(tau, k)`. Six of nine blocks already run at their best quantile;
   `(0.5, 50)` is the one leaving material value. Expressing a per-`(tau, k)` schedule needs a
   CLI change that has not been made.
-- Candidate pruning modes only add candidates; they prune nothing (task #9). A per-building
-  2x stride is **sized** at zero quality cost (one serviced building of 14,708) and ~1.7 h saved,
-  but it is not implemented as a flag, and adopting it changes the matrix cache key.
+- **Candidate pruning is implemented as of 2026-08-09 (#9): `--candidate-stride N`**, keeping every
+  Nth candidate *within each building*. Default **1 (off)**. `2` was measured free on the official
+  sample — one serviced building lost of 14,708, ~1.69 h saved — and reproduces the board's counts
+  exactly (157,454 → 78,727, all 12,860 buildings retained). `4` costs 3.0% and `7.2` costs 14.9%,
+  always worst at high tau. Pruning changes `MatrixSpec.candidate_digest` and therefore the cache
+  key, so a differently-strided matrix is rebuilt rather than reused. `candidate_stride` is part of
+  `SceneSpec`, so a pruned scene cannot be handed to a solver asked for the full pool.
 - `--max-candidates` is **not a prune**: it truncates by generation order, and generation walks
   building by building, so it deletes whole neighbourhoods. Documented as a footgun in the CLI
   help and in `greedy_select_matrix`.
@@ -234,11 +241,12 @@ Visibility strategy: **`relate` only** — the exact official predicate. `negati
   call — but re-measuring verification uncontended is an open opportunity that would shrink every
   projected day figure. Not acted on: `verify_speedup` deliberately refuses to extrapolate past
   the last measurement.
-- **`scripts/audit_submission.py` defaults `--exact-radius` to `None`, which means an UNBOUNDED
-  screen** — the ~8-hour path, not the two-stage design. `giscup.audit` defaults it to 400 m; the
-  script overrides it. Found 2026-08-09 after two audits ran that way, one passing 3 h 25 m
-  without finishing. The runbook now passes it explicitly; the script default is unchanged and
-  remains a trap.
+- **`scripts/audit_submission.py`'s unbounded-screen trap is FIXED** (`3f7db68`). It used to default
+  `--exact-radius` to `None` — an unbounded screen, the ~8-hour path rather than the two-stage
+  design — which meant selecting an 8-hour run by forgetting a flag. Found 2026-08-09 after two
+  audits ran that way, one passing 3 h 25 m without finishing. The default is now **400.0 m**,
+  matching `giscup.audit`; `none`/`unbounded` remain available explicitly. Confirmed in practice
+  2026-08-09: the nine-block lever A audit ran 10 m 51 s at 12 workers.
 - **Partial recovery exists** (`assemble.py`, `scripts/assemble_blocks.py`). `solve-all` had
   written `.partial` since #14, but nothing could consume it, so a run dying at block 7 still
   meant re-solving all nine. Round-trips a real nine-block file byte for byte.
