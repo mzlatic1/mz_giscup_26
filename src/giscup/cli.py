@@ -70,6 +70,7 @@ def cmd_solve_one(args: argparse.Namespace) -> None:
         visibility_strategy=args.visibility_strategy,
         claim_margin=args.claim_margin,
         candidate_spacing=args.candidate_spacing,
+        candidate_stride=args.candidate_stride,
         visibility_radius=args.visibility_radius,
         cache_dir=args.cache_dir,
         matrix_workers=args.matrix_workers,
@@ -103,6 +104,7 @@ def cmd_solve_all(args: argparse.Namespace) -> None:
         sampling_profile=args.sampling_profile,
         candidate_mode=args.candidate_mode,
         candidate_spacing=args.candidate_spacing,
+        candidate_stride=args.candidate_stride,
     )
     for tau, near_tau_quantile in zip(args.taus, schedule):
         for k in args.ks:
@@ -121,6 +123,7 @@ def cmd_solve_all(args: argparse.Namespace) -> None:
                 visibility_strategy=args.visibility_strategy,
                 claim_margin=args.claim_margin,
                 candidate_spacing=args.candidate_spacing,
+                candidate_stride=args.candidate_stride,
                 visibility_radius=args.visibility_radius,
                 cache_dir=args.cache_dir,
                 matrix_workers=args.matrix_workers,
@@ -227,6 +230,23 @@ def _add_solver_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--candidate-mode", default="basic")
     parser.add_argument("--candidate-spacing", type=float, default=25.0)
+    parser.add_argument(
+        "--candidate-stride",
+        type=int,
+        default=1,
+        help=(
+            "Keep every Nth candidate WITHIN EACH BUILDING (task #9). 1 keeps "
+            "everything. 2 was measured free on the official sample -- one serviced "
+            "building lost of 14,708 -- and saves ~1.69 h, because ~67%% of a day's "
+            "runtime is linear in candidate count (matrix build plus greedy's "
+            "per-iteration popcount over every row). 4x costs 3.0%% and 7.2x costs "
+            "14.9%%, always worst at high tau, so do not raise it casually. Unlike "
+            "--max-candidates this is a real prune: per-building rank means every "
+            "building keeps its own first candidate and none is left without a legal "
+            "antenna position. Changes the matrix cache key, so a differently-strided "
+            "matrix is rebuilt rather than reused."
+        ),
+    )
     parser.add_argument("--sampling-profile", default="balanced")
     parser.add_argument("--optimizer", default="greedy")
     parser.add_argument(

@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from giscup.candidates import generate_boundary_candidates
+from giscup.candidates import generate_boundary_candidates, prune_candidates
 from giscup.io import load_buildings
 from giscup.models import Building, BoundarySample, Candidate, DatasetInfo
 from giscup.sampling import get_profile, sample_boundaries
@@ -38,6 +38,10 @@ class SceneSpec:
     sampling_profile: str
     candidate_mode: str
     candidate_spacing: float
+    # Per-building candidate stride (#9). Load-bearing for the same reason as the
+    # fields above: a scene pruned at 2x handed to a solver asked for the full pool
+    # would answer a different question, and the output would look perfect.
+    candidate_stride: int = 1
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,6 +70,7 @@ def prepare_scene(
     sampling_profile: str = "balanced",
     candidate_mode: str = "basic",
     candidate_spacing: float = 25.0,
+    candidate_stride: int = 1,
 ) -> Scene:
     """Do the `(tau, k)`-independent setup once."""
     spec = SceneSpec(
@@ -74,11 +79,15 @@ def prepare_scene(
         sampling_profile=sampling_profile,
         candidate_mode=candidate_mode,
         candidate_spacing=candidate_spacing,
+        candidate_stride=candidate_stride,
     )
     buildings, info = load_buildings(input_path, id_property=id_property)
     samples = sample_boundaries(buildings, get_profile(sampling_profile))
-    candidates = generate_boundary_candidates(
-        buildings, mode=candidate_mode, candidate_spacing=candidate_spacing
+    candidates = prune_candidates(
+        generate_boundary_candidates(
+            buildings, mode=candidate_mode, candidate_spacing=candidate_spacing
+        ),
+        stride=candidate_stride,
     )
     return Scene(
         buildings=buildings, info=info, samples=samples, candidates=candidates, spec=spec

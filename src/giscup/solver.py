@@ -39,6 +39,7 @@ def solve_one(
     scene: Scene | None = None,
     near_tau_quantile: float | None = None,
     verify_workers: int = 1,
+    candidate_stride: int = 1,
 ) -> Solution:
     """Solve one GIS Cup subproblem.
 
@@ -81,6 +82,7 @@ def solve_one(
         sampling_profile=sampling_profile,
         candidate_mode=candidate_mode,
         candidate_spacing=candidate_spacing,
+        candidate_stride=candidate_stride,
     )
     if scene is None:
         scene = prepare_scene(
@@ -89,6 +91,7 @@ def solve_one(
             sampling_profile=sampling_profile,
             candidate_mode=candidate_mode,
             candidate_spacing=candidate_spacing,
+            candidate_stride=candidate_stride,
         )
     else:
         differing = scene.mismatches(requested)
@@ -242,6 +245,7 @@ def solve_one(
             "sampling_profile": sampling_profile,
             "candidate_mode": candidate_mode,
             "candidate_spacing": candidate_spacing,
+            "candidate_stride": candidate_stride,
             "optimizer": optimizer,
             "max_candidates": max_candidates,
             "visibility_strategy": visibility_strategy,
