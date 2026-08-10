@@ -332,6 +332,35 @@ as #3b did for 600 m — identical candidates, samples, script and objective, ra
 **Do not let this quietly become a default change.** Same one-shot-submission logic as #15 and #3b:
 it is Marko's call, and 300 m is a fallback config unless a measurement says otherwise.
 
+#### PROBED 2026-08-09 — both interpolations confirmed, and a board error found
+
+`scripts/probe_small_radii.py`, 60 probe candidates, official dataset, erosion index warmed first:
+
+| radius | neigh/cand | visible/cand | vs 400 m | capture | predicted |
+|---|---|---|---|---|---|
+| 200 m | 981 | 41.2 | 77.7% | **70.8%** | board says 70.9% ✓ |
+| **300 m** | **2,105** | **49.1** | 92.7% | **84.5%** | **~2,100 / ~84%** ✓ |
+| 400 m | 3,586 | 53.0 | 100.0% | 91.1% | control |
+
+**The r^1.87 neighbour scaling was right to 0.2%** (predicted ~2,100, measured 2,105), and the
+capture estimate to half a point. The pre-registered estimates survived contact with measurement,
+which is the opposite of how the sweep-based predictions went.
+
+**A board error surfaced doing this.** The 3b probe table's *visible/candidate* column reads 62.0 at
+400 m, but the 400 m matrix on disk holds 8,194,226 pairs over 157,454 candidates — **52.0**. This
+probe reproduces the matrix (+2.0%) and not the old column (−15%). Neighbour counts agree with the
+board to within 1.4%, so the error is confined to the visibility column.
+
+**The `capture` column is unaffected and remains trustworthy** — it is a ratio taken within a single
+run, so a systematic multiplicative bias cancels. The 200 m arm reproducing the board's 70.9% to
+within 0.1 points is direct evidence of that. **So: do not quote the 3b probe table's absolute
+visible/candidate figures; the capture percentages are fine.**
+
+**Next: matched-pair quality comparison at 300 m.** Note the experimental design point — a 300 m
+solve verifies at 600 m under the default factor 2.0, while the 400 m artifact verified at 800 m.
+Comparing them directly would confound the solve cull with the verification radius, so the 300 m arm
+must run `--verify-radius-factor 2.6667` to verify at the same 800 m.
+
 ### 5 — Official sample dataset  (DONE 2026-08-08)
 
 Downloaded from `https://sigspatial2026.sigspatial.org/img/GIS-cup-sample-dataset.geojson` —
