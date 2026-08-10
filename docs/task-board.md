@@ -27,6 +27,7 @@ the bound back on the margin.
 |---|---|---|
 | 9 | Prune the candidate pool | **Re-ranked up.** Previously waved off as contraindicated by "robust over runtime" — that assumed 5.0x headroom. Runtime is a robustness property at 2.9x. |
 | — | Shrink the matrix build | It is now the **largest single line** (99.5 min of 6.87 h) and cannot be served from cache on the day. |
+| 20 | **Explore radii BELOW 400 m (start at 300 m)** | Marko's call 2026-08-09. The whole radius axis has only ever been explored *upward*. The submission-day runbook has a "what to give up if the extract is bigger" section that is currently **unmeasured** — this is the measurement that populates it. Marko will say when to start. |
 
 ## Blocked on machine time (no decision needed)
 
@@ -260,6 +261,61 @@ solution-quality number measured on the synthetic can be trusted.
 **Mitigation already in place.** The verification pass no longer inherits the solver's cull. It
 re-measures at `visibility_radius x verify_radius_factor` (default 2.0), so a 400 m solve verifies
 against 800 m. `--verify-radius-factor 0` makes it fully unbounded.
+
+### 20 — Radii BELOW 400 m — contingency sizing  (ADDED 2026-08-09, not started)
+
+**Marko's request. Do not start until he says so.** Every radius measurement in this project runs
+*upward* from 400 m (500 m modelled, 600 m built, 800 m abandoned, 1600 m modelled). Downward is
+unexplored, and it is the direction that buys the thing feasibility actually needs: **time**.
+
+**The motivating scenario is not "300 m as the default".** It is the submission-day runbook's
+"what to give up if the extract is bigger" section, which currently names no measured fallback.
+If the August extract is materially denser or larger than the March sample, the 400 m config's
+~2.9x bound compresses, and the only lever available *on the day* is a cheaper config. Having a
+measured 300 m point turns that from improvisation into a switch.
+
+**Pre-sizing from the measured curve** (200/400/800/1600 m are measured; 300 m is interpolated and
+must be confirmed, not quoted):
+
+| radius | neigh/cand | capture | build (8 workers) | status |
+|---|---|---|---|---|
+| 200 m | 993 | 70.9% | ~25 min *(inferred)* | measured curve point |
+| **300 m** | **~2,100** *(est)* | **~84%** *(est)* | **~43 min** *(est)* | **UNMEASURED — this task** |
+| 400 m | 3,635 | 91.1% | **99.6 min** *(measured)* | current default |
+
+Neighbours scale as roughly **r^1.87**, not r² — sub-quadratic because building footprints occupy
+area that candidates cannot, and the deficit grows with radius. Both the 200→300 and 400→300
+extrapolations agree on ~2,100, which is why the estimate is worth stating at all.
+
+**Expected quality cost is real and should not be soft-pedalled.** 400→600 m gained ~4 points of
+capture and delivered **+4.1%** serviced buildings. 400→300 m gives up ~7 points, so a **−5% to −8%**
+serviced count is the honest expectation. This is a feasibility lever, not a quality lever.
+
+**Two things make it more attractive than that number suggests:**
+
+1. **The gate's refusal is asymmetric in our favour going *down*.** A 300 m solve verifies at 600 m,
+   which `verify_constant_for` will refuse as an unmeasured pair — same guard that blocks 500 m and
+   600 m. But 600 m verification is strictly *cheaper* than the 800 m the 0.826 / 1.26 constants were
+   fitted at, so costing 300 m with the 800 m constant is a **safe upper bound**. Going up, no such
+   bound exists. So this task can produce a defensible headroom figure without a new verification
+   measurement, which 500 m and 600 m cannot.
+2. **It stacks with the free 2x prune (#9).** 300 m + 2x prune projects to a **~22 min** matrix build
+   against the current 99.6 min. That is the realistic emergency config.
+
+**Size it against #9 before spending machine time — #9 may dominate it outright.** The 2x prune buys
+**1.69 h at zero measured quality cost** (one serviced building of 14,708). A 300 m cull buys ~1 h
+at a −5–8% cost. **As a pure time-buying lever the prune strictly dominates**, and if the goal is
+only headroom, do #9 first and this may never be needed. The case for measuring 300 m anyway is that
+the two stack, and that a *contingency* needs to exist before the day it is needed — not that 300 m
+competes with 400 m on merit.
+
+**Suggested order when started:** (a) probe neigh/cand and capture at 300 m to confirm or kill the
+~2,100 / ~84% estimates — minutes, not hours, and it is the cheap falsification step; (b) only if
+those hold, build the matrix and run a matched-pair serviced-count comparison against 400 m, exactly
+as #3b did for 600 m — identical candidates, samples, script and objective, radius the only change.
+
+**Do not let this quietly become a default change.** Same one-shot-submission logic as #15 and #3b:
+it is Marko's call, and 300 m is a fallback config unless a measurement says otherwise.
 
 ### 5 — Official sample dataset  (DONE 2026-08-08)
 
