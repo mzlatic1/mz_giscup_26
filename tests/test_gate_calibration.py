@@ -150,6 +150,41 @@ def test_speedup_is_monotonic():
     assert values == sorted(values)
 
 
+# --- the quiet-machine measurement, added 2026-08-09 -------------------------
+#
+# Every figure above was taken while other jobs competed for memory bandwidth, so they
+# are contention FLOORS. A dedicated host measured 7.3x at 12 workers. The danger in
+# recording that is obvious from this project's history: #16 was one constant re-fitted
+# in the optimistic direction, and the gate then projected 4.01 h for a 9.42 h run. So
+# the new number is available but must never become the default.
+
+
+def test_the_default_speedup_is_still_the_contention_floor():
+    """THE regression guard for this feature. If adding the quiet-machine measurement
+    ever changes what `verify_speedup(w)` returns, the gate's verdict silently gets
+    more optimistic -- which is the exact failure mode #16 documented."""
+    assert verify_speedup(12) == pytest.approx(4.70)
+    assert verify_speedup(8) == pytest.approx(4.20)
+    assert verify_speedup(12, contended=True) == verify_speedup(12)
+
+
+def test_the_uncontended_speedup_is_available_when_asked_for():
+    assert verify_speedup(12, contended=False) == pytest.approx(7.30)
+    assert verify_speedup(16, contended=False) == pytest.approx(7.30)
+
+
+def test_uncontended_falls_back_rather_than_interpolating():
+    """Only 12 workers was measured on a quiet machine. Asking for 4 must return the
+    contended figure, not a number invented between measurements."""
+    for workers in (1, 2, 4, 8):
+        assert verify_speedup(workers, contended=False) == verify_speedup(workers)
+
+
+def test_uncontended_is_never_slower_than_the_floor():
+    for workers in (1, 2, 3, 4, 8, 12, 16, 64):
+        assert verify_speedup(workers, contended=False) >= verify_speedup(workers)
+
+
 # --- the constant is not universal; it belongs to a radius PAIR ---------------
 #
 # 0.826 was measured on a 400 m solve, and `--verify-radius-factor 2.0` means that

@@ -439,6 +439,24 @@ def measured_gate(
     print("The bound sets the verdict. The likely figure is what to plan around --")
     print("but it assumes August claims a similar FRACTION of its buildings as March.")
 
+    # A third number, reported but deliberately NOT driving the verdict. Every figure
+    # in MEASURED_VERIFY_SPEEDUP was taken while other jobs competed for memory
+    # bandwidth, so they are contention floors. Measured on a quiet host 2026-08-09,
+    # 12 workers reached 7.3x rather than 4.70x. On the day the machine should be
+    # dedicated, so this is the realistic cost -- but a gate that adopts the
+    # optimistic constant is exactly how #16 happened, so the verdict keeps the floor.
+    quiet_speedup = verify_speedup(verify_workers, contended=False)
+    if quiet_speedup > speedup:
+        quiet_verify_s = likely_verify_s * speedup / quiet_speedup
+        quiet_total_s = build_s + solve_s + quiet_verify_s
+        print(f"{'likely, quiet machine (measured 7.3x)':40s} "
+              f"{quiet_verify_s/3600:>10,.2f} h {quiet_total_s/3600:>10,.2f} h "
+              f"{budget_s/quiet_total_s:>9,.1f}x")
+        print("-" * 78)
+        print(f"The {speedup:.2f}x above is a CONTENTION FLOOR, measured while other jobs ran.")
+        print(f"A dedicated host measured {quiet_speedup:.2f}x. The verdict deliberately keeps")
+        print("the floor: a feasibility gate must be wrong in the safe direction.")
+
     ok = total_s <= budget_s
     print(f"\nbudget       : {budget_s / 3600:.1f} h")
     print(f"headroom     : {budget_s / total_s:,.1f}x" if total_s > 0 else "")

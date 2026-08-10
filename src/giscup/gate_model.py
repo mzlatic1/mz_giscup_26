@@ -159,17 +159,47 @@ def calibrated_verify_seconds(
 #: Efficiency falls off hard: 88% at 2 workers, 78% at 4, 53% at 8, 39% at 12.
 MEASURED_VERIFY_SPEEDUP: dict[int, float] = {1: 1.00, 2: 1.77, 4: 3.10, 8: 4.20, 12: 4.70}
 
+#: The same thing measured on a QUIET machine, 2026-08-09. Every figure above was
+#: taken while two other jobs competed for memory bandwidth, so they are *contention
+#: floors*, not the speedup a dedicated run gets. Measured on the two k=1000 lever A
+#: blocks, which had the host to themselves:
+#:
+#:     (0.5, 1000)   8,537 buildings in 20.3 min -> 0.143 s/bldg/1k -> 8.8x
+#:     (0.75, 1000)  5,261 buildings in 15.1 min -> 0.172 s/bldg/1k -> 7.3x
+#:
+#: **7.3 is recorded, not 8.8.** The higher figure belongs to the block with more
+#: buildings in the band, which is consistent with the documented batch-size effect,
+#: so the smaller number is the one that generalises.
+#:
+#: **This does NOT replace the contended table, and `verify_speedup` still returns the
+#: contended figure by default.** A feasibility gate that quietly gets more optimistic
+#: is precisely how #16 happened -- one constant re-fitted upward, 4.01 h projected
+#: against a 9.42 h reality. The verdict must come from the number that holds when the
+#: machine is busy; this one is for reporting what a clean run should actually cost.
+MEASURED_VERIFY_SPEEDUP_UNCONTENDED: dict[int, float] = {12: 7.30}
 
-def verify_speedup(workers: int) -> float:
+
+def verify_speedup(workers: int, *, contended: bool = True) -> float:
     """Speedup for `workers` processes, never extrapolated beyond what was measured.
 
     An unmeasured count rounds *down* to the nearest measured one, and anything above
     12 gets 12's figure. Scaling had already decayed to 39% efficiency there; assuming
     it keeps improving is exactly how this gate came to be optimistic in the first
     place.
+
+    `contended=True` (the default, and what the gate's verdict uses) returns the
+    figures measured while other jobs were running. `contended=False` returns the
+    quiet-machine measurement where one exists -- currently only at 12 workers -- and
+    falls back to the contended figure everywhere else rather than interpolating a
+    number nobody measured. The default stays conservative on purpose: the point of a
+    feasibility gate is to be wrong in the safe direction.
     """
     if workers < 1:
         raise ValueError(f"workers must be at least 1, got {workers}")
+    if not contended:
+        quiet = [w for w in sorted(MEASURED_VERIFY_SPEEDUP_UNCONTENDED) if w <= workers]
+        if quiet:
+            return MEASURED_VERIFY_SPEEDUP_UNCONTENDED[quiet[-1]]
     usable = [w for w in sorted(MEASURED_VERIFY_SPEEDUP) if w <= workers]
     return MEASURED_VERIFY_SPEEDUP[usable[-1]] if usable else 1.0
 
