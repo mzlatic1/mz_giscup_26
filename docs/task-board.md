@@ -1013,6 +1013,36 @@ building, so it deletes whole neighbourhoods. Documented as such in the CLI help
 **Sequencing:** pruning changes the candidate digest and therefore the matrix cache key. Adopting
 it discards both the valid 400 m matrix and the 600 m build. Do not start until #3b is settled.
 
+### #9 IMPLEMENTED AND BUILT 2026-08-09 — with one correction to the sizing
+
+`--candidate-stride N` (`30b8c08`), and the stride-2 400 m matrix is built:
+
+| | candidates | visible pairs | visible/candidate | build | key |
+|---|---|---|---|---|---|
+| stride 1 | 157,454 | 8,194,226 | 52.0 | 99.6 min @ **8** workers | `7a385189` |
+| **stride 2** | **78,727** | **4,878,593** | **62.0** | **50.9 min @ 12** workers | `7c422675` |
+
+**The pruned half is not half the visibility — it is 59.5% of it.** Halving the candidates removed
+only 40.5% of the visible pairs, because the surviving set is the *vertex* half and vertices see
+substantially more than midpoints (62.0 vs 52.0 samples each). Corners have wider viewsheds than
+points flat against a wall. That is a favourable surprise: the prune is materially better than
+discarding a random half, and it is a second independent reason the 2x came out free in the sizing.
+
+**Correction to the saving, stated as uncertainty rather than a number.** The two builds ran at
+**different worker counts** (8 vs 12), so they are not a matched pair and **no speedup figure should
+be quoted from them**. What can be said:
+
+- **Greedy's half of the saving is a clean 2x.** The argmax is a popcount over every candidate row,
+  and words-per-row depends on sample count, not candidate count — so halving the rows halves the
+  work exactly. That is ~0.86 h of the projected 1.72 h.
+- **The matrix-build half is not established.** The 1.69 h figure assumed build cost halves with
+  candidate count. Whether it does depends on neighbours-per-candidate and per-check blocker counts
+  for vertices versus midpoints, and the 62.0-vs-52.0 gap says those populations are not
+  interchangeable. A matched 12-worker stride-1 build would settle it and costs ~70 min; not spent,
+  because the decision does not turn on it.
+
+Treat #9's saving as **"at least ~0.86 h, probably more, not confidently 1.69 h."**
+
 ### 10 — Unimplemented names and placeholders
 
 Prevents a false capability claim at submission time.
