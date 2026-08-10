@@ -32,18 +32,20 @@ the bound back on the margin.
 
 | # | Task | Unblocks when |
 |---|---|---|
-| 17b | Measure lever A on `(0.75, 50)` and `(0.75, 500)` | nothing — ~22 min at 12 workers, machine is free |
+| 19b | Audit + assemble the full nine-block lever A artifact | `outputs/leverA_k1000_missing.txt` lands (~2 h from 17:35) |
+| — | Re-measure verification speedup **uncontended** | after 19b. The gate's 4.70x is a contention floor; the audit hit 5.08x at 96% efficiency on a quiet machine against verification's 39%. Could shrink every day projection — or not, since batch size explains part of the gap. One clean measurement. |
 
 ## Blocked on Marko
 
 | # | Task | Waiting on |
 |---|---|---|
-| 15 | Does lever A become the submission default? | 17b, plus the lever A overclaim audit |
+| 15 | Does lever A become the submission default? | **Nothing — decide now.** 7 of 9 blocks measured (+9.7%), 0 overclaims of 27,803 audited. 19b only makes the artifact submittable; it will not change the verdict. |
 | — | Final packaging | which artifact wins (#15) |
 
-**#17 is answered** (see "Lever A" under #6): **+6.2% verified claims across 5 of 9 blocks**,
-winning four of five. **#3b is answered**: 600 m services +4.1% but leaves only ~1.6x headroom —
-recommendation is that 400 m stands, Marko's call. Both runs are done and the machine is free.
+**#17 is answered** (see "Lever A" under #6): **+9.7% verified claims across 7 of 9 blocks**,
+winning six of seven, and **0 overclaims of 27,803 claims** on the five audited. Shipping baseline
+instead forfeits ~1.89 of 9 subproblems. **#19 is done.** **#3b is answered**: 600 m services
++4.1% but leaves only ~1.6x headroom — recommendation is that 400 m stands, Marko's call.
 
 ---
 

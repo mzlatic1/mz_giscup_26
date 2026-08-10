@@ -3,6 +3,105 @@
 Operational state so the next session starts without rereading history.
 Task list lives in `docs/task-board.md`. Say **"start session"** and `/startup` handles the rest.
 
+---
+
+# HANDOFF — 2026-08-09 ~18:00, written for a `/clear`
+
+**Read this block first.** Everything below it is older narrative, still accurate but superseded
+where they disagree.
+
+## Live work at handoff
+
+**A solve is running** and its result is the only thing outstanding:
+
+```
+giscup solve-all --taus 0.5 0.75 --ks 1000 --near-tau-quantile 50 25 \
+    --visibility-radius 400 --cache-dir outputs/cache --matrix-workers 12 \
+    --verify-band 0.10 --verify-max-buildings 2000 --verify-workers 12 \
+    --output outputs/leverA_k1000_missing.txt
+```
+
+It fills the last two lever A blocks, `(0.5, 1000)` and `(0.75, 1000)`. Started ~17:35, estimated
+~2 h. **Check `outputs/leverA_k1000_missing.txt` before assuming it is still running** — the file
+is durable, the background-shell ID is not. Also check `ps -eo pid,etime,cmd | grep giscup`.
+
+Note the quantile mapping: `--near-tau-quantile` maps **positionally onto `--taus`**, so a
+two-tau run takes two values. Getting this wrong silently changes the objective.
+
+## Where the competition work actually stands
+
+**Lever A wins decisively and is audited clean.** Seven of nine blocks measured post-verification
+against baseline `outputs/nine_verifypar_400.txt`:
+
+| block | baseline | lever A | delta |
+|---|---|---|---|
+| (0.25, 50) | 1,660 | 1,659 | −0.1% |
+| (0.25, 500) | 8,854 | 9,349 | +5.6% |
+| (0.25, 1000) | 11,630 | 12,279 | +5.6% |
+| (0.5, 50) | 144 | 269 | +86.8% |
+| (0.5, 500) | 3,903 | 4,247 | +8.8% |
+| (0.75, 50) | 27 | **148** | **+448.1%** |
+| (0.75, 500) | 1,295 | **2,222** | **+71.6%** |
+| **total** | **27,513** | **30,173** | **+9.7%** |
+
+Shipping baseline instead would forfeit **1.89 of 9 subproblems** on these seven — ~21% of the
+achievable total, because relative scoring weights every subproblem equally and lever A's gains
+are largest where counts are smallest. **Audited: 0 overclaims of 27,803 claims** across the five
+blocks in `outputs/nine_leverA_400_5of9.txt`, plus 0 off-boundary antennas and 0 unknown IDs.
+
+Lever A artifacts on disk: `outputs/nine_leverA_400_5of9.txt` (5 blocks),
+`outputs/leverA_tau075_small.txt` (2 blocks), `outputs/leverA_k1000_missing.txt` (2 blocks, in
+flight). Combine them with `python scripts/assemble_blocks.py --input <files> --output <out>`.
+
+## The three decisions waiting on Marko
+
+| # | Decision | Recommendation |
+|---|---|---|
+| **15** | Lever A as submission default | Evidence strongly favours **yes**. Costs ~5 h on the day against baseline's 2.85 h. |
+| **3b** | 400 m vs a 2x-pruned 600 m build (~3.6 h) | **400 m stands.** 600 m gives +4.1% but only ~1.6x headroom. |
+| **9** | Adopt the free 2x candidate prune | Yes, but **only after 3b** — it changes the matrix cache key and would discard both built matrices. |
+
+## What was done 2026-08-09 afternoon
+
+- **#18 confirmed at full scale.** Parallel verification is exactly equivalent to the audited
+  serial baseline — same antennas, same 39,120 claim IDs. **9.42 h → 2.85 h, 3.30x.**
+- **#17 answered**, **#19 done** (the `(0.75, ·)` blocks above).
+- The gate constant is now pinned to an **objective** as well as a radius pair: baseline 0.826,
+  near-tau **1.26**. `--objective near-tau` on `scripts/rehearse.py`. Unknown objectives raise.
+- **The audit is parallel**: 28 m 51 s → **5 m 41 s at 12 workers, 5.08x, 96% efficiency**,
+  identical output. Fitted constant **0.090 s per building per 1000 antennas** at a 400 m screen;
+  nine blocks project to ~46 min serial / ~9 min parallel.
+- **`scripts/assemble_blocks.py`** recovers a nine-block file from partials. Round-trips a real
+  nine-block file byte for byte.
+- Three defects fixed: `splitlines()` dropped a legal empty final claims line (would have failed a
+  valid submission in the audit); `--exact-radius` defaulted to unbounded, the ~8-hour path,
+  reachable by omitting a flag; the runbook's audit command had that omission.
+
+## Corrections I had to make today — the pattern is worth knowing
+
+Four of my own estimates were wrong, all optimistic, and the shape repeats: **extrapolating a
+constant past the configuration it was measured in.**
+
+- "8x candidate prune is viable" — the arm came in at −14.9%. Honest lever is 2x.
+- "Audit takes 32 min / ~48 min for nine" — 32 min was *elapsed when I looked*, not completion.
+- "Serial audit ~5 min" — actual 28 m 51 s. I extrapolated on claim count; cost scales with
+  **claims × k**, and my source figure was measured at k=50.
+- "In-sample bias inflates lever A" — measured, it did not, in any block.
+
+Before quoting a number, state what configuration it was measured in. `verify_constant_for`
+now enforces exactly this for the gate.
+
+## Environment / state
+
+- `conda activate mz-giscup-26`; 16 cores, 24 GB.
+- **333 tests passing**, `compileall` clean.
+- The 400 m matrix is cached (`outputs/cache/visibility-7a385189*`, 8,194,226 pairs) as is the
+  600 m one (`...89846a10*`). Neither can be reused on submission day — the key includes the
+  dataset.
+- Check `git log origin/main..HEAD` for unpushed work.
+
+---
+
 **`docs/submission-day-runbook.md` is new (2026-08-09).** It is the operational sequence for
 2026-08-15/16 — inspect first (the `--id-property` trap), size, solve, audit, package, plus what
 to give up if the extract is bigger. Read it on the day; it is not a startup read.

@@ -279,3 +279,68 @@ def test_the_audit_still_rejects_a_genuinely_truncated_block():
     parse_blocks = _load_audit_script().parse_blocks
     with pytest.raises(ValueError):
         parse_blocks("(0.25, 1)\n")
+
+
+# ---------------------------------------------------------------------------
+# The screen radius default was a trap, and documenting it is not fixing it.
+#
+# `--exact-radius` defaulted to None, which `confirm_overclaims` reads as
+# UNBOUNDED: every claim measured against the whole dataset. That is the ~8-hour
+# path, on the last gate before submitting, reached by simply not passing a flag.
+# `giscup.audit` defaults the same parameter to 400.0 -- the script overrode its own
+# library toward the more expensive value, silently.
+#
+# Found 2026-08-09 by running it that way twice; a five-block audit passed 3 h 25 m
+# without finishing. The runbook now passes the flag explicitly, but a runbook only
+# protects whoever reads it. The default itself has to be safe.
+#
+# Unbounded is still reachable -- it IS the exact answer -- but it now costs a
+# deliberate word rather than an omission.
+# ---------------------------------------------------------------------------
+
+
+def test_the_screen_radius_defaults_to_the_cheap_two_stage_value():
+    """THE regression test. Omitting the flag must not select the 8-hour path."""
+    parser = _load_audit_script().build_parser()
+    args = parser.parse_args(["--input", "x.geojson", "--solution", "y.txt"])
+    assert args.exact_radius == 400.0
+
+
+def test_the_script_default_agrees_with_the_library_default():
+    """The trap was the two disagreeing. Pinned so they cannot drift apart again."""
+    import inspect
+
+    from giscup.audit import confirm_overclaims
+
+    library = inspect.signature(confirm_overclaims).parameters["screen_radius"].default
+    parser = _load_audit_script().build_parser()
+    args = parser.parse_args(["--input", "x.geojson", "--solution", "y.txt"])
+    assert args.exact_radius == library
+
+
+def test_an_explicit_screen_radius_is_still_honoured():
+    parser = _load_audit_script().build_parser()
+    args = parser.parse_args(
+        ["--input", "x.geojson", "--solution", "y.txt", "--exact-radius", "600"]
+    )
+    assert args.exact_radius == 600.0
+
+
+@pytest.mark.parametrize("word", ["none", "NONE", "unbounded"])
+def test_unbounded_is_still_reachable_but_must_be_asked_for_by_name(word):
+    """The exact answer stays available. It just costs a word now, so nobody
+    selects an 8-hour run by forgetting a flag."""
+    parser = _load_audit_script().build_parser()
+    args = parser.parse_args(
+        ["--input", "x.geojson", "--solution", "y.txt", "--exact-radius", word]
+    )
+    assert args.exact_radius is None
+
+
+def test_a_nonsense_screen_radius_is_rejected_at_the_command_line():
+    """Failing before a dataset load beats failing after one."""
+    parser = _load_audit_script().build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            ["--input", "x.geojson", "--solution", "y.txt", "--exact-radius", "wide"]
+        )

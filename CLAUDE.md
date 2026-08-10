@@ -96,6 +96,22 @@ clearly meaning the same — that is a request to run the `/startup` command. Do
 before anything else, without asking for confirmation. `/startup` loads the compact context set,
 reads `docs/task-board.md`, recreates the task list, and reports state plus next actions.
 
+**When Marko says "resume"** — typically right after a `/clear` or `/compact`, so assume context
+has been wiped — do this, in order, without asking for confirmation:
+
+1. Read `docs/session-state.md` **first**. Its top section is a dated handoff block naming exactly
+   where work stopped, what is running, and what is uncommitted. Then read `docs/task-board.md`,
+   `docs/codebase-map.md`, and `docs/competition-reference.md`.
+2. Check for live work before assuming the machine is idle: `git status --short`,
+   `git log --oneline -5`, `git log origin/main..HEAD`, and `ps -eo pid,etime,cmd | grep giscup`.
+   Long solves and audits are routinely left running across a clear; results land in `outputs/`,
+   which is durable, while the background-shell IDs are not.
+3. Report state in a few sentences, distinguishing committed from uncommitted.
+4. **Output an updated list of unblocked todos**, split into work that needs no decision and work
+   blocked on Marko. This list is the deliverable — "resume" is a request for it.
+
+Do not start work off a "resume". Stop after the list and wait.
+
 **When Marko says "wrap", "close out", "pause", or "hand off"** — run `/wrapup`. It applies
 `docs/context-maintenance.md` and iterates until a documentation pass yields no changes. Work is
 not done until that no-change pass is reported. Never commit, push, or delete during wrap-up

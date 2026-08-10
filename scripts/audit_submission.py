@@ -73,6 +73,19 @@ def parse_blocks(text: str) -> list[tuple[float, int, str, str, int]]:
     return blocks
 
 
+def screen_radius(value: str) -> float | None:
+    """A screen radius in CRS units, or None for an unbounded screen.
+
+    Unbounded stays reachable because it is the exact answer, but it has to be asked
+    for by name. It was the default until 2026-08-09, which meant an ~8-hour audit was
+    what you got for omitting a flag -- measured, twice, at 3 h 25 m without finishing
+    on a five-block artifact.
+    """
+    if value.strip().lower() in {"none", "unbounded"}:
+        return None
+    return float(value)
+
+
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--input", required=True)
@@ -92,12 +105,16 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     ap.add_argument(
-        "--exact-radius", type=float, default=None,
+        "--exact-radius", type=screen_radius, default=400.0,
         help=(
-            "Radius for the exact claim re-check. OMIT for unbounded, which is the true "
-            "coverage and the answer that matters. Setting a radius only ever *under*-reports "
-            "coverage, so it can raise false alarms on valid claims but can never let a real "
-            "overclaim through -- useful as a fast pre-check, not as the final word."
+            "Radius for the cheap SCREEN stage. Anything it flags is re-measured at "
+            "--confirm-radius before being reported, so a tight screen over-flags and "
+            "costs nothing but a little confirm work -- it can never let a real overclaim "
+            "through, because culling only ever under-reports coverage. "
+            "Pass 'none' or 'unbounded' for an unbounded screen: that is the exact "
+            "answer, and it is also the ~8-hour path on a full artifact. It used to be "
+            "the default, which meant selecting an 8-hour run by forgetting a flag. "
+            "Default: %(default)s m."
         ),
     )
     ap.add_argument(
