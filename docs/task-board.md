@@ -3,7 +3,17 @@
 Durable task list. `/startup` reads this and recreates the in-session task list from it.
 Keep it current: when a task is finished, move it to **Done** with the date and the evidence.
 
-Last updated: **2026-08-09**.
+Last updated: **2026-08-10**.
+
+> ## ⚠️ ONE TASK REMAINS: execute submission day.
+>
+> **Test data 2026-08-15, deadline 2026-08-16.** As of 2026-08-10 there are **no open decisions**,
+> **nothing blocked on Marko**, and **nothing blocked on machine time**. Every section below is
+> closed history kept for its reasoning.
+>
+> **Go to `docs/submission-day-runbook.md` and follow it.** Settled parameters: radius **400 m**,
+> objective **`near-tau`**, `--matrix-workers` **8**, `--verify-workers` **12**,
+> `--candidate-stride` **1**. Do not re-open any of these under time pressure.
 
 ## Feasibility — the 2026-08-07 figure was wrong; this supersedes it
 
@@ -124,7 +134,9 @@ instead forfeits ~1.89 of 9 subproblems. **#19 is done.** **#3b is answered**: 6
   estimate; the likely one predicts v2 within 1%. Pinned by `tests/test_gate_calibration.py`.
 - **#18** exact claim verification parallelised (`2a7ed77`). Was 81.7% of runtime on one
   core of sixteen. Measured floors: 1.77x / 3.10x / 4.20x / **4.70x** at 2/4/8/12 workers,
-  **bit-identical to serial**. Gate: 19.34 h / 1.0x -> **6.87 h / 2.9x**.
+  **bit-identical to serial**. Gate: 19.34 h / 1.0x -> **6.87 h / 2.9x** *(as costed at the time,
+  i.e. baseline; the same gate re-read 8.14 h / 2.5x on 2026-08-10 once the objective mismatch was
+  fixed — see the header. #18's speedup is unaffected, only the objective it was costed against)*.
   **CONFIRMED AT FULL SCALE 2026-08-09** by a nine-block re-run at `--verify-workers 12`
   (`outputs/nine_verifypar_400.txt`, 171.1 min): identical antenna coordinates in all nine
   blocks and **identical claim sets** — 39,120 claims, zero IDs added or dropped in any block.
@@ -335,7 +347,8 @@ unexplored, and it is the direction that buys the thing feasibility actually nee
 **The motivating scenario is not "300 m as the default".** It is the submission-day runbook's
 "what to give up if the extract is bigger" section, which currently names no measured fallback.
 If the August extract is materially denser or larger than the March sample, the 400 m config's
-~2.9x bound compresses, and the only lever available *on the day* is a cheaper config. Having a
+~2.9x bound compresses *(that bound is now 2.5x — see the file header; the argument is unchanged)*,
+and the only lever available *on the day* is a cheaper config. Having a
 measured 300 m point turns that from improvisation into a switch.
 
 **Pre-sizing from the measured curve** (200/400/800/1600 m are measured; 300 m is interpolated and
@@ -1155,7 +1168,7 @@ are an order of magnitude smaller. Unit-square tests at coordinates near 1 could
 **Scope (Marko's call):** exact coverage backs the **claim decision and validation**. Greedy keeps
 the fast sampled matrix — it is a search heuristic, not the scored quantity, and putting exact
 coverage in its inner loop would risk the feasibility headroom. (The "6.3x" that stood here is
-the disproven 2026-08-07 figure; current headroom is 2.9x on the bound. The reasoning is
+the disproven 2026-08-07 figure; current headroom is 2.5x on the bound (2026-08-10). The reasoning is
 unaffected — if anything a tighter budget strengthens it.)
 
 ### 9 — Prune the candidate pool  (IMPLEMENTED 2026-08-09; **the "free" claim did NOT survive
@@ -1272,8 +1285,10 @@ tightens; leave it off otherwise. It is implemented, tested, measured, and one f
 Re-decided with the corrected numbers rather than the free-ness claim it was originally adopted on.
 **`--candidate-stride` ships at 1.** The reasoning of record:
 
-- The day projection is ~5 h likely / 6.87 h bound against a ~20 h window, so ~1.7 h of headroom is
-  not something we currently need to buy.
+- The day projection is ~4.6 h likely / 8.14 h bound against a ~20 h window, so ~1.7 h of headroom
+  is not something we currently need to buy. *(Bound restated 2026-08-10 after the objective fix;
+  it was quoted as 6.87 h when the decision was made. 2.5x headroom does not change the call —
+  #9 was rejected with far more margin than 0.4x.)*
 - ~0.07 subproblems is a *real* cost under relative scoring, and it lands in the small-count blocks
   that are worth exactly as much as the large ones.
 - Paying a certain score cost for contingent headroom is the wrong direction while feasibility has

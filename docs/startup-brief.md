@@ -106,7 +106,7 @@ feasibility rehearsals, but it has no real street topology and omits the large-b
 
 ```bash
 conda activate mz-giscup-26
-python -m pytest -q                 # 350 passed
+python -m pytest -q                 # 356 passed (2026-08-10)
 giscup inspect --input data/GIS-cup-sample-dataset.geojson
 
 # feasibility gate -- ALWAYS pass --verify-workers; serial puts the bound at 1.0x
@@ -152,16 +152,24 @@ listed #1-#5, #7, #10, #11 as open. All of those are DONE, and the gate has read
 2026-08-07.**
 
 The project is **past feasibility and past solution-quality selection**. A complete, audited,
-packaged submission artifact exists (`outputs/nine_bestof_400.txt`, 42,728 claims, 0 overclaims).
+packaged submission artifact exists (`outputs/nine_bestof_400.txt`, 42,728 claims, 0 overclaims) —
+**for the March sample.** It proves the pipeline; it is not the deliverable.
 
-1. **One decision sits with Marko: re-decide #9**, the 2x candidate prune. Adopted as a free lever;
-   measured against the shipped objective it costs ~0.07 subproblems. Implemented, tested, off by
-   default. Nothing is blocked either way.
-2. **Then it is a waiting game until 2026-08-15.** Check the official page for the submission link
-   (unpublished as of 2026-08-08).
-3. **On the day: `docs/submission-day-runbook.md` first**, before touching the extract. Run
-   `giscup inspect` to confirm the ID field — the `--id-property` fallback would make every claim
-   reference a nonexistent building while passing every structural check.
+**As of 2026-08-10 there is NO open decision and NO preparatory work left. The next session is
+submission day.**
+
+1. **Read `docs/submission-day-runbook.md` first**, before touching the extract, and follow it top
+   to bottom rather than improvising from memory.
+2. **Run `giscup inspect` before solving anything.** The `--id-property` fallback would make every
+   claim reference a nonexistent building while passing every structural check, and the official
+   page has never named the ID field.
+3. **Get the submission link** — still unpublished as of 2026-08-10. Email fallbacks are in
+   `docs/session-state.md`.
+4. **Regenerate the bundle from the August solution.** The zip on disk is a March-sample bundle
+   whose `source/` predates `3f381bb`. Do not ship it.
+
+Settled and not to be re-litigated on the day: radius **400 m**, objective **`near-tau`**,
+`--matrix-workers` **8**, `--verify-workers` **12**, `--candidate-stride` **1**.
 
 **Reviewed 2026-08-10 — the "fold in the 7.3x uncontended speedup" item is CLOSED, not open.** It
 is already in `gate_model` (`MEASURED_VERIFY_SPEEDUP_UNCONTENDED`, `verify_speedup(...,

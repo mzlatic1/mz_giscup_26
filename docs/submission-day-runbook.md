@@ -9,6 +9,28 @@ it is clerical. Every step below is here because something went wrong at it duri
 
 Read `CLAUDE.md` first for the non-negotiable output constraints. This page assumes them.
 
+## The whole day at a glance
+
+Verified 2026-08-10. Every parameter here is a closed decision — **do not re-open one under time
+pressure.** Timings are for a March-sized extract (12,860 buildings); scale them by §2's sizing.
+
+| # | step | command | time |
+|---|---|---|---|
+| 0 | environment, green tests | `pytest -q` -> **356 passed** | 5 min |
+| 1 | **inspect before solving** | `giscup inspect` | 5 min |
+| 2 | size the run | `scripts/rehearse.py --objective near-tau` | 10 min |
+| 3 | solve nine blocks | `giscup solve-all` (radius **400**, matrix-workers **8**, verify-workers **12**) | **~5 h** |
+| 4 | audit | `scripts/audit_submission.py --exact-radius 400 --confirm-radius 800` | ~10 min |
+| 5 | package + submit | `scripts/package_submission.py` | 15 min |
+
+**Budget ~6 h of a 24 h window.** The gate's upper bound is 8.14 h at 2.5x headroom (re-read
+2026-08-10). If sizing says materially worse, go to §6 — do not start improvising.
+
+**Submission link:** unpublished as of 2026-08-10; the page says it appears "closer to the
+competition time". If it is still absent when the bundle is ready, email **Aaron Lowe**
+(`alowe@esri.com`) or **Ashwin Shashidharan** (`ashashidharan@esri.com`). Do not let a missing link
+run out the clock — have the zip built and ask early.
+
 ---
 
 ## 0. Before anything (5 min)
@@ -19,6 +41,9 @@ cd /home/markolinux/projects/sigspatial_26
 python -m pytest -q                    # must be green before you touch the real data
 nproc; free -g; df -h .                # 16 cores, 24 GB, and the matrix needs ~2.6 GB free
 ```
+
+`outputs/cache` holds 8.6 GB of **March-sample** matrices. None can be reused — the cache key
+includes the dataset digest — but they are also not in the way. Delete them only if disk is tight.
 
 Put the downloaded dataset under `data/`. **Never overwrite it.** `.claude/settings.json` denies
 `Write`/`Edit` on `data/**`, but that guard does not cover shell redirects, `cp`, or an
@@ -57,8 +82,10 @@ in the dangerous direction — baseline is the cheaper constant, so the gate rea
 Verified against the code 2026-08-10; treat the mismatch as live until a test pins the two together.
 
 Read **both** numbers it prints — upper bound and likely. The bound sets the verdict; the likely
-figure is what to plan around. On the March sample at 400 m these read 6.87 h / 2.9× and
-5.14 h / 3.9×.
+figure is what to plan around. On the March sample at 400 m, costed at the objective we actually
+ship, these read **8.14 h / 2.5× (bound)** and **4.64 h / 4.3× (likely)**, re-measured 2026-08-10.
+*(They read 6.87 h / 2.9× and 5.14 h / 3.9× until then — those were costed at `baseline` while the
+solver shipped `near-tau`, and are retired. Do not size the August extract against them.)*
 
 **Pass `--objective near-tau` if the solve will use `--near-tau-quantile`.** Verification is not
 the same price for both objectives: lever A parks buildings *at* the threshold by design, which is
@@ -206,6 +233,23 @@ lines with no separators.
 Packaging is rehearsed end to end: bundle extracted to a clean directory, fresh venv, installed
 per the shipped instructions, CLI works, real dataset loads, shipped source passes its own tests,
 SHA-256 matches across source, bundle and manifest.
+
+**Regenerate from the August solution — do not ship the zip already on disk.**
+`outputs/submission/mz_giscup_26_submission_20260810.zip` is a **March-sample** bundle and its
+`source/` predates commit `3f381bb`. It exists as proof the packaging path works.
+
+**What the official page requires of the zip** (verbatim, re-checked 2026-08-10): *"a zip file
+including the following: 1. A text file with the solutions for each of the sub-problems... 2. A
+folder that has your source code, along with instructions for compiling and running the program."*
+`package_submission.py` produces exactly this shape.
+
+**Before you send it, confirm by eye:** 27 content lines, nine `(tau, k)` headers, no blank
+separators, exactly `k` coordinates counted in each block, and a third line present in every block
+even if empty.
+
+**Submitting.** Use the link on the official page. If it still has not been published, email the
+organisers (`alowe@esri.com`, `ashashidharan@esri.com`) — build the bundle first and ask early
+rather than discovering at hour 23 that there is nowhere to put it.
 
 ## 6. If the extract is much bigger than 12,860 buildings
 

@@ -4,6 +4,18 @@ This is the compact operational reference for official constraints. If anything 
 
 Official page: `https://sigspatial2026.sigspatial.org/giscup.html`
 
+**Re-verified against the live page 2026-08-10 — zero drift.** All five dates, the three-lines-per-
+subproblem format, three taus x three ks, IEEE-754 doubles, and the no-holes/no-self-intersection
+statement all match this file verbatim. Two operational facts recorded from that check:
+
+- *"Participants will have 24 hours to run their programs and submit their results for each of the
+  nine combinations."* — the window is 24 h, and it is per-submission, not per-subproblem.
+- **The submission link is still unpublished:** *"The webpage will be updated closer to the
+  competition time to include a link to submit."* Fallback contacts: `alowe@esri.com`,
+  `ashashidharan@esri.com`.
+- **The building ID field name is still absent from the page.** It cannot be resolved before the
+  extract lands — run `giscup inspect` on the day. See the `--id-property` note below.
+
 ## Event
 
 - Competition: 2026 GIS Cup

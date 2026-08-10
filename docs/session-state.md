@@ -10,13 +10,68 @@ on 2026-08-09; nothing unique was dropped, but for the story behind a decision u
 
 ---
 
-# HANDOFF — 2026-08-09, end of session
+# HANDOFF — 2026-08-10, end of session
+
+# ⚠️ THE NEXT SESSION IS SUBMISSION DAY ⚠️
+
+**Test data lands 2026-08-15. Deadline 2026-08-16. A 24-hour window, one submission, no score
+feedback, ever.** This handoff was written on 2026-08-10 specifically so the submission-day session
+does not have to think about anything except executing.
+
+## Do these three things, in this order, before anything else
+
+```bash
+# 1. environment + green tests (5 min)
+conda activate mz-giscup-26
+cd /home/markolinux/projects/sigspatial_26
+python -m pytest -q                    # must read 356 passed
+
+# 2. put the downloaded extract in data/ -- NEVER overwrite it
+
+# 3. INSPECT BEFORE SOLVING. This is the single highest-value five minutes of the day.
+giscup inspect --input data/<the-new-file>.geojson
+```
+
+**Then open `docs/submission-day-runbook.md` and follow it top to bottom.** It is the operational
+document; this file is only the state summary. Do not improvise a command sequence from memory.
+
+**Every step below is already decided. Do not re-litigate any of it on the day** — the reasoning is
+in `docs/task-board.md` and in `git log`, and re-opening a settled decision under time pressure is
+the failure mode this project has spent a week eliminating.
+
+| the day's shape | value | why |
+|---|---|---|
+| radius | **400 m** | #3b, #20 both measured. 600 m too slow, 300 m costs 0.79 subproblems. |
+| objective | **`near-tau`** (the default) | #15. Wins 8 of 9 blocks. |
+| `--matrix-workers` | **8** | Measured 2026-08-10: 12 is 2.2% *slower*. |
+| `--verify-workers` | **12** | Serial costs ~12 h of the window. |
+| `--candidate-stride` | **1** (off) | #9 closed 2026-08-10. Contingency only. |
+| expected runtime | **4.64 h likely, 8.14 h bound** | Gate re-read PASS 2026-08-10 at 2.5x headroom. |
+
+## The three things that can actually lose this
+
+1. **The `--id-property` trap.** `io.py` silently falls back to the row index if the ID field is
+   missing, and **every claim would then reference a nonexistent building while passing every
+   structural check.** The official page has never named the field. `giscup inspect` on the day is
+   the only way to settle it. If `DatasetInfo.id_fallback_used` is true, STOP and fix the flag.
+2. **A subproblem that does not finish scores ~0.** Scoring is relative and summed over nine
+   independent subproblems. Partial output is written after every block to `<output>.partial`, and
+   `scripts/assemble_blocks.py` merges a re-solve of only the missing blocks. Use it — do not
+   re-run all nine.
+3. **Auditing at the wrong radius.** `--exact-radius 400 --confirm-radius 800`. Confirming
+   *tighter* than the solver verified generates false failures (25 of them, once). Confirm at the
+   verification radius or wider, never tighter.
 
 ## Status in one line
 
-**A complete, audited submission artifact exists and is packaged.** Six days to the 2026-08-15 test
-data, seven to the 2026-08-16 deadline. Nothing is blocked on machine time. One decision sits with
-Marko.
+**Everything that can be done before the extract exists, is done.** No open decisions, nothing
+blocked on machine time. A complete, audited nine-block artifact exists **for the March sample** —
+it is proof the pipeline works end to end, not the deliverable.
+
+**Repository state at handoff:** commits `3f381bb` and `09cb5d8` are pushed to `origin/main`. The
+2026-08-10 wrap-up documentation edits were pending commit when this was written — if
+`git status` is dirty on the day, it is these docs and nothing else. **Check `git status --short`
+and `git log --oneline -3` before assuming anything**, per the resume contract in `CLAUDE.md`.
 
 ## The submission artifact
 
@@ -101,12 +156,21 @@ instructions for compiling and running the program."* That is exactly what
 **The ID field name is still ABSENT from the page.** The `--id-property` trap is therefore live and
 unresolvable before the extract lands: `giscup inspect` on the day is the only way to settle it.
 
-## Next actions
+## Next actions — the whole remaining list
 
-1. **On the day, read `docs/submission-day-runbook.md` first.** It carries the `--id-property` trap
-   (run `giscup inspect` before solving), the sizing sequence, and the ranked fallback levers.
-2. **Re-check the official page for the submission link on 2026-08-15.**
-3. Optional: re-run `/rehearsal` if solver code changes.
+1. **On the day, read `docs/submission-day-runbook.md` first**, then follow it. It carries the
+   `--id-property` trap, the sizing sequence, the exact commands, and the ranked fallback levers.
+2. **Get the submission link.** Still unpublished as of 2026-08-10; the page says it will appear
+   "closer to the competition time". If it has not appeared by the time results are ready, email
+   Aaron Lowe (`alowe@esri.com`) or Ashwin Shashidharan (`ashashidharan@esri.com`).
+3. **Regenerate the bundle from the August solution** — `python scripts/package_submission.py
+   --solution outputs/final.txt`. The zip on disk is a March-sample bundle and its `source/`
+   predates `3f381bb`. **Do not ship it.**
+4. Only if solver code is edited on the day: re-run `/rehearsal` before trusting a projection.
+
+**There is no preparatory work left.** If the extract has not landed yet, the correct action is to
+re-read the runbook, not to find something to improve. Every tuning knob in this project was fitted
+on the March sample, and the runbook's own last rule is *do not tune the objective on the day*.
 
 ---
 
@@ -178,9 +242,12 @@ the matrix build — an inferred 400 m/12-worker build (~102 min) lands on the m
 **Settled by it, 2026-08-10:** 12 workers is **2.2% slower** than 8, not merely no faster; the
 **stride-2 build saving is a matched 2.00x** (101.8 -> 50.9 min) rather than an inference; and the
 parallel build is **deterministic**. Throughput reconciled to 0.03% against the stride-2 build
-(92.5 vs 92.4 K checks/s). **Use 8 workers, not 12, for the matrix build on the day** — and note
-`--matrix-workers 12` in the documented `solve-all` command is therefore mildly pessimal, worth
-~2 min and not worth a code change.
+(92.5 vs 92.4 K checks/s). **Use `--matrix-workers 8` on the day** — the documented `solve-all`
+command said 12 until 2026-08-10 and now says 8 in all four places it appears. The difference is
+only ~2 min, so this is tidiness, not a lever.
+
+**`--verify-workers` stays 12** — different stage, different scaling. Do not "simplify" both to the
+same number.
 
 **None can be reused on submission day** — the key includes the dataset digest. Keys also cover
 candidate set, samples, radius, strategy, eps, and `interior_tolerance`, so a pre-#14 matrix can
