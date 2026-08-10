@@ -27,7 +27,7 @@ the bound back on the margin.
 |---|---|---|
 | 9 | Prune the candidate pool | **Re-ranked up.** Previously waved off as contraindicated by "robust over runtime" — that assumed 5.0x headroom. Runtime is a robustness property at 2.9x. |
 | — | Shrink the matrix build | It is now the **largest single line** (99.5 min of 6.87 h) and cannot be served from cache on the day. |
-| 20 | **Explore radii BELOW 400 m (start at 300 m)** | Marko's call 2026-08-09. The whole radius axis has only ever been explored *upward*. The submission-day runbook has a "what to give up if the extract is bigger" section that is currently **unmeasured** — this is the measurement that populates it. Marko will say when to start. |
+| — | *(#20 CLOSED 2026-08-09 — 300 m measured, costs ~0.79 subproblems for ~0.8 h; ranked below #9, which saves ~2x for ~1/11 the cost. 400 m stands.)* | |
 
 ## Blocked on machine time (no decision needed)
 
@@ -399,6 +399,56 @@ That closes the gap that made the #9 and #20 build savings unquotable:
 **This is an inference from one throughput constant applied across candidate mixes, not a matched
 measurement.** A real matched 12-worker 400 m build would cost ~100 min to settle it. Not spent —
 but do not quote these as measured.
+
+### #20 ANSWERED 2026-08-09 — 300 m is a LAST-RESORT lever, ranked below #9
+
+Matched pair against the shipped artifact, six of nine blocks, lever A on both arms, **both
+verifying at 800 m** (the 300 m arm forced to `--verify-radius-factor 2.6667`) so only the solve
+cull differs. 50.8 min.
+
+| block | 400 m (shipped) | 300 m | delta | subproblems lost |
+|---|---|---|---|---|
+| (0.25, 50) | 1,659 | 1,433 | **−13.6%** | 0.136 |
+| (0.25, 500) | 9,349 | 9,000 | −3.7% | 0.037 |
+| (0.5, 50) | 269 | **193** | **−28.3%** | **0.283** |
+| (0.5, 500) | 4,247 | 4,041 | −4.9% | 0.049 |
+| (0.75, 50) | 148 | **110** | **−25.7%** | **0.257** |
+| (0.75, 500) | 2,222 | 2,156 | −3.0% | 0.030 |
+| **total** | **17,894** | **16,933** | **−5.4%** | **0.79** |
+
+**The claim-count view (−5.4%) understates the damage by an order of magnitude.** Under relative
+scoring these six blocks lose **0.79 subproblems**, because the loss concentrates in the small-count
+blocks that are worth exactly as much as the large ones. This is the *same trap* as #9's pooled
+sizing, hit independently. **My −5% to −8% pre-registered estimate was right about claims and
+useless as a decision input.**
+
+The mechanism mirrors 600 m going the other way (+146% at `(0.75, 50)`, +6.5% at k=1000): **radius
+and antenna budget substitute for each other.** With few antennas each must reach far to be useful,
+so the cull binds hardest; at k=1000 there is enough coverage nearby that radius barely matters.
+
+#### The decisive asymmetry: 300 m does not speed up greedy at all
+
+| lever | matrix build | greedy | total saved | score cost |
+|---|---|---|---|---|
+| **#9 stride-2** | ~50 min | **~0.86 h** (candidates halved) | **~1.7 h** | **~0.07** |
+| **#20 300 m** | ~50 min | **nothing** (same 157,454 candidates) | ~0.8 h | **~0.79** |
+
+Greedy's argmax is a popcount over every candidate row, and words-per-row depends on *sample* count,
+not on how many bits are set. A 300 m matrix has fewer visible pairs but the **same number of rows
+of the same width**, so greedy costs exactly what it did at 400 m.
+
+**So #9 strictly dominates #20: about twice the time saved at about a eleventh of the score cost.**
+If runtime must be bought on the day, spend the prune first and only reach for a radius cut if that
+is not enough.
+
+**One caveat that makes 300 m look better here than it would in production.** This comparison gave
+the 300 m arm the benefit of **800 m verification**, forced deliberately to isolate the cull. Run
+normally at `--verify-radius-factor 2.0`, a 300 m solve verifies at **600 m** — tighter, so fewer
+band recoveries, so probably *worse* than −5.4%. Treat this table as the optimistic bound for 300 m.
+
+**Verdict: #20 is answered and closed. 400 m stands, with more evidence than before.** 300 m stays
+documented as a last-resort contingency for an August extract that genuinely threatens the window,
+ranked below #9. Matrix `73e00daa` is cached if it is ever needed.
 
 ### 5 — Official sample dataset  (DONE 2026-08-08)
 

@@ -105,7 +105,13 @@ s/building/1000-antennas audit constant is sound.
    outputs/nine_bestof_400.txt`. Packaging was rehearsed end-to-end on 2026-08-08.
 3. **Fold the uncontended verify speedup into `gate_model`** (7.3x, not 4.70x) as a separate tested
    edit, if a tighter day projection is wanted.
-4. **#20** (radii below 400 m) is recorded and unstarted; Marko triggers it.
+4. **#20 is CLOSED** — 300 m measured and rejected. It costs **~0.79 subproblems** across six
+   blocks (−28.3% at `(0.5, 50)`) to buy ~0.8 h, and unlike the prune it does **not** speed up
+   greedy at all, because the candidate count is unchanged. **#9 strictly dominates it**: ~2x the
+   time saved at ~1/11 the score cost. If runtime must be bought on the day, prune first. The
+   300 m matrix (`73e00daa`) is cached if ever needed.
+5. **Both time-buying levers are now measured and ranked**, which is the thing the submission-day
+   runbook's "what to give up if the extract is bigger" section was missing.
 
 Everything from this session is committed and pushed. Check `git log origin/main..HEAD` — it should
 be empty.
