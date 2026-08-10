@@ -1043,6 +1043,33 @@ be quoted from them**. What can be said:
 
 Treat #9's saving as **"at least ~0.86 h, probably more, not confidently 1.69 h."**
 
+### #9 IS NOT FREE UNDER LEVER A — measured 2026-08-09, default stays OFF
+
+The "free" claim came from the sizing script: one serviced building lost of 14,708, measured
+**in-sample, with baseline greedy, pooled across three taus at k=500**. Re-measured against the
+objective we actually ship, with full verification:
+
+| block | stride 1 (audited) | stride 2 | delta | cost under relative scoring |
+|---|---|---|---|---|
+| (0.75, 500) | 2,222 | 2,218 | **−0.18%** | 0.0018 |
+| (0.75, 50) | 148 | **145** | **−2.03%** | **0.0203** |
+
+**The prune's cost scales inversely with claim count, and relative scoring weights every subproblem
+equally.** So the blocks where pruning hurts most are precisely the small-count ones that are worth
+exactly as much as `(0.25, 1000)`. Pooling across taus at k=500 — what the sizing did — averages
+that signal away. Extrapolating the two measurements over nine blocks puts the total cost near
+**0.07 subproblems**.
+
+**Decision: `--candidate-stride` stays default 1.** Feasibility is no longer the binding constraint
+— the day projection is ~5 h against a ~20 h window, and verification measured 1.6x faster than
+`gate_model` assumes — so paying ~0.07 subproblems for ≥0.86 h of headroom we do not need is the
+wrong trade. **This reverses the basis on which #9 was adopted**, which was the free-ness claim;
+Marko may want to re-decide with these numbers.
+
+**What #9 is now: a day-of contingency lever, the same shape as [#20](#20).** Both buy runtime and
+pay score. Use it if the August extract is materially larger than the March sample and the window
+tightens; leave it off otherwise. It is implemented, tested, measured, and one flag away.
+
 ### 10 — Unimplemented names and placeholders
 
 Prevents a false capability claim at submission time.

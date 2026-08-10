@@ -45,13 +45,23 @@ python scripts/build_matrix.py --input data/GIS-cup-sample-dataset.geojson \
 Log: `outputs/build_stride2_400.log`. It writes a NEW cache key; the existing 400 m
 (`7a385189`) and 600 m (`89846a10`) matrices are untouched and still valid for stride 1.
 
-**The open question it feeds:** `--candidate-stride` defaults to **1 (off)**, not 2, deliberately.
-The 2x prune was sized **in-sample, with baseline greedy, at k=500**. We now ship **lever A**, which
-works by placing antennas precisely against near-threshold buildings, so halving the candidate pool
-may cost lever A more than it cost baseline. **Next step: re-solve `(0.75, 500)` at stride 2 with
-`--near-tau-quantile 25` and compare against lever A's audited 2,222.** High tau is where prune
-degradation is always worst, so it is the right stress test. If quality holds, flip the default to
-2; if not, keep it opt-in and record why.
+**ANSWERED — and the answer reversed the adoption.** `--candidate-stride` stays default **1 (off)**.
+
+| block | stride 1 (audited) | stride 2 | delta |
+|---|---|---|---|
+| (0.75, 500) | 2,222 | 2,218 | −0.18% |
+| (0.75, 50) | 148 | **145** | **−2.03%** |
+
+The "free" claim behind #9 was measured **in-sample, with baseline greedy, pooled across taus at
+k=500**. Against the objective we actually ship, the prune costs ~10x more at small `k` — and under
+relative scoring the small-count blocks are worth exactly as much as the large ones. Total across
+nine blocks extrapolates to **~0.07 subproblems**.
+
+Feasibility is no longer the binding constraint (~5 h against a ~20 h window, and verification
+measured 1.6x faster than the gate assumes), so paying that for ≥0.86 h we do not need is the wrong
+trade. **#9 is now a day-of contingency lever, the same shape as #20** — implemented, tested,
+measured, one flag away, and off by default. **This reverses the basis on which Marko adopted it;
+worth a re-decision with the real numbers.**
 
 ## The finding that changed a recommendation
 
