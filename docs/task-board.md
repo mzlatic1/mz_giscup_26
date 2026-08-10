@@ -33,8 +33,23 @@ the bound back on the margin.
 
 | # | Task | Unblocks when |
 |---|---|---|
-| 19b | Audit + assemble the full nine-block lever A artifact | `outputs/leverA_k1000_missing.txt` lands (~2 h from 17:35) |
-| — | Re-measure verification speedup **uncontended** | after 19b. The gate's 4.70x is a contention floor; the audit hit 5.08x at 96% efficiency on a quiet machine against verification's 39%. Could shrink every day projection — or not, since batch size explains part of the gap. One clean measurement. |
+| — | *(empty — 19b closed 2026-08-09 19:24)* | |
+
+**#19b DONE 2026-08-09.** All nine lever A blocks exist, assembled into
+`outputs/nine_leverA_400_full.txt` (27 lines, 9 blocks, 4,650 antennas, 42,556 claims) and
+**AUDITED CLEAN: 0 overclaims of 42,556 claims**, 0 off-boundary antennas, 0 unknown IDs, exactly-k
+counted in every block. Audit took **10 m 51 s** at 12 workers against a ~9.6 min projection — the
+fitted 0.090 s/building/1000-antennas constant held. Log: `outputs/audit_leverA_full.log`.
+
+**Verification speedup re-measured uncontended, and the gate is conservative by ~1.6x.** The
+k=1000 run had the machine to itself. Block `(0.5, 1000)` verified 8,537 buildings in 20.3 min and
+`(0.75, 1000)` verified 5,261 in 15.1 min, i.e. **0.143 and 0.172 s per building per 1000
+antennas** against the serial near-tau constant of 1.26 — an effective **8.8x and 7.3x at 12
+workers**, versus the 4.70x contention floor `gate_model` assumes. **Plan with 7.3x, not 8.8x**:
+the higher figure belongs to the block with more buildings in the band, which is consistent with
+the documented batch-size effect, so the smaller number is the one that generalises. Not yet folded
+into `gate_model` — `verify_speedup` deliberately refuses to extrapolate past its last measurement,
+and changing it is a separate, tested edit.
 
 ## Blocked on Marko
 
@@ -535,7 +550,46 @@ So every sweep number above **inflates lever A more than baseline**. Treat them 
 estimate and a ranking of quantiles, not as a score prediction. The honest measurement is the
 nine-block run, which decides claims off an independent grid and then verifies exhaustively:
 
-#### ANSWERED 2026-08-09 — the advantage survives verification (7 of 9 blocks)
+#### COMPLETE 2026-08-09 — all nine blocks measured, and one of them LOSES
+
+The two k=1000 blocks landed at 19:09 (70 m 39 s for both). Full table, all post-verification,
+schedule `--near-tau-quantile 100 50 25` mapped positionally onto `--taus 0.25 0.5 0.75`:
+
+| block | q | baseline | lever A | verified | sweep predicted |
+|---|---|---|---|---|---|
+| (0.25, 50) | 100 | 1,660 | 1,659 | −0.1% | +0.4% |
+| (0.25, 500) | 100 | 8,854 | 9,349 | +5.6% | +6.4% |
+| (0.25, 1000) | 100 | 11,630 | 12,279 | +5.6% | +6.8% |
+| (0.5, 50) | 50 | 144 | 269 | +86.8% | +22.1% |
+| (0.5, 500) | 50 | 3,903 | 4,247 | +8.8% | +8.6% |
+| **(0.5, 1000)** | **50** | **8,063** | **7,891** | **−2.1%** | **+1.1%** |
+| (0.75, 50) | 25 | 27 | 148 | +448.1% | +460.7% |
+| (0.75, 500) | 25 | 1,295 | 2,222 | +71.6% | +77.7% |
+| (0.75, 1000) | 25 | 3,544 | 4,492 | +26.7% | +28.0% |
+| **total** | | **39,120** | **42,556** | **+8.8%** | |
+
+Both totals reconcile independently against previously audited figures: baseline sums to the
+audited 39,120, and the first five lever A blocks sum to the audited 27,803.
+
+**`(0.5, 1000)` is lever A's first material loss — 172 buildings.** The board predicted the
+mechanism before the measurement: the k=1000 sweep says q=50 gives only +1.1% there while **q=100
+gives +3.5%**, and the shipped schedule uses q=50 because it was fitted at k=500. The documented
+rule — *higher k loosens the optimum* — is exactly what bit. Verification came in 3.2 points below
+the sweep at this block; `(0.75, 1000)` tracked its sweep to within 1.3 points.
+
+**Scoring the two artifacts against each other**, each block against the better of our own options:
+
+| artifact | subproblems (of 9) |
+|---|---|
+| pure baseline | **6.90** |
+| pure lever A | **8.98** |
+| per-block best of both | **9.00** |
+
+So lever A wins decisively, but **the right answer is not a single default** — subproblems score
+independently and both artifacts exist. This is a comparison between two of our own options, not a
+score prediction; competition rule 5 still holds.
+
+#### The earlier 7-of-9 measurement (superseded by the table above)
 
 Baseline `outputs/nine_verifypar_400.txt` vs lever A (`outputs/nine_leverA_400_5of9.txt` plus
 `outputs/leverA_tau075_small.txt`), all post-verification, schedule `--near-tau-quantile 100 50 25`
