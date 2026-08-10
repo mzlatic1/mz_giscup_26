@@ -33,17 +33,18 @@ All three are audited clean (`outputs/audit_v2.log`, `audit_leverA_full.log`, `a
 | **3b** | 400 m stands | **DONE.** Docs-only; the radius is opt-in and never implied. |
 | **9** | Adopt the 2x candidate prune | **Code DONE** (`30b8c08`). `--candidate-stride N`, default **1**. Matrix rebuild in flight. |
 
-## What is running right now
+## Nothing is running. The machine is free.
 
-**A stride-2 400 m matrix build**, started ~20:15, ~50 min expected:
+The stride-2 400 m matrix is **built**: key `7c422675`, 78,727 candidates, 4,878,593 visible pairs,
+**50.9 min at 12 workers**. Log `outputs/build_stride2_400.log`. It has its own cache key; the
+400 m (`7a385189`) and 600 m (`89846a10`) matrices are untouched and still valid for stride 1.
+Nothing was deleted; `outputs/cache` now holds three matrices (~6.2 GB, 849 GB free).
 
-```
-python scripts/build_matrix.py --input data/GIS-cup-sample-dataset.geojson \
-    --radius 400 --candidate-stride 2 --workers 12 --cache-dir outputs/cache
-```
-
-Log: `outputs/build_stride2_400.log`. It writes a NEW cache key; the existing 400 m
-(`7a385189`) and 600 m (`89846a10`) matrices are untouched and still valid for stride 1.
+**The pruned half is 59.5% of the visibility, not 50%** — the surviving vertex half sees 62.0
+samples per candidate against the full pool's 52.0, because corners have wider viewsheds than
+points flat against a wall. So greedy's saving is a clean 2x (popcount over halved rows) but the
+matrix-build saving is *not* established, and the two builds on record ran at different worker
+counts (8 vs 12) so no speedup figure should be quoted from them.
 
 **ANSWERED — and the answer reversed the adoption.** `--candidate-stride` stays default **1 (off)**.
 
@@ -96,10 +97,18 @@ verification at roughly half the modelled cost (see above). The audit, by contra
 exactly on its projection: 10 m 51 s and 10 m 46 s against ~9.6 min, so the 0.090
 s/building/1000-antennas audit constant is sound.
 
-## Uncommitted / unpushed
+## Next actions
 
-Six commits ahead of `origin/main` as of this block; **the push is deliberate and pending** — Marko
-asked for one push at the end of the run. Check `git log origin/main..HEAD`.
+1. **#9 wants a re-decision from Marko.** It was adopted as a free lever and is not free against
+   lever A. It is implemented, tested, measured and off by default — nothing is blocked either way.
+2. **Package the submission candidate**: `python scripts/package_submission.py --solution
+   outputs/nine_bestof_400.txt`. Packaging was rehearsed end-to-end on 2026-08-08.
+3. **Fold the uncontended verify speedup into `gate_model`** (7.3x, not 4.70x) as a separate tested
+   edit, if a tighter day projection is wanted.
+4. **#20** (radii below 400 m) is recorded and unstarted; Marko triggers it.
+
+Everything from this session is committed and pushed. Check `git log origin/main..HEAD` — it should
+be empty.
 
 ---
 
@@ -192,7 +201,7 @@ now enforces exactly this for the gate.
 ## Environment / state
 
 - `conda activate mz-giscup-26`; 16 cores, 24 GB.
-- **333 tests passing**, `compileall` clean.
+- **333 tests passing**, `compileall` clean. *(346 as of 2026-08-09 evening.)*
 - The 400 m matrix is cached (`outputs/cache/visibility-7a385189*`, 8,194,226 pairs) as is the
   600 m one (`...89846a10*`). Neither can be reused on submission day — the key includes the
   dataset.
@@ -214,6 +223,9 @@ does not apply. ~1.6x headroom. **Recommendation: 400 m stands. Marko's call**, 
 counter-proposal is a 2x-pruned 600 m build (~3.6 h) that might land back near 2.5x.
 
 **#9 SIZED: a 2x candidate prune is free** (one serviced building of 14,708) and worth **1.69 h**.
+**SUPERSEDED — see the top handoff block.** Measured against lever A it costs −2.03% at
+`(0.75, 50)`, and the 1.69 h is not established because the two builds ran at different worker
+counts.
 4x costs 6.6% at tau=0.75, 7.2x costs 14.9%. The free 2x is exactly the vertex half. I claimed
 mid-session that an 8x prune was viable — **withdrawn**, the last arm disproved it.
 
@@ -650,7 +662,8 @@ read 123 passed.
 ## Known limitations carried forward
 
 - Greedy objective is still raw newly-visible-sample count, not serviced-building count (#6).
-- Candidate "pruning" modes only add candidates; they prune nothing (#9). **Do not enable pruning
+- ~~Candidate "pruning" modes only add candidates; they prune nothing (#9).~~ **FALSE since
+  2026-08-09** — `--candidate-stride N` is implemented. The warning below still holds: **do not enable pruning
   without rebuilding the matrix** — it changes the candidate digest and invalidates the cache.
 - `configs/defaults.yaml` is still not wired into the CLI.
 - `scripts/compare_configs.py` and `scripts/profile_visibility.py` are placeholders.

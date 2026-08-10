@@ -243,7 +243,7 @@ projected and near the 1.1x that got 800 m killed.
 
 **Recommendation: 400 m stands.** Rule 1 — feasibility outranks quality, and 1.6x on an unseen
 extract is not robust. The open counter-proposal is a **2x-pruned 600 m build** (~3.6 h instead of
-7.24 h, since a 2x prune is free — see #9), which might land back near 2.5x. That is ~3.6 h of
+7.24 h, since a 2x prune was *then believed* free — see #9, where that claim is now superseded), which might land back near 2.5x. That is ~3.6 h of
 machine time and is **Marko's call**.
 
 Not worth testing: 1600 m buys +1.6% over 800 m for another 3.3x.
@@ -962,7 +962,8 @@ coverage in its inner loop would risk the feasibility headroom. (The "6.3x" that
 the disproven 2026-08-07 figure; current headroom is 2.9x on the bound. The reasoning is
 unaffected — if anything a tighter budget strengthens it.)
 
-### 9 — Prune the candidate pool  (SIZED 2026-08-09; 2x is free, adoption not started)
+### 9 — Prune the candidate pool  (IMPLEMENTED 2026-08-09; **the "free" claim did NOT survive
+re-measurement against lever A** — see the two subsections at the end of this entry)
 
 **The board used to frame this as a matrix-build saving. It is nearly twice that.** Greedy's
 argmax is a popcount pass over all 157,454 rows on every one of the `k` iterations, so **67% of
@@ -984,7 +985,7 @@ keeps every Nth candidate *within each building*, so survivors stay spread over 
 | 4x | 39,431 | −2.0% | −3.0% | −6.6% | 2.48 h | 4.7x |
 | 7.2x | 21,813 | −4.0% | −7.5% | **−14.9%** | 2.11 h | 5.2x |
 
-**Only 2x is free** — one serviced building lost of 14,708. Degradation is monotone, accelerating,
+**Only 2x is free** — one serviced building lost of 14,708. **SUPERSEDED 2026-08-09:** that was measured with *baseline* greedy, pooled at k=500. Against lever A it costs **−2.03% at `(0.75, 50)`**; see the end of this entry. Degradation is monotone, accelerating,
 and always worst at high tau. An earlier claim in this session that an 8x prune was viable was
 wrong and is withdrawn. **The honest lever is 1.69 h at zero measured quality cost.**
 

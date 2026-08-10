@@ -69,7 +69,11 @@ mistakes (top 20%, no medal, gap 3x the range of every lever being tuned):
 
 1. **Prove feasibility before improving quality.** Run `/rehearsal`. Until it reads
    PASS, feasibility work outranks everything else. A better objective on a solver
-   that cannot finish scores zero. As of 2026-08-06 the gate reads FAIL by ~5e8x.
+   that cannot finish scores zero. **Status: the gate read FAIL by ~5e8x on
+   2026-08-06 and has read PASS since 2026-08-07.** A real nine-block run measured
+   2.85 h at `--verify-workers 12` (2026-08-09), so feasibility is no longer the
+   binding constraint — do not cite it to defer quality work. A PASS is only as
+   current as its last run; re-run the gate whenever solver code changes.
 2. **Size a lever against the gap before investing in it.** State the lever's
    best-case range and compare it to the distance you need to cover. ROGII spent
    three sessions tuning a knob whose entire range was 1/16 of the gap. If the
