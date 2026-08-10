@@ -361,6 +361,45 @@ solve verifies at 600 m under the default factor 2.0, while the 400 m artifact v
 Comparing them directly would confound the solve cull with the verification radius, so the 300 m arm
 must run `--verify-radius-factor 2.6667` to verify at the same 800 m.
 
+#### 300 m MATRIX BUILT 2026-08-09
+
+| | candidates | visible pairs | visible/cand | build | key |
+|---|---|---|---|---|---|
+| 300 m | 157,454 | 7,529,996 | 47.8 | **48.6 min @ 12 w** | `73e00daa` |
+| 400 m | 157,454 | 8,194,226 | 52.0 | 99.6 min @ **8 w** | `7a385189` |
+
+**300 m retains 91.9% of 400 m's visibility.** The probe predicted 92.7% from 60 candidates; the
+full builds say 91.9%. The probe's *ratio* was right to 0.8 points even though its absolute
+densities ran ~2% high — further evidence that ratios from these probes transfer and absolute
+figures do not.
+
+#### The 8-vs-12 worker question, finally answerable
+
+Three builds now exist, and two of them are at 12 workers, which is enough to back out throughput:
+
+| build | checks (cand x neigh) | time | checks/s |
+|---|---|---|---|
+| stride-2 @ 400 m, 12 w | 78,727 x 3,586 = 282 M | 50.9 min | **92 K/s** |
+| full @ 300 m, 12 w | 157,454 x 2,105 = 331 M | 48.6 min | **114 K/s** |
+
+Throughput is **higher at 300 m** despite more total checks — shorter segments intersect fewer
+blockers per STRtree query, the same effect that makes cost grow super-linearly with radius.
+
+**Inference (labelled as such): a full 400 m build at 12 workers would cost ~102 min**, from
+565 M checks at the stride-2 build's 92 K/s. The measured 8-worker build took **99.6 min**. So
+**12 workers buys essentially nothing over 8 for this workload** — it is memory-bandwidth bound,
+exactly as the concurrency notes in `session-state` describe.
+
+That closes the gap that made the #9 and #20 build savings unquotable:
+
+- **300 m saves ~50 min** of matrix build against 400 m (48.6 vs ~100).
+- **stride-2 saves ~50 min** likewise (50.9 vs ~100).
+- They should stack to roughly **~25 min**, since the two reductions are independent.
+
+**This is an inference from one throughput constant applied across candidate mixes, not a matched
+measurement.** A real matched 12-worker 400 m build would cost ~100 min to settle it. Not spent —
+but do not quote these as measured.
+
 ### 5 — Official sample dataset  (DONE 2026-08-08)
 
 Downloaded from `https://sigspatial2026.sigspatial.org/img/GIS-cup-sample-dataset.geojson` —
