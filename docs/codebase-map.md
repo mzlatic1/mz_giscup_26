@@ -44,7 +44,7 @@ tests/test_gate_calibration.py   # gate reproduces the v2 run; radius AND object
 tests/test_geometry.py
 tests/test_id_property.py        # the silent ID-fallback defect
 tests/test_matrix.py             # matrix ground truth, cache keys, parallel==serial
-tests/test_near_tau_wiring.py    # lever A plumbing incl. the per-tau quantile schedule order
+tests/test_near_tau_wiring.py    # lever A plumbing, --objective, the default tau schedule
 tests/test_optimize_matrix.py    # matrix greedy == predicate greedy
 tests/test_optimize_near_tau.py  # lever A objective
 tests/test_optimize_threshold.py # lever B objective
@@ -64,9 +64,10 @@ tests/test_visibility.py
 tests/test_visibility_strategy.py  # official predicate, degeneracies, relate default
 ```
 
-Current latest result: **`343 passed`** in Conda env `mz-giscup-26` (2026-08-09), 30 files.
+Current latest result: **`346 passed`** in Conda env `mz-giscup-26` (2026-08-09), 30 files.
 *(The `326` recorded here previously was stale; `docs/session-state.md`'s 333 was the correct
-pre-#9 figure, and the ten new `test_candidate_prune.py` cases bring it to 343.)*
+pre-#9 figure. Ten new `test_candidate_prune.py` cases took it to 343, and three new
+`--objective` cases in `test_near_tau_wiring.py` to 346.)*
 
 ## Compact documentation layer
 
@@ -100,7 +101,7 @@ CLAUDE.md                                    # auto-loaded project rules
 scripts/make_synthetic_dataset.py  # full-scale stand-in matching documented sample stats
 scripts/rehearse.py                # gate: analytic projection, plus --measured-radius for an
                                    #   observed end-to-end verdict off the real matrix
-scripts/build_matrix.py            # build/reuse the visibility matrix at full scale
+scripts/build_matrix.py            # build/reuse the visibility matrix at full scale (--candidate-stride)
 scripts/audit_submission.py        # mechanical audit of a nine-block file (two-stage, parallel)
 scripts/assemble_blocks.py         # recover a nine-block file from partials / separate runs
 scripts/package_submission.py      # build and verify the submission bundle
@@ -130,8 +131,8 @@ Full-scale runs need the matrix, which is opt-in and never implied:
 
 ```bash
 giscup solve-all --input <geojson> --taus 0.25 0.5 0.75 --ks 50 500 1000 \
-    --visibility-radius 400 --cache-dir outputs/cache --matrix-workers 8 \
-    --verify-band 0.10 --verify-max-buildings 2000 --output <txt>
+    --visibility-radius 400 --cache-dir outputs/cache --matrix-workers 12 \
+    --verify-band 0.10 --verify-max-buildings 2000 --verify-workers 12 --output <txt>
 giscup validate-output --input <geojson> --solution <txt>
 ```
 
@@ -146,10 +147,11 @@ safe for validation (rejects, never wrongly accepts) but a silent score loss for
 `--optimizer` accepts **`greedy` only**. The other names were deleted 2026-08-08 (#10) rather
 than left as roadmap markers, so there is nothing to imply.
 
-The threshold-aware objectives are **not** selected through `--optimizer`. `greedy_select_threshold`
-is implemented and tested but unwired; `greedy_select_near_tau` (lever A) is wired and reached by
-passing `--near-tau-quantile`, which is off unless given. So the shipped default remains plain
-greedy — see Known limitations.
+The threshold-aware objectives are **not** selected through `--optimizer` — that flag chooses the
+*search*, and only `greedy` exists. The **objective** is `--objective {near-tau,baseline}`, and as
+of 2026-08-09 it defaults to **`near-tau`** (lever A, #15). `greedy_select_threshold` (lever B) is
+implemented and tested but still unwired. See Known limitations for the two deliberate asymmetries
+this default carries, and for the one block where lever A loses.
 
 Visibility strategy: **`relate` only** — the exact official predicate. `negative_buffer` and
 `hybrid` were deleted 2026-08-08 (#10).
@@ -165,23 +167,43 @@ Visibility strategy: **`relate` only** — the exact official predicate. `negati
 
 ## Known limitations
 
-- **The shipped default objective is still raw newly visible sample count** (task #6). Two
-  threshold-aware alternatives are implemented and tested — `greedy_select_threshold` and
-  `greedy_select_near_tau` (lever A, `--near-tau-quantile`) — but neither is the default.
-  Lever A is measured on seven of nine blocks at **+9.7% verified claims**, winning six of
-  seven; adoption is task #15 and is Marko's call. `lazy-greedy`, `stochastic-greedy` and
+- **The shipped default objective is lever A (near-tau) as of 2026-08-09** (#15, Marko's call).
+  `--objective {near-tau,baseline}`, default `near-tau`. With no explicit `--near-tau-quantile` it
+  uses `optimize.default_near_tau_quantile(tau)` — a **function of tau**, not a positional list, so
+  it cannot misalign if August's thresholds are not 0.25/0.5/0.75. Measured across nine verified
+  blocks: **+8.8% claims**, winning eight and losing `(0.5, 1000)`. `greedy_select_threshold`
+  (lever B) remains implemented, tested and unwired. `lazy-greedy`, `stochastic-greedy` and
   `hybrid` remain **unimplemented and raise** — do not describe them as available.
-- **`--near-tau-quantile` maps positionally onto `--taus`, so it is per-tau only**, while the
-  measured optimum is per-`(tau, k)`. Six of nine blocks already run at their best quantile;
-  `(0.5, 50)` is the one leaving material value. Expressing a per-`(tau, k)` schedule needs a
-  CLI change that has not been made.
+- **Two deliberate asymmetries in that default.** (1) The CLI defaults to lever A but `solve_one`
+  as a Python API still defaults to `None`, so no existing caller is re-objectived by an import;
+  resolution lives only in `cli._resolve_near_tau_schedule`. (2) A CLI solve **without**
+  `--visibility-radius` now fails, because lever A exists only on the cached-matrix path — a silent
+  fallback to baseline would emit a structurally perfect file solved for a different problem. The
+  error names both remedies.
+- **Lever A loses `(0.5, 1000)` at every quantile** (baseline 8,063; q=50 7,891; q=100 7,903), so
+  the shipped artifact is **per-block best-of** — lever A in eight blocks, baseline in that one.
+  Legitimate because the nine subproblems score independently. The per-`(tau, k)` schedule that was
+  once proposed to fix this is **retired**: its whole justification was a sweep prediction of +3.5%
+  at that cell, and the cell measured −2.0%.
 - **Candidate pruning is implemented as of 2026-08-09 (#9): `--candidate-stride N`**, keeping every
-  Nth candidate *within each building*. Default **1 (off)**. `2` was measured free on the official
-  sample — one serviced building lost of 14,708, ~1.69 h saved — and reproduces the board's counts
-  exactly (157,454 → 78,727, all 12,860 buildings retained). `4` costs 3.0% and `7.2` costs 14.9%,
-  always worst at high tau. Pruning changes `MatrixSpec.candidate_digest` and therefore the cache
-  key, so a differently-strided matrix is rebuilt rather than reused. `candidate_stride` is part of
-  `SceneSpec`, so a pruned scene cannot be handed to a solver asked for the full pool.
+  Nth candidate *within each building*. **Default 1 (off), and it should stay off** — see below.
+  Reproduces the board's counts exactly (157,454 → 78,727 → 39,431, all 12,860 buildings retained).
+  Pruning changes `MatrixSpec.candidate_digest` and therefore the cache key, so a differently-strided
+  matrix is rebuilt rather than reused; `candidate_stride` is also part of `SceneSpec`, so a pruned
+  scene cannot be handed to a solver asked for the full pool. Stride-2 matrix is built and cached
+  (key `7c422675`, 78,727 candidates, 4,878,593 pairs, 50.9 min at 12 workers).
+- **The 2x prune is NOT free against the shipped objective.** The "one building of 14,708" figure
+  was measured in-sample, with *baseline* greedy, pooled across taus at k=500. Against lever A with
+  full verification: `(0.75, 500)` −0.18%, but **`(0.75, 50)` −2.03%**. Cost scales inversely with
+  claim count while relative scoring weights every subproblem equally, so the small-count blocks —
+  which the pooled sizing averaged away — are where it bites. ~0.07 subproblems over nine blocks.
+  **Treat #9 as a day-of contingency lever** alongside #20 (sub-400 m radii): both buy runtime and
+  pay score, and neither is worth it while the day projection sits near 5 h of a ~20 h window.
+- **The pruned half is 59.5% of the visibility, not 50%** — the surviving vertex half sees 62.0
+  samples per candidate against the full pool's 52.0, because corners have wider viewsheds than
+  points flat against a wall. Consequence: greedy's saving is a clean 2x (popcount over halved
+  rows), but the matrix-build saving is **not** established, and the two builds on record ran at
+  different worker counts so no speedup figure should be quoted from them.
 - `--max-candidates` is **not a prune**: it truncates by generation order, and generation walks
   building by building, so it deletes whole neighbourhoods. Documented as a footgun in the CLI
   help and in `greedy_select_matrix`.
