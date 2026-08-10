@@ -23,6 +23,7 @@ from __future__ import annotations
 import pytest
 
 from giscup.gate_model import (
+    DEFAULT_OBJECTIVE,
     MEASURED_AT_SOLVE_RADIUS_M,
     MEASURED_AT_VERIFY_RADIUS_FACTOR,
     MEASURED_AT_VERIFY_RADIUS_M,
@@ -381,10 +382,23 @@ def test_the_gate_script_can_be_told_which_objective_it_is_costing():
     assert args.objective == "near-tau"
 
 
-def test_the_gate_script_costs_baseline_unless_told_otherwise():
-    """Changing the default would silently re-cost every documented gate command."""
+def test_the_gate_script_costs_what_the_solver_will_actually_run():
+    """CHANGED 2026-08-10. This test used to assert the default was `baseline`, on the
+    reasoning that "changing the default would silently re-cost every documented gate
+    command". That was right while baseline was the shipped objective. #15 made lever A
+    the solver default on 2026-08-09 and did not move the gate, so from then on the
+    assertion protected the defect instead of the invariant: the documented gate command
+    costed a run nobody was going to make, using the *cheaper* of the two constants
+    (0.826 vs 1.26) and hiding ~1.77 h on the bound.
+
+    The original concern is satisfied rather than discarded -- every documented gate
+    command IS re-costed, deliberately, and it moves conservative, not optimistic. The
+    default now comes from `gate_model.DEFAULT_OBJECTIVE`, so the gate and the solver
+    cannot drift apart again; `tests/test_verify_workers_default.py` pins the pair.
+    """
     parser = _load_rehearse().build_parser()
-    assert parser.parse_args(["--input", "x.geojson"]).objective == "baseline"
+    assert parser.parse_args(["--input", "x.geojson"]).objective == DEFAULT_OBJECTIVE
+    assert DEFAULT_OBJECTIVE == "near-tau"
 
 
 def test_the_gate_script_offers_exactly_the_measured_objectives():

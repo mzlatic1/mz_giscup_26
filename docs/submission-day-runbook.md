@@ -47,8 +47,14 @@ If `DatasetInfo.id_fallback_used` is true in diagnostics, **stop and fix the fla
 ```bash
 python scripts/rehearse.py --input data/<the-new-file>.geojson \
     --budget-hours 20 --cores 16 --measured-radius 400 --verify-workers 12 \
-    --objective baseline          # or: --objective near-tau, if shipping lever A
+    --objective near-tau          # MUST be passed: see the warning below
 ```
+
+**`--objective near-tau` is not optional, because the two defaults disagree.** `solve-all` defaults
+to **`near-tau`** (lever A, since #15), but `rehearse.py --objective` still defaults to
+**`baseline`**. So the *unmodified* gate command costs a run you are not going to make, and it errs
+in the dangerous direction — baseline is the cheaper constant, so the gate reads optimistic.
+Verified against the code 2026-08-10; treat the mismatch as live until a test pins the two together.
 
 Read **both** numbers it prints — upper bound and likely. The bound sets the verdict; the likely
 figure is what to plan around. On the March sample at 400 m these read 6.87 h / 2.9× and
@@ -136,14 +142,21 @@ python scripts/audit_submission.py --input data/<the-new-file>.geojson \
     --exact-radius 400 --confirm-radius 800 --workers 12
 ```
 
-**`--exact-radius 400` is not optional — omitting it costs hours.** It defaults to `None`, and
-the script passes that through as the *screen* radius, where `None` means **unbounded**: every
-claim measured against the whole dataset instead of against blockers within 400 m. That is the
-~8-hour path, on the last gate before submitting. Found 2026-08-09 by running it that way twice
-and watching a five-block audit pass 3 h 25 m without finishing. The library default in
-`giscup.audit` is 400 m; the *script* overrides it to `None`, so the flag must be passed
-explicitly. **The two radii do different jobs** — 400 m screens cheaply, 800 m confirms only what
-the screen flagged.
+**Pass both radii explicitly anyway, so the log records what ran.** The command above is now
+belt-and-braces rather than load-bearing: `--exact-radius` **defaults to 400.0 m** and
+`--confirm-radius` to **800.0 m**, both matching `giscup.audit`. *(Corrected 2026-08-10. This
+section previously said `--exact-radius` defaults to `None` and that omitting it costs hours. That
+was true until `3f7db68` and is now false — verified against `scripts/audit_submission.py`.)*
+
+**The trap it describes was real and the fix is what removed it.** The script used to default the
+*screen* radius to `None`, meaning **unbounded** — every claim measured against the whole dataset
+rather than against blockers within 400 m. That is the ~8-hour path, on the last gate before
+submitting, selected by forgetting a flag. Found 2026-08-09 by running it that way twice and
+watching a five-block audit pass 3 h 25 m without finishing. `none`/`unbounded` are still
+available, explicitly, and still cost ~8 hours — **do not pass them on the day.**
+
+**The two radii do different jobs** — 400 m screens cheaply, 800 m confirms only what the screen
+flagged.
 
 `--workers` defaults to `min(cores, 12)`; pass it explicitly so the log records what ran. This
 step was single-core until 2026-08-09.
@@ -201,6 +214,11 @@ them in this order, and only as far as you must.**
 |---|---|---|---|---|
 | 1 | 2× candidate prune | `--candidate-stride 2` | **~1.7 h** | **~0.07 subproblems** |
 | 2 | 300 m cull | `--visibility-radius 300` | ~0.8 h | **~0.79 subproblems** |
+
+**Both are OFF by default and that is a decision, not an oversight** (#9 re-decided 2026-08-10, #20
+closed 2026-08-09). Do not reach for either unless step 2's sizing says the window is genuinely
+threatened. Spending a certain score cost against a contingency that has not materialised is the
+failure this table exists to prevent.
 
 1. **Prune the candidate pool 2× first — it strictly dominates.** It keeps the vertex half
    (`--candidate-stride 2`, implemented 2026-08-09) and buys roughly twice the time at about a

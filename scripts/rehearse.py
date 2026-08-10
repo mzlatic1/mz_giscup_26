@@ -32,6 +32,7 @@ from shapely.geometry import LineString
 
 from giscup.candidates import generate_boundary_candidates
 from giscup.gate_model import (
+    DEFAULT_OBJECTIVE,
     MEASURED_AT_VERIFY_RADIUS_FACTOR,
     MEASURED_VERIFY_CONSTANTS,
     MEASURED_VERIFY_S_PER_BUILDING_PER_1K,
@@ -144,14 +145,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Buildings re-verified per subproblem, for the verification cost line.",
     )
     parser.add_argument(
-        "--objective", choices=sorted(MEASURED_VERIFY_CONSTANTS), default="baseline",
+        "--objective", choices=sorted(MEASURED_VERIFY_CONSTANTS), default=DEFAULT_OBJECTIVE,
         help=(
             "Which optimizer the run being costed will use. Verification is not the "
             "same price for both: lever A (--near-tau-quantile) parks buildings at the "
             "threshold by design, which is where exact coverage cannot short-circuit, "
             "and it measured 1.26 s per building per 1000 antennas against baseline's "
             "0.826. Costing a lever A day as baseline understates it by ~1.6 h. "
-            "Default: %(default)s."
+            "This default is shared with `giscup solve-all` via gate_model."
+            "DEFAULT_OBJECTIVE -- it defaulted to 'baseline' until 2026-08-10, which "
+            "costed a run nobody was going to make. Default: %(default)s."
         ),
     )
     return parser

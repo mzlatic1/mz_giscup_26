@@ -159,9 +159,18 @@ packaged submission artifact exists (`outputs/nine_bestof_400.txt`, 42,728 claim
    `giscup inspect` to confirm the ID field — the `--id-property` fallback would make every claim
    reference a nonexistent building while passing every structural check.
 
-Optional, none of it on a critical path: fold the measured 7.3x uncontended verify speedup into
-`gate_model`'s verdict (currently reported but deliberately not used); re-measure anything whose
-constant was fitted under a different configuration.
+**Reviewed 2026-08-10 — the "fold in the 7.3x uncontended speedup" item is CLOSED, not open.** It
+is already in `gate_model` (`MEASURED_VERIFY_SPEEDUP_UNCONTENDED`, `verify_speedup(...,
+contended=False)`, a third reporting row, four tests). Only the verdict deliberately still uses the
+4.70x contention floor, and it should stay that way.
+
+Optional, none of it on a critical path: re-measure anything whose constant was fitted under a
+different configuration.
+
+**Fixed 2026-08-10 while checking that:** `scripts/rehearse.py --objective` defaulted to `baseline`
+while `giscup solve-all` defaulted to `near-tau` (#15), so the documented gate command costed a run
+nobody would make — with the cheaper constant, hiding ~1.77 h on the bound. Both now read
+`gate_model.DEFAULT_OBJECTIVE`, pinned by `tests/test_verify_workers_default.py`.
 
 ## Deadline
 

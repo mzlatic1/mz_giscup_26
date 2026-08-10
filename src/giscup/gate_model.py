@@ -50,6 +50,21 @@ MEASURED_VERIFY_CONSTANTS: dict[str, float] = {
     "near-tau": MEASURED_VERIFY_S_PER_BUILDING_PER_1K_NEAR_TAU,
 }
 
+#: The objective a run uses when nobody says otherwise. **Single source of truth for
+#: both `giscup solve-all` and `scripts/rehearse.py`**, and it lives here rather than
+#: in `optimize` because the gate is the thing that must not disagree with the solver.
+#:
+#: This is `default_verify_workers`'s bug, found again on 2026-08-10. #15 made lever A
+#: the solver default but left the gate defaulting to `baseline`, so the *documented*
+#: gate command costed a run nobody was going to make -- and costed it with the
+#: cheapest constant in the module (0.826 against near-tau's 1.26), hiding ~1.77 h on
+#: the bound. A gate that drifts optimistic is exactly how #16 happened.
+#:
+#: The invariant, pinned by `tests/test_verify_workers_default.py`: **the gate's
+#: default must equal the solver's default.** If lever A ever stops being the shipped
+#: default, change it here and both entry points follow.
+DEFAULT_OBJECTIVE = "near-tau"
+
 #: The radius pair `MEASURED_VERIFY_S_PER_BUILDING_PER_1K` belongs to. The v2 run
 #: solved at a 400 m cull with `--verify-radius-factor 2.0`, so every exact-coverage
 #: query it timed ran against blockers within **800 m**.

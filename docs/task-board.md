@@ -31,8 +31,8 @@ best-of: lever A in eight blocks, baseline in `(0.5, 1000)`. Full detail in `doc
 
 | # | Task | Why now |
 |---|---|---|
-| 9 | Prune the candidate pool | **Re-ranked up.** Previously waved off as contraindicated by "robust over runtime" — that assumed 5.0x headroom. Runtime is a robustness property at 2.9x. |
 | — | Shrink the matrix build | It is now the **largest single line** (99.5 min of 6.87 h) and cannot be served from cache on the day. |
+| — | *(#9 CLOSED 2026-08-10 — Marko re-decided with the corrected numbers: **default stays OFF**, contingency only. See below.)* | |
 | — | *(#20 CLOSED 2026-08-09 — 300 m measured, costs ~0.79 subproblems for ~0.8 h; ranked below #9, which saves ~2x for ~1/11 the cost. 400 m stands.)* | |
 
 ## Blocked on machine time (no decision needed)
@@ -53,16 +53,44 @@ k=1000 run had the machine to itself. Block `(0.5, 1000)` verified 8,537 buildin
 antennas** against the serial near-tau constant of 1.26 — an effective **8.8x and 7.3x at 12
 workers**, versus the 4.70x contention floor `gate_model` assumes. **Plan with 7.3x, not 8.8x**:
 the higher figure belongs to the block with more buildings in the band, which is consistent with
-the documented batch-size effect, so the smaller number is the one that generalises. Not yet folded
-into `gate_model` — `verify_speedup` deliberately refuses to extrapolate past its last measurement,
-and changing it is a separate, tested edit.
+the documented batch-size effect, so the smaller number is the one that generalises.
+
+**CLOSED 2026-08-10.** It *is* folded into `gate_model` — `MEASURED_VERIFY_SPEEDUP_UNCONTENDED =
+{12: 7.30}`, reachable as `verify_speedup(w, contended=False)`, printed by `rehearse.py` as a third
+row, and pinned by four tests. Only the **verdict** still uses the 4.70x contention floor, and that
+stays: a gate that quietly gets more optimistic is how #16 happened. *(This paragraph used to read
+"not yet folded into gate_model", which understated what already existed.)*
+
+### The gate and the solver disagreed on the objective  (FOUND AND FIXED 2026-08-10)
+
+`scripts/rehearse.py --objective` defaulted to **`baseline`** while `giscup solve-all --objective`
+has defaulted to **`near-tau`** since #15. So the gate command documented in the runbook costed a
+run nobody was going to make — and costed it with the **cheaper** of the two measured constants
+(0.826 against near-tau's 1.26), hiding **~1.77 h on the bound**.
+
+**This is `default_verify_workers`'s bug a second time**, in the same module, with the same shape:
+a default changed on one entry point and not the other, biasing the gate optimistic. `verify_constant_for`
+already refuses an *unknown* objective; it cannot catch a known-but-wrong one.
+
+**Fix:** `gate_model.DEFAULT_OBJECTIVE` is now the single source of truth and both entry points read
+it. Six tests added to `tests/test_verify_workers_default.py` (350 → 356), including one that pins
+the *direction* — the gate must not default to the cheapest measured objective — so flipping both
+sides together cannot silently restore the bug. One pre-existing test in `test_gate_calibration.py`
+asserted the `baseline` default and was rewritten rather than deleted: its concern (do not re-cost
+documented commands silently) is satisfied, since the re-costing is deliberate and moves
+conservative.
 
 ## Blocked on Marko
 
 | # | Task | Waiting on |
 |---|---|---|
-| 15 | Does lever A become the submission default? | **Nothing — decide now.** 7 of 9 blocks measured (+9.7%), 0 overclaims of 27,803 audited. 19b only makes the artifact submittable; it will not change the verdict. |
-| — | Final packaging | which artifact wins (#15) |
+| — | *(empty — every item here closed. #9 was the last one, closed 2026-08-10.)* | |
+
+**#15 CLOSED 2026-08-09.** Lever A is the shipped default (`--objective near-tau`); the artifact is
+per-block best-of, baseline in `(0.5, 1000)`. **Final packaging CLOSED 2026-08-09** —
+`outputs/submission/mz_giscup_26_submission_20260810.zip`, built from `outputs/nine_bestof_400.txt`.
+*(Both were still listed as open here until 2026-08-10; that was a stale table, not open work. The
+bundle is built against the MARCH SAMPLE and must be rebuilt on the day.)*
 
 **#17 is answered** (see "Lever A" under #6): **+9.7% verified claims across 7 of 9 blocks**,
 winning six of seven, and **0 overclaims of 27,803 claims** on the five audited. Shipping baseline
@@ -1194,6 +1222,22 @@ Marko may want to re-decide with these numbers.
 **What #9 is now: a day-of contingency lever, the same shape as [#20](#20).** Both buy runtime and
 pay score. Use it if the August extract is materially larger than the March sample and the window
 tightens; leave it off otherwise. It is implemented, tested, measured, and one flag away.
+
+#### DECIDED 2026-08-10 (Marko): default stays OFF, contingency only — #9 is CLOSED
+
+Re-decided with the corrected numbers rather than the free-ness claim it was originally adopted on.
+**`--candidate-stride` ships at 1.** The reasoning of record:
+
+- The day projection is ~5 h likely / 6.87 h bound against a ~20 h window, so ~1.7 h of headroom is
+  not something we currently need to buy.
+- ~0.07 subproblems is a *real* cost under relative scoring, and it lands in the small-count blocks
+  that are worth exactly as much as the large ones.
+- Paying a certain score cost for contingent headroom is the wrong direction while feasibility has
+  margin. If the August extract removes that margin, the flag is one word on the command line.
+
+**It stays ranked first among the day-of levers** — ahead of #20 — in
+`docs/submission-day-runbook.md` §6. Nothing about the shipped artifact changes; it was already
+built at stride 1.
 
 ### 10 — Unimplemented names and placeholders  (**DONE 2026-08-08 — every item below was
 actioned; kept for the reasoning, not as a to-do list**)

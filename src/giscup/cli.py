@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from giscup.diagnostics import dataset_summary
-from giscup.gate_model import default_verify_workers
+from giscup.gate_model import DEFAULT_OBJECTIVE, default_verify_workers
 from giscup.io import load_buildings
 from giscup.output import format_solution_file
 from giscup.progress import ProgressReporter
@@ -268,7 +268,7 @@ def _add_solver_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--objective",
         choices=("near-tau", "baseline"),
-        default="near-tau",
+        default=DEFAULT_OBJECTIVE,
         help=(
             "Greedy's scoring objective. 'near-tau' (lever A, THE DEFAULT since "
             "2026-08-09) scores each pick only against buildings that are unserviced "

@@ -64,7 +64,10 @@ tests/test_visibility.py
 tests/test_visibility_strategy.py  # official predicate, degeneracies, relate default
 ```
 
-Current latest result: **`350 passed`** in Conda env `mz-giscup-26` (2026-08-09), 30 files.
+Current latest result: **`356 passed`** in Conda env `mz-giscup-26` (2026-08-10), 30 files.
+*(350 -> 356 on 2026-08-10: six cases in `test_verify_workers_default.py` pinning the gate and the
+solver to a shared `gate_model.DEFAULT_OBJECTIVE`, after they were found to disagree — the gate
+costed `baseline` while the solver ran `near-tau`.)*
 *(Grew from 333 over 2026-08-09: ten `test_candidate_prune.py` cases (#9) -> 343, three
 `--objective` cases in `test_near_tau_wiring.py` (#15) -> 346, four quiet-machine speedup cases in
 `test_gate_calibration.py` -> 350. An earlier `326` recorded here was simply stale.)*

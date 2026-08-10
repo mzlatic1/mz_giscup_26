@@ -37,19 +37,33 @@ independently.
 All three audited clean: `outputs/audit_v2.log`, `audit_leverA_full.log`, `audit_bestof.log`.
 *(Our-options-only comparison, not a score prediction — competition rule 5 still holds.)*
 
+**Structurally re-verified 2026-08-10, independently of the audit logs.** `nine_bestof_400.txt` is
+27 lines, no separators, nine blocks in tau-outer/k-inner order, with **exactly k points counted**
+in every block (50/500/1000 x3). Per-block claims are 1,659 / 9,349 / 12,279 / 269 / 4,247 / 8,063 /
+148 / 2,222 / 4,492, **summing to exactly 42,728**. The `(0.5, 1000)` block reads **8,063**, which is
+the *baseline* count and not lever A's 7,891 — so the per-block best-of really is in the file, not
+just in the documentation. Bundle passes `unzip -t`.
+
+**The packaged bundle's `source/` is now behind the repo** (it predates the 2026-08-10
+`DEFAULT_OBJECTIVE` fix and the 350 -> 356 tests). Harmless — it is a March-sample bundle that must
+be regenerated on the day regardless — but do not ship this zip.
+
 ## Decisions
 
 | # | Decision | Status |
 |---|---|---|
 | **15** | Lever A is the shipped default | **DONE.** `--objective {near-tau,baseline}`, default `near-tau`. |
 | **3b** | 400 m cull stands | **DONE.** Reinforced by #20 below. |
-| **9** | 2x candidate prune | **Implemented, default OFF. <- needs Marko's re-decision.** |
+| **9** | 2x candidate prune | **CLOSED 2026-08-10 — default stays OFF, contingency only.** |
 | **20** | Radii below 400 m | **CLOSED — measured and rejected.** |
 
-**#9 is the one open item.** It was adopted as a *free* lever on a sizing measured in-sample, with
-baseline greedy, pooled at k=500. Measured against the objective we actually ship it costs
-**~0.07 subproblems** (−2.03% at `(0.75, 50)`). Still the best time-buying lever available — just
-not free. Implemented, tested, one flag away, off by default pending Marko.
+**Every decision is now closed.** #9 was adopted as a *free* lever on a sizing measured in-sample,
+with baseline greedy, pooled at k=500. Measured against the objective we actually ship it costs
+**~0.07 subproblems** (−2.03% at `(0.75, 50)`). Marko re-decided it on 2026-08-10 with those
+corrected numbers: **`--candidate-stride` ships at 1.** Buying ~1.7 h of headroom we do not need,
+at a certain cost concentrated in the small-count blocks, is the wrong trade while the day
+projection sits near 5 h of a ~20 h window. It stays **ranked first among the day-of levers**,
+implemented, tested, and one flag away.
 
 ## The two time-buying levers, measured and ranked
 
@@ -68,14 +82,31 @@ same to scan.
 
 **If runtime must be bought on the day: prune first, cut radius only if that is not enough.**
 
+## Official page — re-checked 2026-08-10, nothing has changed
+
+`https://sigspatial2026.sigspatial.org/giscup.html`. **The submission link is still not published**:
+*"The webpage will be updated closer to the competition time to include a link to submit."* Re-check
+on 2026-08-15. Fallback contact if it never appears: Aaron Lowe (`alowe@esri.com`) or Ashwin
+Shashidharan (`ashashidharan@esri.com`).
+
+Everything else on the page re-confirmed against our docs, verbatim, with **no drift**: all five
+dates; three lines per subproblem for nine subproblems; three taus x three ks; IEEE-754 doubles;
+*"the polygons will not self-intersect and will not have holes"*; test dataset published 2026-08-15.
+
+**Submission artifact shape confirmed** — *"a zip file including the following: 1. A text file with
+the solutions for each of the sub-problems... 2. A folder that has your source code, along with
+instructions for compiling and running the program."* That is exactly what
+`scripts/package_submission.py` produces.
+
+**The ID field name is still ABSENT from the page.** The `--id-property` trap is therefore live and
+unresolvable before the extract lands: `giscup inspect` on the day is the only way to settle it.
+
 ## Next actions
 
-1. **Marko: re-decide #9** with the corrected numbers above. Nothing is blocked either way.
-2. **Check the official page for the submission link** — not published as of 2026-08-08.
-   `https://sigspatial2026.sigspatial.org/giscup.html`
-3. **On the day, read `docs/submission-day-runbook.md` first.** It carries the `--id-property` trap
-   (run `giscup inspect` before solving), the sizing sequence, and the fallback plan.
-4. Optional: re-run `/rehearsal` if solver code changes. It has not changed since the last PASS.
+1. **On the day, read `docs/submission-day-runbook.md` first.** It carries the `--id-property` trap
+   (run `giscup inspect` before solving), the sizing sequence, and the ranked fallback levers.
+2. **Re-check the official page for the submission link on 2026-08-15.**
+3. Optional: re-run `/rehearsal` if solver code changes.
 
 ---
 
@@ -179,6 +210,12 @@ calibrated against a measured run with suspicion, in that direction.
    headroom, 300 m loses ~0.79 subproblems for ~0.8 h.
 4. **`gate_model` uses the 4.70x contended verify speedup for its verdict**, deliberately, though
    7.3x was measured uncontended. The gate reports both; only the conservative one decides.
+   **Reviewed 2026-08-10 and deliberately left alone — this is CLOSED, not outstanding.** The
+   uncontended figure is already fully in the module: `MEASURED_VERIFY_SPEEDUP_UNCONTENDED = {12:
+   7.30}`, reachable via `verify_speedup(w, contended=False)`, printed by `rehearse.py` as a third
+   row, and pinned by four tests. The only step never taken is letting it set the **verdict**, and
+   it should stay untaken: a feasibility gate that quietly gets more optimistic is exactly how #16
+   happened. *(Docs previously called this "not acted on", which understated what exists.)*
 5. **Greedy optimizes on the sampled matrix**, not the scored quantity. Deliberate — it is a search
    heuristic — but the objective and the claim decision measure different things.
 6. Only `greedy` exists as an optimizer. `lazy-greedy` / `stochastic-greedy` / `hybrid` were deleted

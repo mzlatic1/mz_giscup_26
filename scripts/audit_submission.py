@@ -123,7 +123,7 @@ def build_parser() -> argparse.ArgumentParser:
             "Processes for the coverage measurements. Each building is independent, so "
             "the result is identical to serial. The audit is the LAST step before "
             "submission and ran single-core until 2026-08-09. Cost is dominated by the "
-            "--exact-radius screen, which must be passed explicitly -- see its help. "
+            "--exact-radius screen -- see its help before widening it. "
             "On this host: %(default)s."
         ),
     )

@@ -26,7 +26,12 @@ from pathlib import Path
 import pytest
 
 from giscup.cli import build_parser
-from giscup.gate_model import MEASURED_VERIFY_SPEEDUP, default_verify_workers
+from giscup.gate_model import (
+    DEFAULT_OBJECTIVE,
+    MEASURED_VERIFY_CONSTANTS,
+    MEASURED_VERIFY_SPEEDUP,
+    default_verify_workers,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -121,6 +126,72 @@ def test_the_flag_still_overrides_the_default():
          "--output", "out.txt", "--verify-workers", "1"]
     )
     assert args.verify_workers == 1
+
+
+# --- the same invariant, for the OBJECTIVE (found 2026-08-10) ----------------
+#
+# #15 made lever A the solver's default but left the gate defaulting to 'baseline'.
+# That is this file's bug a second time, and it errs in the DANGEROUS direction:
+# baseline is the cheapest constant in the module (0.826 vs near-tau's 1.26), so the
+# documented gate command costed a lever A day as baseline and hid ~1.77 h on the
+# bound. `verify_constant_for` already refuses an *unknown* objective for exactly this
+# reason; it cannot catch a known-but-wrong one.
+
+
+def _solve_all_args(parser, *extra):
+    return parser.parse_args(
+        ["solve-all", "--input", "x.geojson", "--taus", "0.5", "--ks", "10",
+         "--output", "out.txt", *extra]
+    )
+
+
+def test_the_shared_default_objective_is_one_we_have_measured():
+    """A default the gate cannot cost would make `verify_constant_for` raise on the
+    plainest possible command."""
+    assert DEFAULT_OBJECTIVE in MEASURED_VERIFY_CONSTANTS
+
+
+def test_the_solver_cli_defaults_to_the_shared_objective():
+    assert _solve_all_args(build_parser()).objective == DEFAULT_OBJECTIVE
+
+
+def test_the_gate_defaults_to_the_shared_objective():
+    rehearse = _load_rehearse()
+    assert rehearse.build_parser().get_default("objective") == DEFAULT_OBJECTIVE
+
+
+def test_the_gate_and_the_solver_agree_on_the_objective():
+    """The invariant. A gate costing baseline while the solver runs lever A is
+    predicting the runtime of a configuration that will not be run -- and doing it
+    with the cheaper of the two constants."""
+    rehearse = _load_rehearse()
+    solver_default = _solve_all_args(build_parser()).objective
+    assert rehearse.build_parser().get_default("objective") == solver_default
+
+
+def test_the_gate_does_not_silently_cost_the_cheaper_objective():
+    """Pins the direction of the 2026-08-10 bug, not just the equality above. If
+    both entry points were flipped to 'baseline' together the equality test would
+    still pass while the gate went quietly optimistic."""
+    rehearse = _load_rehearse()
+    gate_default = rehearse.build_parser().get_default("objective")
+    cheapest = min(MEASURED_VERIFY_CONSTANTS, key=MEASURED_VERIFY_CONSTANTS.get)
+    assert MEASURED_VERIFY_CONSTANTS[gate_default] >= MEASURED_VERIFY_CONSTANTS[cheapest]
+    assert gate_default != "baseline", (
+        "the gate is costing the cheapest measured objective by default; that is the "
+        "#16 failure mode -- re-read gate_model.DEFAULT_OBJECTIVE before changing this"
+    )
+
+
+def test_the_objective_flag_still_overrides_on_both_sides():
+    """The escape hatch is load-bearing: `(0.5, 1000)` ships baseline, and that block
+    has to be both solvable and costable."""
+    rehearse = _load_rehearse()
+    assert _solve_all_args(build_parser(), "--objective", "baseline").objective == "baseline"
+    parsed = rehearse.build_parser().parse_args(
+        ["--input", "x.geojson", "--objective", "baseline"]
+    )
+    assert parsed.objective == "baseline"
 
 
 # --- the documented command --------------------------------------------------
