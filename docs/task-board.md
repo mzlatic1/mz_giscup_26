@@ -663,6 +663,34 @@ per-`(tau, k)` quantile. Sizing before building it — the sweep says the whole 
 concentrated in one block, so this is a small lever, not a second lever A. Do not start it before
 #15 is settled and the two missing blocks are measured.
 
+#### RETIRED 2026-08-09 20:03 — the per-(tau, k) schedule was refuted before it was built
+
+The whole case for the CLI change was the sweep's claim that `(0.5, 1000)` wants **q=100 (+3.5%)**
+rather than the scheduled q=50 (+1.1%). That cell was re-solved directly, full verification, same
+config as the artifact:
+
+| (0.5, 1000) | claims | vs baseline |
+|---|---|---|
+| baseline | **8,063** | — |
+| lever A, q=50 (shipped schedule) | 7,891 | **−2.1%** |
+| lever A, q=100 (the proposed fix) | 7,903 | **−2.0%** |
+
+**Lever A loses at this block regardless of quantile**, and the sweep was optimistic by 5.5 points
+on the very cell the mechanism was meant to rescue. Building a per-`(tau, k)` schedule now would be
+constructing machinery on the one prediction we have proven unreliable.
+
+**The failure is mechanistic, not noise.** At high `k` and middling tau most winnable buildings are
+*already* winnable, so concentrating on near-threshold buildings re-secures footprints baseline
+would have taken anyway. The objective is wrong for that regime; the knob is not mistuned. This is
+the same monotone rule the board already records — higher `k` loosens the optimum — continued past
+the point where even the loosest setting (q=100, i.e. plain lever B) still loses.
+
+**Consequence:** `(0.5, 1000)` ships **baseline**, and the submission artifact is per-block best-of
+rather than a single objective. Task #15 is therefore not "which default", it is "lever A
+everywhere except the one block where it measurably loses".
+
+**Kept for the record:** `outputs/leverA_tau05_k1000_q100.txt` (37 m 50 s, 7,903 claims).
+
 ### 6 — Threshold-aware objective  (original framing)
 
 `optimize.greedy_select` scores `len(new_ids)` — raw newly visible sample count — and accepts
