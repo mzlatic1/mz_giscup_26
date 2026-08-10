@@ -82,7 +82,7 @@ time giscup solve-all \
     --id-property <from step 1> \
     --taus 0.25 0.5 0.75 --ks 50 500 1000 \
     --visibility-radius 400 \
-    --cache-dir outputs/cache --matrix-workers 12 \
+    --cache-dir outputs/cache --matrix-workers 8 \
     --verify-band 0.10 --verify-max-buildings 2000 \
     --verify-workers 12 \
     --output outputs/final.txt \
@@ -111,6 +111,9 @@ Notes that cost hours if forgotten:
   records what ran. Serial verification costs ~12 h of the window.
 - **The matrix build cannot come from cache.** It is keyed on the dataset, so the new extract
   rebuilds from scratch — ~100 min at 400 m on the March sample. This is the largest single line.
+  **Use `--matrix-workers 8`, not 12.** Measured as a matched pair 2026-08-10: 99.6 min at 8 workers
+  against **101.8 min at 12**, byte-identical output. The build is memory-bandwidth bound, so the
+  extra four workers contend rather than help. The command above said 12 until 2026-08-10.
 - **Partial output is written after every block** to `outputs/final.txt.partial`. If the run dies
   at block 7, you still have six blocks. The `.partial` file is removed on success.
 

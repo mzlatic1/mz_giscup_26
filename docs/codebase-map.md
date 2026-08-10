@@ -134,7 +134,7 @@ Full-scale runs need the matrix, which is opt-in and never implied:
 
 ```bash
 giscup solve-all --input <geojson> --taus 0.25 0.5 0.75 --ks 50 500 1000 \
-    --visibility-radius 400 --cache-dir outputs/cache --matrix-workers 12 \
+    --visibility-radius 400 --cache-dir outputs/cache --matrix-workers 8 \
     --verify-band 0.10 --verify-max-buildings 2000 --verify-workers 12 --output <txt>
 giscup validate-output --input <geojson> --solution <txt>
 ```

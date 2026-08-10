@@ -119,14 +119,27 @@ conda activate mz-giscup-26          # Python 3.11; required for all work
 **Host: 16 cores, 24 GB RAM.** NumPy 2.4.6 (`np.bitwise_count` needs >=2.0), Shapely 2.1.2,
 SciPy 1.17.1. **`ruff` and `mypy` are NOT installed** — `pip install -e .[dev]` if lint is needed.
 
-## Validation status — actually run 2026-08-09, end of session
+## Validation status — actually run 2026-08-10, end of session
 
 ```bash
-python -m pytest -q                         # 350 passed
+python -m pytest -q                         # 356 passed
 python -m compileall -q src tests scripts   # OK
+giscup inspect --input data/GIS-cup-sample-dataset.geojson   # OK, EPSG:32611 preserved
+python scripts/rehearse.py --input data/GIS-cup-sample-dataset.geojson \
+    --cores 16 --measured-radius 400 --verify-workers 12     # PASS, 2.5x on the bound
 ```
 
-Working tree **clean**; everything committed and pushed to `origin/main`.
+**Gate re-run 2026-08-10 on a quiet machine after the objective fix: `MEASURED VERDICT: PASS`,
+8.14 h bound / 2.5x, 4.64 h likely / 4.3x.** Log: `outputs/rehearsal_20260810.log`.
+
+**The headline moved and it is worth knowing why.** The 6.87 h / 2.9x quoted everywhere before this
+was costed at `baseline` while the solver ships `near-tau`. Costed correctly the bound is 8.14 h.
+Nothing got slower — ~1.77 h of lever A verification was simply not being counted. Still a
+comfortable PASS (2.5x against the 1.6x that rejected 600 m), but every planning figure written
+between 2026-08-09 and 2026-08-10 was ~14% optimistic.
+
+Committed through `3f381bb`; the matrix-measurement and gate-re-run work is the commit after it.
+**Not yet pushed to `origin/main`.**
 
 ## Managing the multi-hour background jobs
 
@@ -153,9 +166,21 @@ the matrix build — an inferred 400 m/12-worker build (~102 min) lands on the m
 | radius | stride | candidates | visible pairs | build | key |
 |---|---|---|---|---|---|
 | 400 m | 1 | 157,454 | 8,194,226 | 99.6 min @ 8 w | `7a385189` **<- the one in use** |
+| 400 m | 1 | 157,454 | 8,194,226 | **101.8 min @ 12 w** *(2026-08-10)* | `7a385189` (in `cache_bench/`) |
 | 600 m | 1 | 157,454 | 8,891,506 | 434.5 min @ 6 w | `89846a10` |
 | 400 m | 2 | 78,727 | 4,878,593 | 50.9 min @ 12 w | `7c422675` |
 | 300 m | 1 | 157,454 | 7,529,996 | 48.6 min @ 12 w | `73e00daa` |
+
+**The 12-worker row is a benchmark, not a second usable matrix.** It lives in
+`outputs/cache_bench/` (2.6 GB, deletable) and is **byte-identical** to the production build —
+`cmp` clean over 2.63 GB. Same key, same pairs, same everything but the clock.
+
+**Settled by it, 2026-08-10:** 12 workers is **2.2% slower** than 8, not merely no faster; the
+**stride-2 build saving is a matched 2.00x** (101.8 -> 50.9 min) rather than an inference; and the
+parallel build is **deterministic**. Throughput reconciled to 0.03% against the stride-2 build
+(92.5 vs 92.4 K checks/s). **Use 8 workers, not 12, for the matrix build on the day** — and note
+`--matrix-workers 12` in the documented `solve-all` command is therefore mildly pessimal, worth
+~2 min and not worth a code change.
 
 **None can be reused on submission day** — the key includes the dataset digest. Keys also cover
 candidate set, samples, radius, strategy, eps, and `interior_tolerance`, so a pre-#14 matrix can

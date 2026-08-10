@@ -74,15 +74,19 @@ nine-block run takes ~2.85 h at `--verify-workers 12`, the cached matrix has exi
 
 ## Current validation status
 
-Run 2026-08-09 in the `mz-giscup-26` Conda environment. Full detail in `docs/session-state.md`.
+Run 2026-08-10 in the `mz-giscup-26` Conda environment. Full detail in `docs/session-state.md`.
 
 ```bash
 python -m compileall -q src tests scripts   # OK
-python -m pytest -q                         # 350 passed
+python -m pytest -q                         # 356 passed
 giscup inspect --input data/GIS-cup-sample-dataset.geojson   # OK, EPSG:32611 preserved
 python scripts/rehearse.py --input data/GIS-cup-sample-dataset.geojson \
-    --cores 16 --measured-radius 400 --verify-workers 12   # PASS
+    --cores 16 --measured-radius 400 --verify-workers 12   # PASS, 8.14 h bound / 2.5x
 ```
+
+**The gate figure moved on 2026-08-10** from 6.87 h / 2.9x to **8.14 h / 2.5x**, because the gate
+had been costing `baseline` while the solver ships `near-tau`. Nothing got slower; ~1.77 h of lever
+A verification was not being counted. Still a comfortable PASS.
 
 Three nine-block artifacts exist and **all three audit clean, 0 overclaims**:
 `outputs/nine_verifypar_400.txt` (baseline, 39,120 claims), `outputs/nine_leverA_400_full.txt`
@@ -112,7 +116,7 @@ python scripts/rehearse.py --input data/GIS-cup-sample-dataset.geojson \
 # a full nine-block solve (~2.85 h baseline, ~5 h lever A)
 giscup solve-all --input data/GIS-cup-sample-dataset.geojson \
     --taus 0.25 0.5 0.75 --ks 50 500 1000 \
-    --visibility-radius 400 --cache-dir outputs/cache --matrix-workers 12 \
+    --visibility-radius 400 --cache-dir outputs/cache --matrix-workers 8 \
     --verify-band 0.10 --verify-max-buildings 2000 --verify-workers 12 \
     --output outputs/final.txt
 

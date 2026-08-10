@@ -11,12 +11,27 @@ The old header here claimed **PASS at 3.18 h / 6.3x headroom**, and the later re
 4.01 h / 5.0x. **A real nine-block run then took 9.42 h.** The gate's verification constant was
 16.2x too small (#16). Do not quote either old figure.
 
-Current, after #16 (re-fit) and #18 (parallel verification), against a 20 h budget:
+Current, after #16 (re-fit) and #18 (parallel verification), against a 20 h budget.
+
+**RE-MEASURED 2026-08-10 and the headline number MOVED.** The 6.87 h / 2.9x that stood here was
+costed at **`baseline`**, because the gate defaulted to it while the solver shipped `near-tau` — the
+mismatch fixed on 2026-08-10. Costed at the objective we actually ship:
 
 | | serial | **--verify-workers 12** |
 |---|---|---|
-| upper bound (every building claimed) | 19.34 h / 1.0x | **6.87 h / 2.9x** |
-| likely (v2 claim fractions) | 11.18 h / 1.8x | **5.14 h / 3.9x** |
+| upper bound (every building claimed) | 19.34 h / 1.0x | **8.14 h / 2.5x** |
+| likely (v2 claim fractions) | 11.18 h / 1.8x | **4.64 h / 4.3x** |
+| likely, quiet machine (7.3x, reported only) | — | 4.05 h / 4.9x |
+
+**The 1.27 h that appeared is not a regression — it was always being spent and was not being
+counted.** Verification costs 1.26 s per building per 1000 antennas under lever A against
+baseline's 0.826, so the bound's verify line moves 3.38 h -> 5.15 h, the ~1.77 h the mismatch hid.
+*(The old bound's serial column is unchanged and still baseline-costed; it is kept only for the
+serial-vs-parallel contrast.)*
+
+**Verdict is still PASS, and comfortably**: 2.5x on the bound against the 1.6x that got 600 m
+rejected and the 1.1x that got 800 m killed. It does mean the true headroom was always ~14% tighter
+than every planning figure written between 2026-08-09 and 2026-08-10.
 
 **Always pass `--verify-workers` — to `rehearse.py` and to `solve-all` on the day.** Serial puts
 the bound back on the margin.
@@ -31,7 +46,7 @@ best-of: lever A in eight blocks, baseline in `(0.5, 1000)`. Full detail in `doc
 
 | # | Task | Why now |
 |---|---|---|
-| — | Shrink the matrix build | It is now the **largest single line** (99.5 min of 6.87 h) and cannot be served from cache on the day. |
+| — | *(Shrink the matrix build — **MEASURED OUT 2026-08-10**. Still the largest single line (99.6 min of 8.14 h) and still uncacheable on the day, but there is no free win left: 12 workers is 2.2% slower than 8, and the only real reductions are #9 and #20, both of which cost score. Use 8 workers and stop looking.)* | |
 | — | *(#9 CLOSED 2026-08-10 — Marko re-decided with the corrected numbers: **default stays OFF**, contingency only. See below.)* | |
 | — | *(#20 CLOSED 2026-08-09 — 300 m measured, costs ~0.79 subproblems for ~0.8 h; ranked below #9, which saves ~2x for ~1/11 the cost. 400 m stands.)* | |
 
@@ -433,6 +448,35 @@ That closes the gap that made the #9 and #20 build savings unquotable:
 **This is an inference from one throughput constant applied across candidate mixes, not a matched
 measurement.** A real matched 12-worker 400 m build would cost ~100 min to settle it. Not spent —
 but do not quote these as measured.
+
+#### MEASURED 2026-08-10 — the matched 12-worker build was run, and the inference held
+
+`outputs/build_400_12w_matched.log`. Built into `outputs/cache_bench/` so the production matrix was
+never at risk; the key came out `7a385189`, identical to production's, confirming a matched pair by
+construction rather than by assertion.
+
+| build | workers | time | visible pairs |
+|---|---|---|---|
+| 400 m, stride 1 | 8 | 99.6 min | 8,194,226 |
+| **400 m, stride 1** | **12** | **101.8 min** | **8,194,226** |
+| 400 m, stride 2 | 12 | 50.9 min | 4,878,593 |
+| 300 m, stride 1 | 12 | 48.6 min | 7,529,996 |
+
+**Three results, and one of them upgrades a decision input:**
+
+1. **12 workers is 2.2% SLOWER than 8** (101.8 vs 99.6 min) — not merely "buys essentially
+   nothing". The inference predicted ~102 min and measured 101.8, **accurate to 0.2%**. This is the
+   memory-bandwidth ceiling, now measured rather than argued.
+2. **The stride-2 matrix saving is now a MATCHED measurement: 101.8 -> 50.9 min, exactly 2.00x.**
+   The board previously said "the matrix-build half is not established" because the two builds ran
+   at different worker counts. It is established now, and #9's total ~1.7 h saving is confirmed
+   rather than inferred. *(300 m likewise saves 53.2 min at matched workers.)*
+3. **The two matrices are byte-identical** (`cmp`, 2.63 GB). Worker count changes the time and
+   nothing else — the parallel build is deterministic, which no previous measurement had shown.
+
+Throughput reconciles almost exactly: 564.6 M checks / 6,106 s = **92.5 K/s**, against the stride-2
+build's **92.4 K/s**. The constant that produced the inference was right to 0.03%, which is why the
+prediction landed — worth remembering, given how many projections in this project did not.
 
 ### #20 ANSWERED 2026-08-09 — 300 m is a LAST-RESORT lever, ranked below #9
 
