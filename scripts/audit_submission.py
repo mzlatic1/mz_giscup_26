@@ -105,9 +105,9 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Processes for the coverage measurements. Each building is independent, so "
             "the result is identical to serial. The audit is the LAST step before "
-            "submission and ran single-core until 2026-08-09: 32 min for five lever A "
-            "blocks, projecting to ~48 min for a nine-block artifact. On this host: "
-            "%(default)s."
+            "submission and ran single-core until 2026-08-09. Cost is dominated by the "
+            "--exact-radius screen, which must be passed explicitly -- see its help. "
+            "On this host: %(default)s."
         ),
     )
     return ap

@@ -41,12 +41,16 @@ def confirm_overclaims(
     that justifies it.
 
     `workers > 1` parallelises both stages. The audit is the last step before
-    submission and was single-core on a 16-core host: 32 min for five lever A blocks
-    (27,803 claims), projecting to ~48 min for a full nine-block artifact. Each
-    building's coverage is independent of every other's, so the result is identical to
-    the serial one — identical, not merely close, and pinned by
-    `tests/test_audit_two_stage.py`. The screen is the expensive stage in practice; it
-    measures every claim, while the confirm stage sees only what the screen flagged.
+    submission and was single-core on a 16-core host until 2026-08-09. Each building's
+    coverage is independent of every other's, so the result is identical to the serial
+    one — identical, not merely close, and pinned by `tests/test_audit_two_stage.py`.
+
+    **The screen radius dominates the cost, and `scripts/audit_submission.py` defaults
+    it to `None`.** `None` means unbounded: every claim measured against the whole
+    dataset rather than against blockers within `screen_radius`. That is the ~8-hour
+    path referred to above, and it is what the script does unless `--exact-radius` is
+    passed. Measured 2026-08-09 by running it that way twice: a five-block audit passed
+    3 h 25 m without finishing. Pass the screen radius explicitly.
     """
     if confirm_radius is not None and screen_radius is not None and confirm_radius < screen_radius:
         raise ValueError(

@@ -112,25 +112,54 @@ Notes that cost hours if forgotten:
 - Progress prints per subproblem with an ETA weighted by antennas placed. It is pessimistic early
   and converges to <1% by block 7.
 
-## 4. Audit before you believe it (15 min)
+## 4. Audit before you believe it (~9 min at 12 workers; ~46 min serial)
 
 ```bash
 python scripts/audit_submission.py --input data/<the-new-file>.geojson \
-    --solution outputs/final.txt --confirm-radius 800 --workers 12
+    --solution outputs/final.txt \
+    --exact-radius 400 --confirm-radius 800 --workers 12
 ```
 
-`--workers` now defaults to `min(cores, 12)`; pass it explicitly so the log records what ran.
-This step was single-core until 2026-08-09 — 32 min for five lever A blocks, projecting to ~48 min
-for a nine-block artifact, spent at the point in the day with the least slack. Each building's
-coverage is independent, so the parallel result is identical to serial, not merely close.
+**`--exact-radius 400` is not optional — omitting it costs hours.** It defaults to `None`, and
+the script passes that through as the *screen* radius, where `None` means **unbounded**: every
+claim measured against the whole dataset instead of against blockers within 400 m. That is the
+~8-hour path, on the last gate before submitting. Found 2026-08-09 by running it that way twice
+and watching a five-block audit pass 3 h 25 m without finishing. The library default in
+`giscup.audit` is 400 m; the *script* overrides it to `None`, so the flag must be passed
+explicitly. **The two radii do different jobs** — 400 m screens cheaply, 800 m confirms only what
+the screen flagged.
+
+`--workers` defaults to `min(cores, 12)`; pass it explicitly so the log records what ran. This
+step was single-core until 2026-08-09.
+
+**Measured 2026-08-09** on five lever A blocks (27,803 claims, 1,550 antennas), both runs using
+the two-stage radii above:
+
+| | serial | 12 workers |
+|---|---|---|
+| wall clock | 28 m 51 s | **5 m 41 s** |
+| speedup / efficiency | — | **5.08x, 96%** |
+| verdict | identical to the parallel run, line for line | |
+
+**Audit cost scales with claims x k**, exactly like the solver's verification, because every
+claimed building is re-measured against every antenna. Fitting that against the run above gives
+**0.090 s per building per 1000 antennas** at a 400 m screen — about 9x cheaper than the solver's
+0.826 at 800 m, which is what the radius difference predicts. Projecting onto the March
+baseline's nine blocks (30,354 building-k units): **~46 min serial, ~9 min at 12 workers.**
+
+Do not size this step from claim counts alone. An earlier estimate did exactly that, using a
+figure measured on `(0.25, 50)` at k=50, and came out 6x optimistic — `(0.25, 1000)` costs 20x
+more per claim than that block does.
 
 Must report: 9 blocks, exactly `k` coordinates **counted** per block, 0 off-boundary at
 eps=1e-7, 0 unknown IDs, **0 overclaims**. The March baseline passed with 0 overclaims of
-39,120 claims.
+39,120 claims; the five audited lever A blocks passed with 0 overclaims of 27,803.
 
-**Audit at the verification radius or wider — never tighter.** Auditing a 400 m solve at 400 m
-produced 25 false failures and zero real ones; the worst read 0.1853 at 400 m and 0.5000 at
-800 m. A tighter audit is not conservatism, it is a guaranteed false-positive generator.
+**Confirm at the verification radius or wider — never tighter.** Auditing a 400 m solve and
+*confirming* at 400 m produced 25 false failures and zero real ones; the worst read 0.1853 at
+400 m and 0.5000 at 800 m. A tighter confirm is not conservatism, it is a guaranteed
+false-positive generator. This applies to `--confirm-radius`; the *screen* is deliberately tight,
+because a tight screen over-flags and the confirm stage then clears the false alarms.
 
 ## 5. Package and submit
 

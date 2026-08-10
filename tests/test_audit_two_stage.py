@@ -128,12 +128,14 @@ def test_it_reports_the_confirmed_coverage_not_the_screened_one():
 #
 # #18 parallelised the solver's verification and left `confirm_overclaims`
 # passing workers=1 into `exact_coverage_by_building`, which has accepted a
-# `workers` argument since that commit. Measured 2026-08-09: auditing five lever A
-# blocks (27,803 claims) took 32 min at 100% of one core on a 16-core host, which
-# projects to ~48 min for a full nine-block lever A artifact.
+# `workers` argument since that commit. So the audit ran on one core of sixteen at
+# the point in submission day with the least slack -- after a five-hour solve, on
+# the check that gates submitting.
 #
-# That is 48 minutes spent at the point in submission day with the least slack --
-# after a five-hour solve, on the check that gates submission.
+# (An earlier version of this comment quoted "32 min for five blocks, ~48 min for
+# nine". That was a misreading -- 32 min was how long the run had been going when
+# it was looked at, not how long it took, and it was also running the unbounded
+# screen. See `giscup.audit.confirm_overclaims` on the screen radius.)
 #
 # Same proof obligation as #18: identical to serial, not merely close. Coverage
 # decides which claims survive and there is one submission with no feedback.

@@ -33,24 +33,37 @@ src/giscup/
 
 ```text
 tests/test_antenna_placement.py  # emitted antennas never inside a footprint (#15)
+tests/test_assemble_blocks.py    # nine-block recovery from partials; exact-k, duplicate, gap
+tests/test_audit_two_stage.py    # screen/confirm radii, parallel==serial, empty final claims
 tests/test_boundary_jitter.py    # THE invariant: a boundary point is visible from its boundary
+tests/test_dependencies.py       # imports declared in packaging metadata
+tests/test_exact_coverage.py     # grid-free coverage vs analytic + brute-force truth
+tests/test_exact_coverage_parallel.py  # parallel coverage is bit-identical to serial
+tests/test_gate_calibration.py   # gate reproduces the v2 run; radius AND objective pinning
 tests/test_geometry.py
-tests/test_projected_tolerances.py  # absolute tolerances at UTM magnitudes (#16)
+tests/test_id_property.py        # the silent ID-fallback defect
 tests/test_matrix.py             # matrix ground truth, cache keys, parallel==serial
+tests/test_near_tau_wiring.py    # lever A plumbing incl. the per-tau quantile schedule order
 tests/test_optimize_matrix.py    # matrix greedy == predicate greedy
+tests/test_optimize_near_tau.py  # lever A objective
+tests/test_optimize_threshold.py # lever B objective
 tests/test_output_format.py
+tests/test_packaging.py
+tests/test_progress.py
+tests/test_projected_tolerances.py  # absolute tolerances at UTM magnitudes (#16)
 tests/test_sampling.py
+tests/test_scene_reuse.py        # SceneSpec guard (#14)
 tests/test_solver.py
 tests/test_solver_matrix.py      # solve_one fast path, cross-subproblem reuse
 tests/test_validate.py
-tests/test_exact_coverage.py     # grid-free coverage vs analytic + brute-force truth
 tests/test_validate_scaling.py   # BoundaryIndex + culled scan equivalence
 tests/test_verify.py             # two-sided band selection, recover/drop
+tests/test_verify_workers_default.py  # gate and solver agree on the worker default
 tests/test_visibility.py
 tests/test_visibility_strategy.py  # official predicate, degeneracies, relate default
 ```
 
-Current latest result: `145 passed` in Conda env `mz-giscup-26` (2026-08-08).
+Current latest result: **`326 passed`** in Conda env `mz-giscup-26` (2026-08-09), 29 files.
 
 ## Compact documentation layer
 
@@ -127,8 +140,13 @@ Without `--visibility-radius` the solver recomputes visibility every greedy iter
 not finish at full scale. Culling only ever *removes* visible pairs, so it under-reports coverage:
 safe for validation (rejects, never wrongly accepts) but a silent score loss for the solver.
 
-Currently implemented solver optimizer: **`greedy` only**. The other optimizer names were
-deleted 2026-08-08 (#10) rather than left as roadmap markers, so there is nothing to imply.
+`--optimizer` accepts **`greedy` only**. The other names were deleted 2026-08-08 (#10) rather
+than left as roadmap markers, so there is nothing to imply.
+
+The threshold-aware objectives are **not** selected through `--optimizer`. `greedy_select_threshold`
+is implemented and tested but unwired; `greedy_select_near_tau` (lever A) is wired and reached by
+passing `--near-tau-quantile`, which is off unless given. So the shipped default remains plain
+greedy — see Known limitations.
 
 Visibility strategy: **`relate` only** — the exact official predicate. `negative_buffer` and
 `hybrid` were deleted 2026-08-08 (#10).
@@ -203,9 +221,24 @@ Visibility strategy: **`relate` only** — the exact official predicate. `negati
   `--verify-workers 12` produced identical antennas and identical claim sets to the audited
   serial baseline, 9.42 h → 2.85 h (3.30x). `--verify-workers` now defaults to `min(cores, 12)`
   in both `solve-all` and the gate.
-- **The audit is parallel too** (2026-08-09). It was the last single-core stage: 32 min for five
-  lever A blocks on a 16-core host, projecting to ~48 min for a nine-block artifact, spent at the
-  point in submission day with the least slack.
+- **The audit is parallel too** (2026-08-09). It was the last single-core stage, run at the point
+  in submission day with the least slack. Measured on five lever A blocks (27,803 claims), both
+  runs two-stage at 400/800 m: **28 m 51 s serial vs 5 m 41 s at 12 workers — 5.08x at 96%
+  efficiency**, and the two agree line for line. Audit cost scales with **claims x k**, not claim
+  count; fitted constant **0.090 s per building per 1000 antennas** at a 400 m screen, projecting
+  to ~46 min serial / ~9 min parallel for a nine-block artifact.
+- **The 4.70x verification speedup in `gate_model` is a contention floor**, measured while two
+  other jobs ran. The audit, a similar workload measured on a quiet machine, reached 5.08x at 96%
+  efficiency against verification's 39%. Some of that gap is batch size — the audit screens a
+  whole block at once, while verification parallelises a near-threshold band with a fresh pool per
+  call — but re-measuring verification uncontended is an open opportunity that would shrink every
+  projected day figure. Not acted on: `verify_speedup` deliberately refuses to extrapolate past
+  the last measurement.
+- **`scripts/audit_submission.py` defaults `--exact-radius` to `None`, which means an UNBOUNDED
+  screen** — the ~8-hour path, not the two-stage design. `giscup.audit` defaults it to 400 m; the
+  script overrides it. Found 2026-08-09 after two audits ran that way, one passing 3 h 25 m
+  without finishing. The runbook now passes it explicitly; the script default is unchanged and
+  remains a trap.
 - **Partial recovery exists** (`assemble.py`, `scripts/assemble_blocks.py`). `solve-all` had
   written `.partial` since #14, but nothing could consume it, so a run dying at block 7 still
   meant re-solving all nine. Round-trips a real nine-block file byte for byte.
