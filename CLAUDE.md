@@ -89,9 +89,15 @@ mistakes (top 20%, no medal, gap 3x the range of every lever being tuned):
 
 ## Honesty about implementation state
 
-Only the `greedy` optimizer exists. Do not describe `lazy-greedy`, `stochastic-greedy`, or
-`hybrid` as implemented, and do not let a config silently fall back to plain greedy — unimplemented
-modes must raise. `docs/codebase-map.md` holds the current limitation list; keep it accurate.
+Only the `greedy` **search** exists. Do not describe `lazy-greedy`, `stochastic-greedy`, or
+`hybrid` as implemented, and do not let a config silently fall back — unimplemented modes must
+raise. `docs/codebase-map.md` holds the current limitation list; keep it accurate.
+
+The **objective** is a separate axis from the search, and both are implemented: `--objective
+{near-tau,baseline}`, defaulting to **`near-tau` (lever A)** since 2026-08-09. Lever A wins eight
+of nine verified blocks and loses `(0.5, 1000)` at every quantile, so the shipped artifact takes
+baseline for that one block. `--objective baseline` is the escape hatch and is load-bearing —
+do not remove it.
 
 ## Session contract
 
@@ -130,13 +136,18 @@ startup reads. Run `/rehearsal` if solver code changed since the last gate run.
 
 ```bash
 conda activate mz-giscup-26
-python -m pytest -q                 # 18 passing as of last run
+python -m pytest -q                 # 350 passing as of 2026-08-09
 python -m compileall src tests scripts
-giscup inspect --input <geojson>
+giscup inspect --input <geojson>          # RUN THIS FIRST on the day -- confirms the ID field
 giscup solve-one  --input <geojson> --tau <float> --k <int> --output <txt> [--diagnostics <json>]
 giscup solve-all  --input <geojson> --taus ... --ks ... --output <txt>
-giscup validate-output --input <geojson> --solution <txt> --sampling-profile accurate
+giscup validate-output --input <geojson> --solution <txt>
 ```
+
+**A full-scale solve needs `--visibility-radius 400 --cache-dir outputs/cache` and
+`--verify-workers 12`.** Without a radius the solver recomputes visibility every greedy iteration
+and will not finish — and the default `near-tau` objective refuses to run at all. Serial
+verification costs ~12 h of the window. Full command in `docs/startup-brief.md`.
 
 Do not commit datasets, generated outputs, visibility caches, or environments.
 

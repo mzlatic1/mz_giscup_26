@@ -54,11 +54,14 @@ genuinely ambiguous):
 
 3. **Name the single next action** and say why it is first. If the feasibility gate has not read
    PASS, the answer is on the critical path and nothing else competes — a better objective on a
-   solver that cannot finish scores zero.
+   solver that cannot finish scores zero. **As of 2026-08-09 the gate reads PASS with a complete,
+   audited, packaged submission artifact on disk**, so the critical path is no longer feasibility;
+   check `docs/session-state.md` for what actually remains.
 
-4. **Flag missing context** — absent datasets, environment assumptions, unverifiable claims. Say
-   explicitly whether `data/` still lacks the official sample dataset, since the cull-radius
-   decision depends on it.
+4. **Flag missing context** — environment assumptions and unverifiable claims. Confirm
+   `data/GIS-cup-sample-dataset.geojson` is present (it has been since 2026-08-08); the **test**
+   dataset does not exist until 2026-08-15, and every solution-quality figure in the repo is
+   fitted on the March sample.
 
 5. **Report days remaining** until the 2026-08-15 test-data release, and treat that as a rehearsal
    deadline rather than a start date.

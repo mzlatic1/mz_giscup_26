@@ -37,18 +37,16 @@ Final expected structure: one dataset, three `tau` values, three `k` values, and
 
 ## Current implementation state
 
-Implemented scaffold:
+**The pipeline is complete and has produced an audited submission artifact.** Implemented:
 
-- IO and dataset inspection.
-- Building/candidate/sample/solution dataclasses.
-- Geometry helpers and boundary legality checks.
-- Weighted boundary sampling.
-- Boundary candidate generation.
-- STRtree-backed visibility checks.
-- Approximate sampled coverage.
-- Baseline greedy solver.
-- Official solution formatting and parsing.
-- Output validation, including exact `k`, boundary legality, ID existence, and sampled claim validation.
+- IO, dataset inspection, geometry, boundary legality, weighted sampling, candidate generation.
+- **Radius-culled cached visibility matrix** (`matrix.py`) — dense memmapped bitsets, parallel build.
+- **Two greedy objectives**: baseline sample-count and **lever A near-tau (the default)**.
+- **Per-building candidate prune** (`--candidate-stride`, off by default).
+- **Grid-free exact interval coverage** backing claims and validation (`exact_coverage.py`).
+- **Exhaustive parallel claim verification** plus banded recovery (`verify.py`).
+- **Two-stage parallel overclaim audit** (`audit.py`), **partial-run assembly** (`assemble.py`),
+  and **submission packaging** (`packaging.py`).
 - CLI: `inspect`, `solve-one`, `solve-all`, `validate-output`.
 - Project Conda env: `mz-giscup-26`.
 
@@ -80,7 +78,7 @@ Run 2026-08-09 in the `mz-giscup-26` Conda environment. Full detail in `docs/ses
 
 ```bash
 python -m compileall -q src tests scripts   # OK
-python -m pytest -q                         # 346 passed
+python -m pytest -q                         # 350 passed
 giscup inspect --input data/GIS-cup-sample-dataset.geojson   # OK, EPSG:32611 preserved
 python scripts/rehearse.py --input data/GIS-cup-sample-dataset.geojson \
     --cores 16 --measured-radius 400 --verify-workers 12   # PASS
@@ -104,14 +102,28 @@ feasibility rehearsals, but it has no real street topology and omits the large-b
 
 ```bash
 conda activate mz-giscup-26
-python -m pytest -q
-python scripts/make_synthetic_dataset.py --output outputs/synthetic_full.geojson
-python scripts/rehearse.py --input outputs/synthetic_full.geojson --cores 8
-giscup inspect --input outputs/synthetic_full.geojson
+python -m pytest -q                 # 350 passed
+giscup inspect --input data/GIS-cup-sample-dataset.geojson
+
+# feasibility gate -- ALWAYS pass --verify-workers; serial puts the bound at 1.0x
+python scripts/rehearse.py --input data/GIS-cup-sample-dataset.geojson \
+    --cores 16 --measured-radius 400 --verify-workers 12
+
+# a full nine-block solve (~2.85 h baseline, ~5 h lever A)
+giscup solve-all --input data/GIS-cup-sample-dataset.geojson \
+    --taus 0.25 0.5 0.75 --ks 50 500 1000 \
+    --visibility-radius 400 --cache-dir outputs/cache --matrix-workers 12 \
+    --verify-band 0.10 --verify-max-buildings 2000 --verify-workers 12 \
+    --output outputs/final.txt
+
+# audit -- pass --exact-radius explicitly, and audit what you will ship
+python scripts/audit_submission.py --input data/GIS-cup-sample-dataset.geojson \
+    --solution outputs/final.txt --exact-radius 400 --confirm-radius 800 --workers 12
 ```
 
-Solve/validate commands take the same shape once a dataset exists; `/solve <tau> <k>` wraps them.
-Do not run a full-scale solve until the feasibility gate passes — it will not finish.
+`--visibility-radius` is required: without it the solver recomputes visibility every greedy
+iteration and will not finish at full scale, and the default lever A objective refuses to run.
+`/solve <tau> <k>` wraps the single-subproblem case.
 
 ## Agent routing
 
@@ -128,19 +140,28 @@ All agents must end with iterative QA/QC until the final pass yields no changes.
 
 ## Immediate next priorities
 
-**Authoritative list: `docs/task-board.md`.** Summary only below — if the two disagree, the
-board wins.
+**Authoritative list: `docs/task-board.md`; current state: `docs/session-state.md`.** Summary only
+below — if they disagree, the board and session-state win.
 
-Nothing below the critical path matters until the feasibility gate reads PASS. A better objective
-on a solver that cannot finish scores zero.
+**REWRITTEN 2026-08-09. This section previously said the feasibility gate was the critical path and
+listed #1-#5, #7, #10, #11 as open. All of those are DONE, and the gate has read PASS since
+2026-08-07.**
 
-1. **Critical path (#1-#4):** default strategy to `relate` -> radius-culled cached visibility
-   matrix -> calibrate the cull conservatively -> `/rehearsal` reads PASS.
-   The matrix (#2) is the blocker for the whole project.
-2. **Unblocked now:** obtain the official sample dataset (#5); make validation scale (#7);
-   clean up unimplemented names (#10); resolve the hole-perimeter question (#11).
-3. **Gated on feasibility:** candidate pruning (#9), threshold-aware objective (#6), nine-block
-   dry run and submission audit (#8).
+The project is **past feasibility and past solution-quality selection**. A complete, audited,
+packaged submission artifact exists (`outputs/nine_bestof_400.txt`, 42,728 claims, 0 overclaims).
+
+1. **One decision sits with Marko: re-decide #9**, the 2x candidate prune. Adopted as a free lever;
+   measured against the shipped objective it costs ~0.07 subproblems. Implemented, tested, off by
+   default. Nothing is blocked either way.
+2. **Then it is a waiting game until 2026-08-15.** Check the official page for the submission link
+   (unpublished as of 2026-08-08).
+3. **On the day: `docs/submission-day-runbook.md` first**, before touching the extract. Run
+   `giscup inspect` to confirm the ID field — the `--id-property` fallback would make every claim
+   reference a nonexistent building while passing every structural check.
+
+Optional, none of it on a critical path: fold the measured 7.3x uncontended verify speedup into
+`gate_model`'s verdict (currently reported but deliberately not used); re-measure anything whose
+constant was fitted under a different configuration.
 
 ## Deadline
 

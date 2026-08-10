@@ -64,10 +64,10 @@ tests/test_visibility.py
 tests/test_visibility_strategy.py  # official predicate, degeneracies, relate default
 ```
 
-Current latest result: **`346 passed`** in Conda env `mz-giscup-26` (2026-08-09), 30 files.
-*(The `326` recorded here previously was stale; `docs/session-state.md`'s 333 was the correct
-pre-#9 figure. Ten new `test_candidate_prune.py` cases took it to 343, and three new
-`--objective` cases in `test_near_tau_wiring.py` to 346.)*
+Current latest result: **`350 passed`** in Conda env `mz-giscup-26` (2026-08-09), 30 files.
+*(Grew from 333 over 2026-08-09: ten `test_candidate_prune.py` cases (#9) -> 343, three
+`--objective` cases in `test_near_tau_wiring.py` (#15) -> 346, four quiet-machine speedup cases in
+`test_gate_calibration.py` -> 350. An earlier `326` recorded here was simply stale.)*
 
 ## Compact documentation layer
 

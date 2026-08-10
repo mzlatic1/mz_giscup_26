@@ -21,6 +21,12 @@ Current, after #16 (re-fit) and #18 (parallel verification), against a 20 h budg
 **Always pass `--verify-workers` — to `rehearse.py` and to `solve-all` on the day.** Serial puts
 the bound back on the margin.
 
+## The deliverable, as of 2026-08-09
+
+**`outputs/nine_bestof_400.txt`** — 9 blocks, 4,650 antennas, **42,728 claims, audit PASSED, 0
+overclaims**. Packaged: `outputs/submission/mz_giscup_26_submission_20260810.zip`. Per-block
+best-of: lever A in eight blocks, baseline in `(0.5, 1000)`. Full detail in `docs/session-state.md`.
+
 ## Unblocked — can start any time
 
 | # | Task | Why now |
@@ -1189,7 +1195,13 @@ Marko may want to re-decide with these numbers.
 pay score. Use it if the August extract is materially larger than the March sample and the window
 tightens; leave it off otherwise. It is implemented, tested, measured, and one flag away.
 
-### 10 — Unimplemented names and placeholders
+### 10 — Unimplemented names and placeholders  (**DONE 2026-08-08 — every item below was
+actioned; kept for the reasoning, not as a to-do list**)
+
+All four bullets were resolved: the alternative visibility strategies, the unimplemented optimizer
+names, both placeholder scripts, and `configs/defaults.yaml` were **deleted**. `relate` is now the
+only predicate and `greedy` the only optimizer. The file paths named below therefore no longer
+exist, by design — they are records of what was removed.
 
 Prevents a false capability claim at submission time.
 

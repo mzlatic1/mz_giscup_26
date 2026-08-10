@@ -83,6 +83,22 @@ time giscup solve-all \
     --diagnostics outputs/final.json
 ```
 
+**The objective now defaults to lever A** (`--objective near-tau`, adopted 2026-08-09). The
+command above therefore runs lever A unless you pass `--objective baseline`. With no explicit
+`--near-tau-quantile` it applies the measured tau schedule (tau<=0.375 -> 100, <=0.625 -> 50,
+else 25), which is a *function of tau* and so cannot misalign if August's thresholds are not
+0.25/0.5/0.75.
+
+**A radius-free solve now fails rather than silently running baseline**, because lever A exists only
+on the cached-matrix path. The error names both remedies.
+
+**On the March sample lever A lost exactly one block, `(0.5, 1000)`, at every quantile tested**
+(baseline 8,063 vs 7,891 at q=50 and 7,903 at q=100). The shipped artifact therefore takes baseline
+for that one block. **Do not assume the same block loses on the August extract** — if the window
+allows, re-solve the k=1000 blocks with `--objective baseline` and keep whichever wins per block,
+assembling with `scripts/assemble_blocks.py`. If it does not allow, ship lever A everywhere; it
+wins eight of nine.
+
 Notes that cost hours if forgotten:
 
 - **`--verify-workers`** now defaults to `min(cores, 12)`, but pass it explicitly so the log
@@ -178,17 +194,43 @@ SHA-256 matches across source, bundle and manifest.
 ## 6. If the extract is much bigger than 12,860 buildings
 
 Cost is roughly linear in buildings for verification and in candidates for the matrix build and
-greedy. In order of what to give up:
+greedy. **Both time-buying levers were measured on 2026-08-09 and ranked. Neither is free — spend
+them in this order, and only as far as you must.**
 
-1. **Prune the candidate pool 2×** (keep the vertex half). Measured free — one serviced building
-   of 14,708 — and takes ~1.7 h off the day. **This changes the matrix cache key**, which is
-   irrelevant on the day because nothing is cached anyway. Not yet implemented as a flag; see #9.
-2. **Raise `--verify-workers`** if the host has more than 16 cores. Do not expect more than the
-   4.70× measured at 12; efficiency was already down to 39% there.
-3. **Do not raise the radius.** 600 m was measured at 4.36× the build time of 400 m for +8.5%
+| order | lever | flag | time bought | score cost |
+|---|---|---|---|---|
+| 1 | 2× candidate prune | `--candidate-stride 2` | **~1.7 h** | **~0.07 subproblems** |
+| 2 | 300 m cull | `--visibility-radius 300` | ~0.8 h | **~0.79 subproblems** |
+
+1. **Prune the candidate pool 2× first — it strictly dominates.** It keeps the vertex half
+   (`--candidate-stride 2`, implemented 2026-08-09) and buys roughly twice the time at about a
+   eleventh of the cost. It halves the matrix build **and** halves greedy, because the argmax is a
+   popcount over every candidate row.
+
+   **It is NOT free**, despite an earlier sizing that said so. That figure — one serviced building
+   of 14,708 — was measured in-sample, with *baseline* greedy, pooled at k=500. Against lever A it
+   costs −0.18% at `(0.75, 500)` but **−2.03% at `(0.75, 50)`**, and under relative scoring the
+   small-count blocks are worth exactly as much as the large ones.
+
+2. **Cut the radius to 300 m only if the prune is not enough.** It buys *only* the matrix build —
+   greedy costs the same, because a sparser matrix has the same number of rows of the same width.
+   Measured cost across six blocks: −5.4% of claims but **0.79 subproblems**, concentrated in the
+   low-k blocks (−28.3% at `(0.5, 50)`). Note it verifies at 600 m under the default factor 2.0,
+   which is *tighter* than the 800 m the measurement used — so treat 0.79 as the optimistic bound.
+
+3. **Raise `--verify-workers`** if the host has more than 16 cores. Do not expect more than the
+   4.70× the gate models at 12 — though a *quiet* host measured 7.3×, and the gate now prints that
+   as a third row without letting it set the verdict.
+
+4. **Do not raise the radius.** 600 m was measured at 4.36× the build time of 400 m for +8.5%
    visible pairs, and 800 m was abandoned at 1.1× headroom.
-4. **Do not lower `--verify-radius-factor` below 2.0** to save time. That is the pass that makes
+
+5. **Do not lower `--verify-radius-factor` below 2.0** to save time. That is the pass that makes
    overclaims structurally impossible, and an overclaim is a correctness failure.
+
+**Sizing rule that outranks all of the above:** size any lever **per block**, never on the total
+claim count. Three separate levers were mis-sized on 2026-08-09 by pooling — the pooled figure
+hides the small-count blocks, which is exactly where relative scoring lives.
 
 ## 7. What NOT to do on the day
 

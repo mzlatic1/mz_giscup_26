@@ -14,6 +14,9 @@ drill down only when needed. Run `/startup` to load the whole default set at onc
 
 ## Task-specific drill-down
 
+- **Submission day (2026-08-15/16): `docs/submission-day-runbook.md`** — the operational sequence.
+  Not a startup read; read it *on the day*, before touching the test extract. It carries the
+  `--id-property` trap, the sizing sequence, and what to give up if the extract is bigger.
 - Research/math/geography: `docs/research-synthesis-brief.md`
 - Agent selection: `docs/agent-roles-brief.md`
 - Full original onboarding source: `docs/original_implementation_brief.md`
