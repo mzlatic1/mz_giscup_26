@@ -16,7 +16,10 @@ on 2026-08-09; nothing unique was dropped, but for the story behind a decision u
 
 Written while Marko slept, on his instruction to work autonomously overnight and hand off at 08:00
 PDT. **Nothing was pushed** — local commits only, per the standing rule and his explicit
-reaffirmation. Six commits are ahead of `origin/main`.
+reaffirmation. Several commits are ahead of `origin/main`; run `git log origin/main..HEAD --oneline`
+for the exact set. **Pushing is recommended before the solve starts** — the tree is in materially
+better shape than `504d918` and it is cheap insurance ahead of a 24-hour window — but it needs
+Marko's explicit go-ahead.
 
 ## Run the day from `docs/release-minute-commands.md`
 
