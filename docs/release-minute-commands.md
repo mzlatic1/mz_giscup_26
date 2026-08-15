@@ -105,7 +105,7 @@ bandwidth-bound, not cache-resident-bound, so residency is irrelevant and **no l
 Had the access pattern been random, the same 39.3 GB would have been fatal — the distinction, not
 the ratio of matrix to RAM, is what decides it.
 
-## 4 — solve (the long one; ~5 h at March size, projected 12–16 h at competition size)
+## 4 — solve (the long one; **measured 2026-08-15: matrix ~7.8 h, whole run ~13–15 h**)
 
 Launch immediately on clean checks. Marko's standing instruction: report, do not ask.
 
@@ -127,6 +127,30 @@ time giscup solve-all \
 `near-tau` (lever A); do not pass `--objective` unless deliberately shipping baseline for a block.
 
 Partial output lands in `outputs/final.txt.partial` after every block and is deleted on success.
+
+### Reading progress while it runs — the log will NOT tell you
+
+`progress=False` on this code path, so nothing is printed between `setup` and block 1 — during the
+matrix build (**~7.8 h at competition size**) `solve.log` is silent. **Silence is not a stall.** The
+`.bits` file is preallocated and zero-filled before any worker starts, so `ls -l` and `du` are dead
+signals too: both read full size at 0% done.
+
+Use the frontier probe instead. Workers write disjoint contiguous row chunks, so an unprocessed row
+is still exactly zero:
+
+```bash
+python scripts/matrix_progress.py \
+    --bits outputs/cache/visibility-<key>.bits --chunks 32   # chunks = matrix-workers * 4
+```
+
+It prints a per-chunk map and an overall percentage, is read-only, and drops the pages it reads so
+it cannot evict the build's cache. Expect `workers` chunks partial at once; that is the healthy
+shape. The **`.json` sidecar is the completion marker** — never file size.
+
+Whole-run cost is arithmetic once the matrix exists: `marginal_gains` makes **one full pass per
+greedy iteration** with no pruning, the matrix is built once and reused by all nine blocks, and
+iterations total `3 x (9 + 49 + 484) = 1,626`. At the measured 4.09 GB/s pages-dropped scan rate,
+one pass over 39.27 GB is ~9.6 s, so greedy is **~4.4 h** regardless of build time.
 
 ## 5 — audit (~10 min at 12 workers)
 

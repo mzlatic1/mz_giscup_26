@@ -112,6 +112,37 @@ Scrub the live-runbook absolute paths (see above). That is the whole remaining l
 
 ## Closed 2026-08-15 (release day, after the dataset published)
 
+### 30 — The matrix build had no readable progress signal, and the finish estimate was an extrapolation  (FIXED 2026-08-15 14:16)
+
+At 14:15 the solve was 4 h 54 m in against a **projected ~4.6 h matrix build**, with no `.json`
+sidecar and no block 1. Nothing could distinguish "slower than a guess" from "stalled", because
+**every obvious progress signal on this code path is dead**:
+
+- `progress=False`, so `_report()` never fires — `solve.log` prints nothing between `setup` and
+  block 1, for the entire multi-hour build. **Silence is not a stall.**
+- The `.bits` file is preallocated and zero-filled (`bits[:] = 0`) before any worker starts, so
+  `ls -l` reads full size at 0% done, and `du` reads 37G at 0% done (it is not sparse).
+- `/proc/<pid>/io` counters measure writeback, not work completed.
+
+**The signal that does exist** is the data itself. `build_visibility_matrix` splits candidates into
+`workers * 4` contiguous row chunks and each worker writes only its own disjoint range, so an
+unprocessed row is still exactly zero, and a processed candidate is essentially never all-zero (it
+always sees samples near itself). `scripts/matrix_progress.py` samples windows across the file and
+prints the zero/nonzero frontier as a per-chunk map. Read-only; `posix_fadvise(DONTNEED)` on the way
+out so it cannot evict the build's own cache.
+
+First reading, 14:16: **62.8%**, chunks 0–15 DONE, 16–23 partial (eight at once, one per worker —
+the healthy shape), 24–31 untouched. Build re-projected to **~7.8 h total, done ~17:10–17:30**.
+
+The whole-run figure was also replaced. `~12–16 h` was a guess; the greedy half is arithmetic:
+`marginal_gains` makes **one full matrix pass per iteration** with no pruning, the matrix is built
+once and reused by all nine blocks, iterations total `3 x (9 + 49 + 484) = 1,626`, and one pass over
+39.27 GB at the measured 4.09 GB/s is ~9.6 s → **~4.4 h of greedy**, whatever the build costs.
+Whole run lands **~23:00–00:00 PDT**, i.e. 3.5–4.5 h of slack before the 03:30 drop-dead.
+
+This is CLAUDE.md rule 4 twice over: the dead ~4.6 h figure was an extrapolation that came in ~70%
+low, and the replacement is only trustworthy because it is a measurement of the run in flight.
+
 ### 29 — The official evaluator lived only in a dead session's `/tmp` scratchpad  (FOUND AND FIXED 2026-08-15)
 
 Step 6 of the submission path — the official evaluator, ~1 h, on the critical path and the strongest

@@ -1,35 +1,59 @@
 # Current Session State
 
-## ⏸️ STANDBY — 2026-08-15 14:12 PDT. A SHELL WAKES YOU, NOT MARKO.
+## ▶️ RESUMED — 2026-08-15 14:15 PDT. Solve healthy, finish RE-PROJECTED from measurement.
 
-**Marko ran `/compact` here and is not going to prompt you.** Background task `by7gndy8r` fires at
-**14:15 PDT** and prints `RESUME NOW` plus a full status dump. **That notification is the go
-signal.** Until it lands, do nothing.
+The 14:15 resume shell (`by7gndy8r`) fired and standby is over. Monitors re-armed; the matrix build
+is past its old (wrong) projection but is provably progressing.
 
 Verified this session, so do not re-learn it: **background Bash (`run_in_background`) survives a
-`/compact`; a `Monitor` does not.** The solve-exit watcher (pid 91823, `until ! kill -0 86862`) and
-the resume shell both survive. **The `solve.log` Monitor dies on the compact — re-arm it first thing
-on resume.**
+`/compact`; a `Monitor` does not.** Re-arm Monitors after every compact.
 
-### Solve state at standby
+### How to measure matrix-build progress on a live run — USE THIS, do not guess
 
-pid **86862**, launched 09:22 PDT, **4 h 48 m elapsed**, all eight workers (86894–86901) at 99.9%,
-39.3 GB `.bits` written to within the same second as the check. Wrapper shell is 86851 — not the
-solver.
+The `.bits` file is preallocated and zero-filled (`bits[:] = 0`) before any worker starts, so
+**file size and `du` are both dead signals** (`du` reads 37G at 0% and at 99%). And `progress=False`
+on this code path, so `_report()` never fires and `solve.log` stays silent from "setup" until block
+1 — **silence is not a stall.**
 
-**⚠️ The 14:15 checkpoint already reads BAD.** The matrix build was projected ~4.6 h (done ~14:00).
-At 14:10 there is still **no `.json` sidecar** and **no `outputs/final.txt.partial`** — the build is
-past projection with block 1 not yet started. Nothing is wrong (workers pinned, file being written,
-and ~4.6 h was an *extrapolation*, never a measurement), but **the projection is now known to be
-optimistic and must be re-derived from measured elapsed before it is trusted for anything.**
+What works: `build_visibility_matrix` splits candidates into `workers * 4` = **32 contiguous row
+chunks**, and each worker writes only its own disjoint range, so an unprocessed row is still exactly
+zero. Probe small windows across the file and the zero/nonzero frontier *is* the progress bar.
+Script: `scratchpad/matrix_progress.py` (read-only, drops the pages it reads so it cannot evict the
+build's cache).
 
-### Do this on resume, in order
+**Measured 14:16 PDT: 201/320 windows nonzero = 62.8%** — chunks 0–15 DONE, 16–23 partial (eight in
+flight, one per worker, exactly the expected shape), 24–31 untouched.
 
-1. **Re-arm the `solve.log` Monitor** (wide filter: progress + `Traceback|Error|FAILED|Killed|OOM`).
-2. **Re-project the finish** the moment the sidecar appears — measured build time replaces the dead
-   ~4.6 h figure, and the 12–16 h whole-run projection depends on it.
-3. **Rehearse crash recovery against the real `final.txt.partial`** once block 1 lands (synthetic
-   path already passes; this only confirms the real file's formatting).
+### The re-projection (replaces the dead ~4.6 h build figure and the ~12–16 h whole-run figure)
+
+| stage | basis | estimate |
+|---|---|---|
+| matrix build | 62.8% at 4 h 54 m → ~468 min total | done **~17:10–17:30 PDT** |
+| greedy, all nine blocks | 1,626 passes x 9.6 s — arithmetic, see below | **~4.4 h** |
+| per-block verify + setup | not yet measured at this size | +1–2 h |
+| **whole run** | | **finishes ~23:00–00:00 PDT** |
+
+The greedy number is not an extrapolation. `marginal_gains` does **one full pass over the matrix per
+iteration** with no candidate pruning, the matrix is built **once** and reused by all nine blocks,
+and total iterations are `3 taus x (9 + 49 + 484) = 1,626`. At the measured pages-dropped scan rate
+of 4.09 GB/s, one pass over 39.27 GB is ~9.6 s. `marginal_gains_masked` (the `near-tau` path) is
+documented as identical cost, so lever A does not change this.
+
+**Against the 03:30 drop-dead that is 3.5–4.5 h of slack.** The old ~4.6 h build estimate came in
+~70% low because it was an extrapolation, never a measurement — CLAUDE.md rule 4, again.
+
+Health at 14:17, all good: swap **untouched** (24 of 25 GB free — no thrashing), `Dirty` 2.7 MB,
+load 8.2 for eight workers, 13 GB free RAM, 804 GB disk. The 39.3 GB-on-24 GB question is settled in
+practice, not just in theory.
+
+### Still to do on this run
+
+1. ~~Re-arm the `solve.log` Monitor~~ — done, task `b8i8kb4q1` (persistent, wide failure filter).
+2. ~~Re-project the finish~~ — done, above. A second Monitor (`bmrqkd9kx`) prints matrix % every
+   10 min and announces the sidecar, so the projection self-corrects.
+3. **Rehearse crash recovery against the real `final.txt.partial`** — still pending, and cannot run
+   until block 1 lands (~17:30). The synthetic path already passes; this only confirms the real
+   file's formatting.
 
 **DROP-DEAD is 03:30 PDT 2026-08-16** — see the cutover schedule at the top of
 `docs/submission-day-runbook.md`. Deadline 09:00 PDT. `scripts/emergency_filler_blocks.py` is

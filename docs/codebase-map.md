@@ -117,6 +117,8 @@ scripts/make_synthetic_dataset.py  # full-scale stand-in matching documented sam
 scripts/rehearse.py                # gate: analytic projection, plus --measured-radius for an
                                    #   observed end-to-end verdict off the real matrix
 scripts/build_matrix.py            # build/reuse the visibility matrix at full scale (--candidate-stride)
+scripts/matrix_progress.py         # read progress of an IN-FLIGHT matrix build (size/du/log are all
+                                   #   dead signals; probes the zero/nonzero frontier instead)
 scripts/audit_submission.py        # mechanical audit of a nine-block file (two-stage, parallel)
 scripts/assemble_blocks.py         # recover a nine-block file from partials / separate runs
 scripts/package_submission.py      # build and verify the submission bundle
