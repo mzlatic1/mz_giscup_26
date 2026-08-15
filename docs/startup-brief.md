@@ -155,11 +155,15 @@ The project is **past feasibility and past solution-quality selection**. A compl
 packaged submission artifact exists (`outputs/nine_bestof_400.txt`, 42,728 claims, 0 overclaims) —
 **for the March sample.** It proves the pipeline; it is not the deliverable.
 
-**As of 2026-08-10 there is NO open decision and NO preparatory work left. The next session is
-submission day.**
+**As of 2026-08-15 there is NO open decision and NO preparatory work left. THIS IS submission day
+— the dataset publishes 09:00 PDT / 16:00 UTC.**
 
-1. **Read `docs/submission-day-runbook.md` first**, before touching the extract, and follow it top
-   to bottom rather than improvising from memory.
+0. **Run the day from `docs/release-minute-commands.md`** — the runbook's sequence with every flag
+   filled in, so nothing is composed under time pressure. Read
+   `docs/submission-day-runbook.md` alongside it, and whenever something does not look right.
+1. **Read the dataset's `competition-parameters.txt` before anything else.** It ships with the
+   download and the `(tau, k)` grid it names outranks the assumed nine. `--taus`/`--ks` exist on
+   `solve-all`, the audit, and the assembler for exactly this.
 2. **Run `giscup inspect` before solving anything, capturing stderr.** The `--id-property` fallback
    would make every claim reference a nonexistent building while passing every structural check.
    The official page named the field `properties.id` on 2026-08-15 *(it previously named none)*, so
@@ -170,6 +174,9 @@ submission day.**
    `docs/session-state.md`.
 4. **Regenerate the bundle from the August solution.** The zip on disk is a March-sample bundle
    whose `source/` predates `3f381bb`. Do not ship it.
+5. **Score the result with the organisers' own evaluator** — `scripts/official_evaluator/`, ~45 min.
+   On the March artifact it verified **42,728 of 42,728 claims, exact agreement on all nine
+   blocks** (2026-08-15). It sees the official predicate exactly; it still cannot predict rank.
 
 Settled and not to be re-litigated on the day: radius **400 m**, objective **`near-tau`**,
 `--matrix-workers` **8**, `--verify-workers` **12**, `--candidate-stride` **1**.
