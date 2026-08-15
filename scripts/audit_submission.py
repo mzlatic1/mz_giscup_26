@@ -20,6 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from giscup.assemble import DEFAULT_KS, DEFAULT_TAUS, subproblem_grid  # noqa: E402
 from giscup.audit import confirm_overclaims  # noqa: E402
 from giscup.gate_model import default_verify_workers  # noqa: E402
 from giscup.geometry import BoundaryIndex  # noqa: E402
@@ -27,8 +28,9 @@ from giscup.io import load_buildings  # noqa: E402
 from giscup.output import parse_points  # noqa: E402
 from giscup.visibility import BlockerIndex  # noqa: E402
 
-EXPECTED_TAUS = (0.25, 0.5, 0.75)
-EXPECTED_KS = (50, 500, 1000)
+# Defaults only. The dataset's competition-parameters.txt outranks them -- see --taus.
+EXPECTED_TAUS = DEFAULT_TAUS
+EXPECTED_KS = DEFAULT_KS
 
 # A coordinate that went through format(x, ".17g") and needed precision will carry
 # many significant digits. Six-decimal rounding is the documented failure mode.
@@ -127,6 +129,19 @@ def build_parser() -> argparse.ArgumentParser:
             "On this host: %(default)s."
         ),
     )
+    ap.add_argument(
+        "--taus", nargs="+", type=float, default=list(EXPECTED_TAUS),
+        help=(
+            "The tau values the submission must cover. Default: %(default)s. These were "
+            "hardcoded until 2026-08-15, which meant a submission solved for a different "
+            "published grid would FAIL its own audit at the last gate before upload. "
+            "Set them from the dataset's competition-parameters.txt if it disagrees."
+        ),
+    )
+    ap.add_argument(
+        "--ks", nargs="+", type=int, default=list(EXPECTED_KS),
+        help="The k values the submission must cover. Default: %(default)s.",
+    )
     return ap
 
 
@@ -143,13 +158,19 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  [FAIL] file does not parse into three-line blocks -- {exc}")
         return 1
 
+    expected = subproblem_grid(args.taus, args.ks)
+
     print("STRUCTURE")
-    audit.check(len(blocks) == 9, "nine blocks present", f"found {len(blocks)}")
+    audit.check(
+        len(blocks) == len(expected),
+        f"{len(expected)} blocks present",
+        f"found {len(blocks)}",
+    )
     seen = [(t, k) for t, k, *_ in blocks]
     audit.check(len(set(seen)) == len(seen), "no duplicated (tau, k) block")
     audit.check(
-        set(seen) == {(t, k) for t in EXPECTED_TAUS for k in EXPECTED_KS},
-        "the nine official (tau, k) combinations",
+        set(seen) == set(expected),
+        f"the {len(expected)} official (tau, k) combinations",
         f"{sorted(set(seen))}",
     )
 

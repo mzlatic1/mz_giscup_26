@@ -28,7 +28,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from giscup.assemble import REQUIRED_SUBPROBLEMS, assemble_blocks, parse_blocks  # noqa: E402
+from giscup.assemble import (  # noqa: E402
+    DEFAULT_KS,
+    DEFAULT_TAUS,
+    assemble_blocks,
+    parse_blocks,
+    subproblem_grid,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -41,6 +47,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--force", action="store_true",
         help="Overwrite --output if it exists. Off by default: the likeliest target is "
              "the submission file itself.",
+    )
+    ap.add_argument(
+        "--taus", nargs="+", type=float, default=list(DEFAULT_TAUS),
+        help="The tau values the submission must cover. Default: %(default)s. Change "
+             "this only if the dataset's competition-parameters.txt says otherwise -- "
+             "that file outranks every assumption in this repository.",
+    )
+    ap.add_argument(
+        "--ks", nargs="+", type=int, default=list(DEFAULT_KS),
+        help="The k values the submission must cover. Default: %(default)s.",
     )
     return ap
 
@@ -61,15 +77,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{path}: {len(blocks)} block(s)  {listed}")
         texts.append(text)
 
+    required = subproblem_grid(args.taus, args.ks)
+
     try:
-        assembled = assemble_blocks(texts)
+        assembled = assemble_blocks(texts, required=required)
     except ValueError as exc:
         print(f"\nNOT ASSEMBLED: {exc}")
         return 1
 
     out.write_text(assembled, encoding="utf-8")
     lines = assembled.splitlines()
-    print(f"\nwrote {out}: {len(lines)} lines, {len(REQUIRED_SUBPROBLEMS)} blocks")
+    print(f"\nwrote {out}: {len(lines)} lines, {len(required)} blocks")
     for i in range(0, len(lines), 3):
         n_pts = lines[i + 1].count("(")
         n_claims = len([c for c in lines[i + 2].split(",") if c.strip()])

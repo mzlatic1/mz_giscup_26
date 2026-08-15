@@ -28,10 +28,34 @@ from __future__ import annotations
 
 from typing import NamedTuple, Sequence
 
-#: The nine subproblems, tau-outer and k-inner, which is also the emission order.
-REQUIRED_SUBPROBLEMS: tuple[tuple[float, int], ...] = tuple(
-    (tau, k) for tau in (0.25, 0.5, 0.75) for k in (50, 500, 1000)
-)
+#: The taus and ks the official page has always described. They are a *default*, not a
+#: law: the competition dataset ships a companion `competition-parameters.txt`, and if
+#: that file names different values it wins outright (CLAUDE.md source-of-truth order --
+#: dataset inspection outranks repository docs). Everything downstream derives from
+#: `subproblem_grid` so a different grid stays survivable.
+DEFAULT_TAUS: tuple[float, ...] = (0.25, 0.5, 0.75)
+DEFAULT_KS: tuple[int, ...] = (50, 500, 1000)
+
+
+def subproblem_grid(
+    taus: Sequence[float] | None = None,
+    ks: Sequence[int] | None = None,
+) -> tuple[tuple[float, int], ...]:
+    """The subproblem set, tau-outer and k-inner, which is also the emission order.
+
+    Order is not cosmetic: it is how a reader keys a block to a subproblem, and
+    `assemble_blocks` emits in exactly this sequence.
+    """
+    return tuple(
+        (tau, k)
+        for tau in (DEFAULT_TAUS if taus is None else taus)
+        for k in (DEFAULT_KS if ks is None else ks)
+    )
+
+
+#: The nine subproblems under the assumed parameters. Kept as a module constant because
+#: it is the overwhelmingly likely case and reads better at call sites than the helper.
+REQUIRED_SUBPROBLEMS: tuple[tuple[float, int], ...] = subproblem_grid()
 
 
 class Block(NamedTuple):
@@ -109,8 +133,10 @@ def assemble_blocks(
 ) -> str:
     """One valid solution file from several partial ones.
 
-    `required` exists for tests and for a hypothetical rule change; on submission day
-    it is the nine published subproblems and should be left alone.
+    `required` defaults to the assumed nine. Pass it when `competition-parameters.txt`
+    names a different grid -- `scripts/assemble_blocks.py --taus/--ks` is the way in.
+    Leaving it hardcoded would have disabled the crash-recovery path on exactly the
+    day it is needed, which is the whole reason this argument is now reachable.
     """
     wanted = tuple(required) if required is not None else REQUIRED_SUBPROBLEMS
 
