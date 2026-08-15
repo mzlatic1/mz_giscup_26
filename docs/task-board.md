@@ -112,6 +112,30 @@ Scrub the live-runbook absolute paths (see above). That is the whole remaining l
 
 ## Closed 2026-08-15 (release day, after the dataset published)
 
+### 32 — The greedy scan rate was 1.8x optimistic, and `solve.log`'s own ETA is unusable  (MEASURED 2026-08-15 16:49)
+
+The whole-run projection rested on **9.6 s per greedy pass**, derived from a 4.09 GB/s
+pages-dropped scan rate. That rate was measured on the **2.6 GB March matrix** — small enough that
+"pages dropped" never reproduced a genuinely cold streaming read of **39.3 GB**.
+
+Measured on the real matrix, twice: **block 1 = 17.3 s/pass** (9 passes, individually timestamped),
+**block 2 = 17.6 s/pass** (28 passes). Effective throughput ~2.25 GB/s, not 4.09. Use **17.5 s**.
+
+Consequence: greedy is **~7.9 h**, not 4.4 h, so the solve lands **~00:30 PDT** rather than 23:00 —
+still ~3 h clear of the 03:30 drop-dead, with the audit → evaluator → best-of → package chain
+fitting well before 09:00. Per-block overhead is negligible: block 1 spent 0.3 min on coverage plus
+verify against 2.3 min of greedy.
+
+**Separately, `solve.log` prints `eta 78799.9 min` (54 days) and it is garbage.** The field divides
+total elapsed by antennas placed, charging the entire 7.26 h matrix build to block 1's nine
+antennas. It shrinks all night and stays wrong the whole time, and at 03:00 it is exactly the kind
+of number that triggers an unnecessary drop-dead call. Recorded in both runbooks with the
+replacement arithmetic.
+
+This is CLAUDE.md rule 4 landing twice in one afternoon — the second time while writing up the
+first. The pattern is identical each time: a constant measured at small scale, reused at large
+scale, described as "measured". A rate is only measured *on the thing it will run on*.
+
 ### 31 — The approved `k=9` best-of had no tool that could actually perform its merge  (FIXED 2026-08-15)
 
 Marko approved a `k=9`-only best-of: solve the three cheap blocks again with `--objective baseline`

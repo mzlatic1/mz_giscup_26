@@ -1,9 +1,35 @@
 # Current Session State
 
-## ▶️ RESUMED — 2026-08-15 14:15 PDT. Solve healthy, finish RE-PROJECTED from measurement.
+## ▶️ MATRIX DONE 16:37, BLOCKS RUNNING — 2026-08-15 16:49 PDT
 
-The 14:15 resume shell (`by7gndy8r`) fired and standby is over. Monitors re-armed; the matrix build
-is past its old (wrong) projection but is provably progressing.
+**Matrix build finished at 16:37 after 26,117 s = 7.26 h.** Block 1 `(0.32, 9)` is done and claimed
+**324** buildings (330 pre-verify, verifier corrected +9/−15). Block 2 `(0.32, 49)` is in flight.
+`outputs/final.txt.partial` exists and is real.
+
+### ⚠️ THE `eta` IN `solve.log` IS GARBAGE — DO NOT ACT ON IT
+
+It reads **`eta 78799.9 min`** (54 days). It divides total elapsed by antennas placed, so it charges
+the entire 7.26 h matrix build to block 1's nine antennas. It will shrink all night and stay wrong
+the whole time. **At 03:00 this number could trigger an unnecessary drop-dead call.** The real
+figure is below; recompute from `17.5 s x remaining passes`, never from this field.
+
+### The greedy scan rate was 1.8x worse than projected — MEASURED, twice
+
+| source | s per greedy pass | effective |
+|---|---|---|
+| projected from the March 2.6 GB matrix | 9.6 | 4.09 GB/s |
+| **block 1, 9 passes** | **17.3** | 2.27 GB/s |
+| **block 2, 28 passes** | **17.6** | 2.23 GB/s |
+
+The 4.09 GB/s "pages dropped" figure came off a **2.6 GB** matrix — too small to reproduce a
+genuinely cold streaming read of **39.3 GB**. It was an extrapolation wearing a measurement's
+clothes, which is CLAUDE.md rule 4 for the second time in one afternoon. Use **17.5 s/pass**.
+
+**Revised finish: total passes `3 x (9 + 49 + 484)` = 1,626, so the solve lands ~00:30 PDT**
+(2026-08-16), not 23:00. Per-block overhead is negligible — block 1 spent 0.3 min on
+coverage + verify against 2.3 min of greedy. Against the **03:30 drop-dead that is ~3 h of slack**,
+and the downstream chain (audit 60 min → evaluator 90 min → `k=9` best-of ~8 min → package) fits
+well before the 09:00 deadline.
 
 **Background Bash (`run_in_background`) survives a `/compact`** — the solve-exit watcher (pid 91823,
 started 09:56) came through one alive. **Re-arm Monitors after a compact**, because the handles are
@@ -34,7 +60,7 @@ on this code path, so `_report()` never fires and `solve.log` stays silent from 
 What works: `build_visibility_matrix` splits candidates into `workers * 4` = **32 contiguous row
 chunks**, and each worker writes only its own disjoint range, so an unprocessed row is still exactly
 zero. Probe small windows across the file and the zero/nonzero frontier *is* the progress bar.
-Script: `scratchpad/matrix_progress.py` (read-only, drops the pages it reads so it cannot evict the
+Script: `scripts/matrix_progress.py` (read-only, drops the pages it reads so it cannot evict the
 build's cache).
 
 **Measured 14:16 PDT: 201/320 windows nonzero = 62.8%** — chunks 0–15 DONE, 16–23 partial (eight in
@@ -83,9 +109,17 @@ practice, not just in theory.
 
 The matrix probe's `sleep` child gets a **new pid every cycle**, so check the loop shell `109584`
 for liveness, not the sleep.
-3. **Rehearse crash recovery against the real `final.txt.partial`** — still pending, and cannot run
-   until block 1 lands (~17:30). The synthetic path already passes; this only confirms the real
-   file's formatting.
+3. ~~Rehearse crash recovery against the real `final.txt.partial`~~ — **DONE 16:44, PASSED.** The
+   real 1-block partial went to nine blocks in 6.3 s; block 1 came through **byte-for-byte
+   identical** (`cmp`), and `inspect_solution` accepts all nine with exact-`k` point counts
+   (9/49/484 x 3). The emergency path is now proven against genuine solver output, not synthetic
+   blocks. Deliberately ran WITHOUT the full audit: an audit at 12 workers would contend for the
+   disk bandwidth the greedy scan is bound by, and the audit itself was already proven on this
+   dataset earlier today.
+
+   Note for whoever calls it next: `packaging.inspect_solution(text)` takes solution **text**, not a
+   path — handing it a path makes it report "solution has 1 lines". Its `Block` has `n_points`,
+   while `assemble.Block` has `points`. Two different Blocks; easy to confuse under pressure.
 
 Closed while waiting, both on the critical path: **#30** (the progress probe and re-projection
 above) and **#31** — the approved `k=9` best-of pointed at `assemble_blocks.py`, which *refuses* a
@@ -176,7 +210,7 @@ not as a link on the competition page. Copied to `data/`, never overwritten:
 |---|---|---|
 | buildings | 12,860 | **50,000** (3.89x) |
 | candidates | 157,454 | **613,666** |
-| samples | 133,417 | **512,589** |
+| samples | 133,417 | **511,903** |
 | matrix @ 400 m | 2.63 GB | **39.3 GB** |
 | density | 610 bldg/km² | 437 bldg/km² (*lower*) |
 | perimeter sum | 858,973 m | 3,300,183 m |

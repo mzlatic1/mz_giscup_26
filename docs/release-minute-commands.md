@@ -28,7 +28,7 @@ The dataset shipped **inside the evaluator repo**, not as a page link:
 copied to `data/` (md5 `cf36adb386b8caf1415cf359d578245b`). **Never overwrite them.**
 
 Measured facts about this extract, all confirmed 2026-08-15 (see `docs/session-state.md`):
-50,000 buildings (3.89x the sample), 613,666 candidates, 512,589 samples, **39.3 GB matrix at
+50,000 buildings (3.89x the sample), 613,666 candidates, 511,903 samples, **39.3 GB matrix at
 400 m**, `holes_count` 0, EPSG:32611, IDs `1..50000` unique ints, and the official loader parses it.
 
 ## 0 — environment (5 min)
@@ -90,7 +90,7 @@ binding constraint** (below), which took ten minutes.
 
 ### The one thing worth measuring at this size
 
-At 613,666 candidates x 512,589 samples the matrix is **39.3 GB on a 24 GB machine**. That looks
+At 613,666 candidates x 511,903 samples the matrix is **39.3 GB on a 24 GB machine**. That looks
 like a hard stop and is not one:
 
 | scan of the March matrix | rate |
@@ -105,7 +105,7 @@ bandwidth-bound, not cache-resident-bound, so residency is irrelevant and **no l
 Had the access pattern been random, the same 39.3 GB would have been fatal — the distinction, not
 the ratio of matrix to RAM, is what decides it.
 
-## 4 — solve (the long one; **measured 2026-08-15: matrix ~7.8 h, whole run ~13–15 h**)
+## 4 — solve (the long one; **measured 2026-08-15: matrix 7.26 h, whole run ~12–15 h**)
 
 Launch immediately on clean checks. Marko's standing instruction: report, do not ask.
 
@@ -131,7 +131,7 @@ Partial output lands in `outputs/final.txt.partial` after every block and is del
 ### Reading progress while it runs — the log will NOT tell you
 
 `progress=False` on this code path, so nothing is printed between `setup` and block 1 — during the
-matrix build (**~7.8 h at competition size**) `solve.log` is silent. **Silence is not a stall.** The
+matrix build (**7.26 h measured at competition size**) `solve.log` is silent. **Silence is not a stall.** The
 `.bits` file is preallocated and zero-filled before any worker starts, so `ls -l` and `du` are dead
 signals too: both read full size at 0% done.
 
@@ -149,8 +149,19 @@ shape. The **`.json` sidecar is the completion marker** — never file size.
 
 Whole-run cost is arithmetic once the matrix exists: `marginal_gains` makes **one full pass per
 greedy iteration** with no pruning, the matrix is built once and reused by all nine blocks, and
-iterations total `3 x (9 + 49 + 484) = 1,626`. At the measured 4.09 GB/s pages-dropped scan rate,
-one pass over 39.27 GB is ~9.6 s, so greedy is **~4.4 h** regardless of build time.
+iterations total `3 x (9 + 49 + 484) = 1,626`.
+
+**Use 17.5 s per pass — measured on this matrix, twice** (block 1: 17.3 s over 9 passes; block 2:
+17.6 s over 28). That is **~7.9 h of greedy**. Do *not* use the 9.6 s that the 4.09 GB/s figure
+implies: that rate was measured on the **2.6 GB** March matrix, which is too small to reproduce a
+cold streaming read of 39.3 GB. Effective rate here is ~2.25 GB/s.
+
+### ⚠️ The `eta` field in `solve.log` is wrong — ignore it
+
+It reads **`eta 78799.9 min`** (54 days) after block 1, because it divides total elapsed by antennas
+placed and so charges the whole 7.26 h matrix build to nine antennas. It shrinks all night and stays
+wrong. Recompute from `17.5 s x remaining passes` instead. **Do not call the drop-dead off this
+number.**
 
 ## 5 — audit (~10 min at 12 workers)
 
