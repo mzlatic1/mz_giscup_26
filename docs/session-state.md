@@ -311,12 +311,12 @@ same to scan.
 
 **If runtime must be bought on the day: prune first, cut radius only if that is not enough.**
 
-## Official page — re-checked 2026-08-10, nothing has changed
+## Official page — re-checked 2026-08-10  *(SUPERSEDED: re-checked again 2026-08-15, see the top block)*
 
-`https://sigspatial2026.sigspatial.org/giscup.html`. **The submission link is still not published**:
-*"The webpage will be updated closer to the competition time to include a link to submit."* Re-check
-on 2026-08-15. Fallback contact if it never appears: Aaron Lowe (`alowe@esri.com`) or Ashwin
-Shashidharan (`ashashidharan@esri.com`).
+`https://sigspatial2026.sigspatial.org/giscup.html`. This said **the submission link is still not
+published**. **It was published on 2026-08-15 — it is EasyChair**,
+`https://easychair.org/conferences/?conf=giscup2026`. The emails below are now break-glass only:
+Aaron Lowe (`alowe@esri.com`) or Ashwin Shashidharan (`ashashidharan@esri.com`).
 
 Everything else on the page re-confirmed against our docs, verbatim, with **no drift**: all five
 dates; three lines per subproblem for nine subproblems; three taus x three ks; IEEE-754 doubles;
@@ -334,9 +334,8 @@ unresolvable before the extract lands: `giscup inspect` on the day is the only w
 
 1. **On the day, read `docs/submission-day-runbook.md` first**, then follow it. It carries the
    `--id-property` trap, the sizing sequence, the exact commands, and the ranked fallback levers.
-2. **Get the submission link.** Still unpublished as of 2026-08-10; the page says it will appear
-   "closer to the competition time". If it has not appeared by the time results are ready, email
-   Aaron Lowe (`alowe@esri.com`) or Ashwin Shashidharan (`ashashidharan@esri.com`).
+2. ~~**Get the submission link.**~~ **RESOLVED 2026-08-15: EasyChair**,
+   `https://easychair.org/conferences/?conf=giscup2026`, account required. Emails are break-glass.
 3. **Regenerate the bundle from the August solution** — `python scripts/package_submission.py
    --solution outputs/final.txt`. The zip on disk is a March-sample bundle and its `source/`
    predates `3f381bb`. **Do not ship it.**
@@ -360,7 +359,7 @@ SciPy 1.17.1. **`ruff` and `mypy` are NOT installed** — `pip install -e .[dev]
 ## Validation status — actually run 2026-08-10, end of session
 
 ```bash
-python -m pytest -q                         # 356 passed
+python -m pytest -q                         # 356 passed  (365 as of 2026-08-15)
 python -m compileall -q src tests scripts   # OK
 giscup inspect --input data/GIS-cup-sample-dataset.geojson   # OK, EPSG:32611 preserved
 python scripts/rehearse.py --input data/GIS-cup-sample-dataset.geojson \

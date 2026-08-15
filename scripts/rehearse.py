@@ -45,7 +45,9 @@ from giscup.io import load_buildings
 from giscup.sampling import get_profile, sample_boundaries
 from giscup.visibility import BlockerIndex, is_visible
 
-# The nine subproblems. Sample-page values; the final ones are not published.
+# The nine subproblems, as sample-page values. The real ones ship with the dataset in
+# `competition-parameters.txt` (confirmed 2026-08-15) and outrank these. Only the gate's
+# own projection uses them; the solver and audit take --taus/--ks.
 TAUS = (0.25, 0.5, 0.75)
 KS = (50, 500, 1000)
 

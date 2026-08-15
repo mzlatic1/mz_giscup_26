@@ -26,7 +26,7 @@ pressure.** Timings are for a March-sized extract (12,860 buildings); scale them
 | 3 | size the run | `scripts/rehearse.py --cores 16 --measured-radius 400` | 10 min |
 | 4 | solve nine blocks | `giscup solve-all` (radius **400**, matrix-workers **8**, verify-workers **12**) | **~5 h** |
 | 5 | audit | `scripts/audit_submission.py --exact-radius 400 --confirm-radius 800` | ~10 min |
-| 6 | **official evaluator** | `scripts/official_evaluator/` | ~1 h |
+| 6 | **official evaluator** | `scripts/official_evaluator/` | ~45 min |
 | 7 | package + submit | `scripts/package_submission.py` -> EasyChair | 15 min |
 
 **Budget ~7 h of a 24 h window.** The gate's upper bound is 8.14 h at 2.5x headroom (re-read
@@ -288,7 +288,7 @@ tighter, so passing our audit implies passing theirs — keep it tight and do no
 false-positive generator. This applies to `--confirm-radius`; the *screen* is deliberately tight,
 because a tight screen over-flags and the confirm stage then clears the false alarms.
 
-## 6. Score it with the official evaluator (~1 h — new 2026-08-15)
+## 6. Score it with the official evaluator (~45 min at March size — new 2026-08-15)
 
 The organisers publish the scorer: **`github.com/alowe/gis-cup-2026-evaluator`**, MIT licensed. It
 is a browser app, but it is browser-*delivered*, not browser-*bound* — the scoring core is plain
