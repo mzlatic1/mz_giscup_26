@@ -55,6 +55,12 @@ practice, not just in theory.
    until block 1 lands (~17:30). The synthetic path already passes; this only confirms the real
    file's formatting.
 
+Closed while waiting, both on the critical path: **#30** (the progress probe and re-projection
+above) and **#31** — the approved `k=9` best-of pointed at `assemble_blocks.py`, which *refuses* a
+duplicated `(tau, k)` by design and so could never have merged it. `scripts/pick_blocks.py` now
+does that merge; exact commands in `docs/release-minute-commands.md`, "After the solve". Suite
+**375 passed**. Tree clean and pushed through `ca55be7`.
+
 **DROP-DEAD is 03:30 PDT 2026-08-16** — see the cutover schedule at the top of
 `docs/submission-day-runbook.md`. Deadline 09:00 PDT. `scripts/emergency_filler_blocks.py` is
 built, tested on the real dataset, and is the path if nine blocks do not exist by then.
