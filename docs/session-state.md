@@ -10,7 +10,120 @@ on 2026-08-09; nothing unique was dropped, but for the story behind a decision u
 
 ---
 
-# HANDOFF — 2026-08-10, end of session
+# HANDOFF — 2026-08-15, overnight prep (00:15–01:00 PDT)
+
+# ⚠️ TODAY IS SUBMISSION DAY. THE DATASET PUBLISHES AT 09:00 PDT / 16:00 UTC. ⚠️
+
+Written while Marko slept, on his instruction to work autonomously overnight and hand off at 08:00
+PDT. **Nothing was pushed** — local commits only, per the standing rule and his explicit
+reaffirmation. Six commits are ahead of `origin/main`.
+
+## Run the day from `docs/release-minute-commands.md`
+
+New tonight. It is the runbook's sequence with every flag filled in and the placeholders exported
+once at the top, so nothing has to be composed at the release minute. `docs/submission-day-runbook.md`
+remains the document you read when something does not look right.
+
+## What changed today, before any of the prep
+
+Checking the official page on release day surfaced five facts the repository had recorded as
+unknown or wrong. **These are the highest-value lines in this handoff.**
+
+| the repo believed (2026-08-10) | actually true (2026-08-15) |
+|---|---|
+| submission link "still unpublished" | **EasyChair**, live: `https://easychair.org/conferences/?conf=giscup2026`. Account required; Marko has one. |
+| building ID field name unknown | the page names **`properties.id`**, required unique |
+| boundary tolerance assumed `1e-8`–`1e-7` | **`0.001` m** — within 1 mm an antenna is *snapped and accepted*, not rejected |
+| no official scorer exists | **`github.com/alowe/gis-cup-2026-evaluator`** — MIT, and it *is* the scorer |
+| dataset is one geojson | ships a companion **`competition-parameters.txt`** |
+
+The last one has teeth: the `(tau, k)` grid is **published data**, not a documented constant.
+
+## Three defects found and fixed overnight
+
+Each would have cost real time on the day; none was known at 2026-08-10.
+
+1. **The runbook's ID stop-condition read a field that does not exist.** It said to stop if
+   `DatasetInfo.id_fallback_used` is true "in diagnostics". `diagnostics.dataset_summary` never
+   emits it, and the JSON's `id_property` is only an echo of the argument you passed. The fallback
+   warns on **stderr** (`io.py:15-23`) and nowhere else — so the documented check would have passed
+   silently on precisely the failure it exists to catch. **On the day: pipe stderr.** Fixed in the
+   runbook, not in code; changing the diagnostics schema today is the worse trade.
+2. **The `(tau, k)` grid was hardcoded in three places.** Two would have failed: crash recovery
+   would have refused a correct set of blocks ("missing 9 of 9"), and `audit_submission.py` would
+   have failed a *correct* submission at the last gate before upload. Now
+   `giscup.assemble.subproblem_grid(taus, ks)` with `--taus`/`--ks` on both scripts.
+   `packaging.EXPECTED_BLOCKS = 9` is a count and was deliberately left alone.
+3. **Two shipped tests could only fail inside the submission bundle.** They read
+   `.claude/commands/rehearsal.md`, which `packaging.SOURCE_TREES` does not ship. They had failed
+   there — and only there — since 2026-08-10, quietly making the runbook's "shipped source passes
+   its own tests" false. Now skipped when the file is absent; they stay load-bearing in the repo.
+
+Also corrected: a runbook warning that had gone stale into being *wrong* — it said `solve-all` and
+`rehearse.py` disagree on their `--objective` default and to treat it as live. That was fixed
+2026-08-10 and is pinned by a test.
+
+## Task #11 (holes) is settled, with evidence, after eight days
+
+The official page said "will not have holes"; our sample has one on building 9448. **The page was
+right.** The official loader rejects hole-bearing polygons outright —
+
+```
+DatasetValidationError: Building "9448" must contain exactly one ring and no holes.
+{ code: 'HOLES_NOT_ALLOWED', featureIndex: 9447, buildingId: '9448' }
+```
+
+— and the organisers ship the *same* sample with that hole removed (216 bytes apart). **On the day,
+`holes_count > 0` is a stop-and-escalate**, because it would mean the published dataset cannot be
+loaded by the organisers' own scorer. Our defensive handling stays: it is stricter than the official
+predicate, so it can only forfeit a claim, never create an overclaim.
+
+## The official evaluator now runs here
+
+`scripts/official_evaluator/` — driver, vitest config, and a README. It is browser-*delivered*, not
+browser-*bound*; the scoring core is plain TypeScript over `@arcgis/core` and runs headless under
+vitest. **It must run under vitest, not bare node** (`constants.ts` bare-imports `package.json`,
+which needs the Vite transform).
+
+**Validated before being trusted**, against every documented expected result the evaluator ships:
+the six `ui-smoke` fixtures (via its own vendored suite, 73/73 green) and the full-sample
+submission's documented score of **`1`**, reproduced exactly.
+
+Two properties worth knowing before reading its output:
+
+- **Only *claimed* buildings are evaluated.** Unclaimed ones are never checked — so overclaiming is
+  the only way to lose points, and underclaiming is silently free.
+- **Unknown claimed IDs are a warning, not an error.** An ID-field mistake surfaces as a quietly
+  catastrophic score, never a crash. Same failure the stderr check catches one step earlier.
+
+This retires the project's standing assumption that *"local validation is a rejection framework, not
+a score estimator"* — **only partway**. It now sees the official *predicate* exactly. It still
+cannot see **rank**, because scoring is relative (`team score / best submitted score`). Do not let a
+good number become a reason to stop checking, or a bad one a reason to re-tune at hour 20.
+
+## Official-scorer comparison of the March artifact
+
+**`k=50` blocks — exact agreement**, run against the organisers' own copy of the sample:
+
+| block | tau, k | our claims | official verified | failed | unknown IDs |
+|---|---|---|---|---|---|
+| 1 | 0.25, 50 | 1,659 | **1,659** | 0 | 0 |
+| 4 | 0.5, 50 | 269 | **269** | 0 | 0 |
+| 7 | 0.75, 50 | 148 | **148** | 0 | 0 |
+
+All 50 antennas valid in every block — **our boundary placement passes the official 1 mm test.**
+One signal: `ANTENNA_SNAPPED` ×2 in block 7, meaning two antennas sat marginally off the boundary
+and were snapped onto it. Accepted, not rejected, and therefore harmless.
+
+**The full nine-block comparison was still running when this was written** — started 00:21 PDT,
+projected 1.5–3 h. Results and any disagreement land in the section below before 08:00.
+
+> **RESULT: pending.** If this line still reads "pending" at 08:00, the run did not finish; check
+> `/tmp/.../scratchpad/bestof-nine.log` and the `bestof-nine.json` summary beside it.
+
+---
+
+# HANDOFF — 2026-08-10, end of session  *(superseded by the block above; kept for its detail)*
 
 # ⚠️ THE NEXT SESSION IS SUBMISSION DAY ⚠️
 
@@ -24,7 +137,7 @@ does not have to think about anything except executing.
 # 1. environment + green tests (5 min)
 conda activate mz-giscup-26
 cd /home/markolinux/projects/sigspatial_26
-python -m pytest -q                    # must read 356 passed
+python -m pytest -q                    # must read 365 passed
 
 # 2. put the downloaded extract in data/ -- NEVER overwrite it
 
@@ -52,8 +165,10 @@ the failure mode this project has spent a week eliminating.
 
 1. **The `--id-property` trap.** `io.py` silently falls back to the row index if the ID field is
    missing, and **every claim would then reference a nonexistent building while passing every
-   structural check.** The official page has never named the field. `giscup inspect` on the day is
-   the only way to settle it. If `DatasetInfo.id_fallback_used` is true, STOP and fix the flag.
+   structural check.** The page named `properties.id` on 2026-08-15, so the default is probably
+   right -- but `giscup inspect` on the day is still the only way to settle it. **Capture stderr:**
+   the fallback warns there and *not* in the diagnostics JSON. (This bullet said to read
+   `DatasetInfo.id_fallback_used` from diagnostics until 2026-08-15; that field is not emitted.)
 2. **A subproblem that does not finish scores ~0.** Scoring is relative and summed over nine
    independent subproblems. Partial output is written after every block to `<output>.partial`, and
    `scripts/assemble_blocks.py` merges a re-solve of only the missing blocks. Use it — do not
