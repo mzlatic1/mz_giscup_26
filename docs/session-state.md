@@ -10,7 +10,108 @@ on 2026-08-09; nothing unique was dropped, but for the story behind a decision u
 
 ---
 
-# HANDOFF — 2026-08-15, overnight prep (00:15–01:00 PDT)
+# HANDOFF — 2026-08-15 09:30 PDT — DATASET IS LIVE, SOLVE IS RUNNING
+
+# ⚠️ A NINE-BLOCK SOLVE IS IN FLIGHT. DO NOT START ANOTHER. DO NOT REBOOT. ⚠️
+
+Deadline **2026-08-16 16:00 UTC / 09:00 PDT** — check `date -u` for what remains.
+
+## Live process
+
+```
+pid 86851   giscup solve-all   launched 2026-08-15 09:30 PDT
+log         outputs/solve.log            (tail -f this first)
+output      outputs/final.txt  + outputs/final.json
+partial     outputs/final.txt.partial    (rewritten after every block, deleted on success)
+```
+
+If `ps -p 86851` is empty, the solve ended — check the log tail and whether `outputs/final.txt`
+exists before assuming failure. The exact command is in `docs/release-minute-commands.md` §4 with
+the real parameters already substituted.
+
+## THE PUBLISHED GRID IS NOT THE ASSUMED ONE
+
+```
+taus  0.32 0.49 0.68     (assumed since March: 0.25 0.5 0.75)
+ks    9 49 484           (assumed since March: 50 500 1000)
+```
+
+Every downstream command needs `--taus 0.32 0.49 0.68 --ks 9 49 484`. The audit and the assembler
+take them; **omitting them fails a correct submission.** This is precisely what the overnight
+hardening was for.
+
+## The dataset
+
+Shipped **inside the evaluator repo** (`github.com/alowe/gis-cup-2026-evaluator`, commit `9af12a5`),
+not as a link on the competition page. Copied to `data/`, never overwritten:
+
+| | sample (March) | competition (August) |
+|---|---|---|
+| buildings | 12,860 | **50,000** (3.89x) |
+| candidates | 157,454 | **613,666** |
+| samples | 133,417 | **512,589** |
+| matrix @ 400 m | 2.63 GB | **39.3 GB** |
+| density | 610 bldg/km² | 437 bldg/km² (*lower*) |
+| perimeter sum | 858,973 m | 3,300,183 m |
+| total antennas (sum k) | 4,650 | **1,626** (fewer) |
+
+md5 `cf36adb386b8caf1415cf359d578245b`. CRS **EPSG:32611**, `Polygon` only, bbox 10.6 x 10.8 km.
+
+## All release-day stop conditions passed
+
+- **`giscup inspect` stderr was empty** → the ID fallback did *not* fire, `properties.id` is real.
+  (Recall: this warning is the only signal; it is not in the diagnostics JSON.)
+- **`holes_count` 0** → the official loader will not reject this dataset. Task #11's stop condition
+  is satisfied on the real data.
+- **IDs are `1..50000`, unique, integer**, and `id` is the only property present.
+- **The official loader parses it**: 50,000 buildings, no error, 4.9 s. Verified 2026-08-15 09:25
+  via `benchmarks/loadonly.test.ts`. It coerces IDs to strings (`"1"`) — the same path that produced
+  0 unknown IDs in March, so integer IDs are fine.
+
+## The 39.3 GB matrix is NOT a memory problem — measured, not assumed
+
+The machine has 24 GB RAM. Measured scan rates: **cached 4.07 GB/s, pages-dropped 4.09 GB/s**, raw
+disk `dd iflag=direct` 4.2 GB/s. `marginal_gains` scans the memmap sequentially in 4096-row chunks,
+so readahead hides the IO completely and the disk outruns the popcount pipeline. **Bandwidth-bound,
+not residency-bound.** No lever was applied; the settled parameters (400 m, near-tau,
+`--matrix-workers 8`, `--verify-workers 12`, `--candidate-stride 1`) all stand.
+
+Do not "fix" this by adding a prune. It is not broken.
+
+## Timing projection (extrapolated — replace with measurements as they land)
+
+| phase | projection | basis |
+|---|---|---|
+| matrix build | ~4.6 h | March 5,971 s x 2.76 work ratio, 8 workers |
+| greedy | ~4.3 h | 1,626 iters x 39.3 GB / 4.07 GB/s |
+| verification | unquantified | scales with claims, not yet known |
+| **total** | **12–16 h** | finish ~22:00–02:00 PDT |
+
+The candidate-count prediction (613,666) was exact, which is some evidence the rest is sound — but
+verification is the least-constrained leg and was ~82% of a March run.
+
+## Decisions already made — do not re-open
+
+- **All nine blocks get the official evaluator** before upload (Marko, 2026-08-15). ~1 h projected.
+- **Local commits only; pushes need Marko's explicit word each time.** 14 commits were pushed at
+  09:16 PDT with his go-ahead (`504d918..bdc0d43`); everything after that is local until he says so.
+- **No solver tuning.** The near-tau quantile schedule maps our taus to 100/50/25 but was fitted at
+  k=500 while the real ks are 9/49/484. That extrapolation is *known and deliberately unaddressed* —
+  re-fitting on the day is the trap the runbook forbids.
+- EasyChair access confirmed by Marko, form reachable.
+
+## What remains
+
+1. Downstream dry-run on a synthetic solution — audit, official evaluator, packaging — so their
+   first real execution is not at hour 14. **In progress.**
+2. Crash-recovery rehearsal against a real `final.txt.partial` once block 1 lands.
+3. Re-project the finish time from the measured matrix-build duration.
+4. When the solve finishes: audit → official evaluator (all nine) → regenerate bundle → notify Marko
+   for upload. **Marko asked to be notified when the submission is ready.**
+
+---
+
+# HANDOFF — 2026-08-15, overnight prep (00:15–01:00 PDT) — SUPERSEDED by the block above
 
 # ⚠️ TODAY IS SUBMISSION DAY. THE DATASET PUBLISHES AT 09:00 PDT / 16:00 UTC. ⚠️
 
