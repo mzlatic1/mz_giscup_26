@@ -33,8 +33,17 @@ EXCLUDED_DIRS = frozenset({"data", "outputs", ".git", "__pycache__", ".pytest_ca
 EXCLUDED_SUFFIXES = frozenset({".bits", ".geojson", ".pyc", ".pyo", ".npy", ".memmap"})
 
 #: What a source bundle should carry, relative to the repo root.
+#:
+#: `CLAUDE.md` and `.claude/` are deliberately absent. Neither is required by the
+#: competition, and neither is source: they are the agent operating contract for this
+#: working copy, written for an audience of one. Shipping them puts machine instructions
+#: in front of a human evaluator looking for a program. They stay in the repository --
+#: they are the live workflow and hold the `data/**` write guard -- they just do not ship.
+#:
+#: `LICENSE` *is* here, and must stay: the bundle is a redistribution to a third party,
+#: so the grant that permits it has to travel with the code.
 SOURCE_TREES = ("src", "scripts", "tests", "configs", "docs")
-SOURCE_FILES = ("pyproject.toml", "README.md", "CLAUDE.md", "environment.yml", "setup.cfg")
+SOURCE_FILES = ("pyproject.toml", "README.md", "LICENSE", "environment.yml", "setup.cfg")
 
 
 class PackagingError(RuntimeError):

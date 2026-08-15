@@ -9,6 +9,11 @@ description = "Correctness-first solver scaffold for the ACM SIGSPATIAL 2026 GIS
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "Marko Zlatic" }]
+# Declared as a classifier rather than PEP 639 `license = "MIT"`, which would need
+# setuptools>=77 in the build requirement. The bundle instructions tell an evaluator to
+# `pip install -e .`; raising the build floor on submission day buys metadata polish at
+# the cost of a way for that install to fail. See LICENSE for the actual grant.
+classifiers = ["License :: OSI Approved :: MIT License"]
 dependencies = [
   "shapely>=2.0",
   "geopandas>=0.14",

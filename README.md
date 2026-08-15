@@ -254,4 +254,4 @@ objectives (`near-tau`, `baseline`) are implemented and tested. Current limitati
 
 ## License
 
-Copyright (c) 2026 Marko Zlatic. See `LICENSE` — no open-source license has been selected.
+MIT. Copyright (c) 2026 Marko Zlatic. See `LICENSE`.

@@ -96,6 +96,11 @@ docs/reference/                  # deep-detail drill-down (project context, geom
 
 ## Claude Code layer
 
+**None of this ships in the submission bundle.** `.claude/` was never in `SOURCE_TREES`, and
+`CLAUDE.md` was removed from `SOURCE_FILES` on 2026-08-15 (#21). It is the operating contract for
+this working copy, not source; it stays in the repository because it is the live workflow and holds
+the `data/**` write guard.
+
 ```text
 CLAUDE.md                                    # auto-loaded project rules
 .claude/settings.json                        # permissions, data/ write-deny, SessionStart hook

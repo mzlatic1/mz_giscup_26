@@ -195,12 +195,35 @@ housekeeping. `README.md` rewritten 1,629 -> 257 lines; see task #21 for the ful
 changed, what was deliberately left alone, and the three decisions reserved for Marko (`.claude/`
 visibility, `LICENSE`, `data/README.md`).
 
-**No file under `src/`, `scripts/`, or `tests/` was touched.** Docs only, deliberately, with a solve
-in flight and a bundle to regenerate from this tree.
+**No file under `src/`, `scripts/`, or `tests/` was touched** in that first pass. Docs only,
+deliberately, with a solve in flight and a bundle to regenerate from this tree.
 
 **#28 found and fixed: the documented test count was stale in two live runbooks.** The suite reads
 **368 passed in 20.9 s**; five documents said 365, including step 0 of the submission-day path.
 Corrected in the forward-looking documents, left alone in the dated historical records.
+
+## Session log — 2026-08-15 10:25–10:45 PDT (still in the matrix build)
+
+Solve unchanged and healthy: pid **86862** at ~1 h 05 m, all eight workers (86894–86901) at 99.9%,
+the 39.3 GB `.bits` written to **within the same second** as the check. Still no `.json` sidecar and
+no `outputs/final.txt.partial`, so block 1 has not landed. Nothing to re-project yet.
+
+**Marko closed the three decisions #21 had reserved for him.**
+
+1. **`LICENSE` -> MIT.** The old "all rights reserved / do not redistribute" text literally forbade
+   submitting. **`LICENSE` was also missing from `packaging.SOURCE_FILES`** — every bundle built
+   before today shipped source with no license file. Fixed.
+2. **`CLAUDE.md` removed from the bundle**, `.claude/` was never in it. Both **stay in the
+   repository**: `CLAUDE.md` is the live session contract and `.claude/settings.json` holds the
+   `data/**` write guard, so deleting either mid-solve would have been the wrong reading of "remove".
+3. **`data/README.md` is still blocked** — denied by `.claude/settings.json` *and* by the Bash
+   permission layer. Replacement text staged in the session scratchpad; needs a manual `cp`.
+
+**One deliberate `src/` edit**, the `SOURCE_FILES` tuple in `packaging.py`. Safe because
+`packaging.py` is not on the solver's import path and a running Python process does not re-read
+loaded source — the in-flight solve cannot observe it. Verified by rebuilding a full bundle from
+`outputs/nine_bestof_400.txt`: 101 files, `source/LICENSE` present, zero `.claude` entries,
+`unzip -t` clean, shipped tests `366 passed, 2 skipped`. Repo suite `368 passed`, `compileall` clean.
 
 ---
 
