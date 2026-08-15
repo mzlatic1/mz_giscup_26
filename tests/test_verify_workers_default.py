@@ -196,18 +196,32 @@ def test_the_objective_flag_still_overrides_on_both_sides():
 
 # --- the documented command --------------------------------------------------
 
+#: `.claude/` is deliberately not in `packaging.SOURCE_TREES`, so these two tests cannot
+#: run inside an extracted submission bundle. They failed there -- and only there -- from
+#: the day they were added (2026-08-10) until 2026-08-15, which made the runbook's claim
+#: that "shipped source passes its own tests" false. Skipping is the right resolution
+#: rather than shipping `.claude/`: what these assert is a property of *this working
+#: copy's* operator documentation, not of the submitted artifact.
+_REHEARSAL_COMMAND = REPO_ROOT / ".claude" / "commands" / "rehearsal.md"
+_needs_rehearsal_command = pytest.mark.skipif(
+    not _REHEARSAL_COMMAND.exists(),
+    reason="`.claude/commands/rehearsal.md` is not shipped in the submission bundle",
+)
 
+
+@_needs_rehearsal_command
 def test_the_rehearsal_command_documents_the_flag_it_depends_on():
     """`/rehearsal` prints a command for the operator to run. When it omitted
     `--verify-workers`, the verdict it produced was 2.8x worse than the truth."""
-    text = (REPO_ROOT / ".claude" / "commands" / "rehearsal.md").read_text()
+    text = _REHEARSAL_COMMAND.read_text()
     assert "--verify-workers" in text
 
 
+@_needs_rehearsal_command
 def test_the_rehearsal_command_explains_that_the_gate_reports_two_numbers():
     """The gate prints an upper bound AND a likely estimate (#16). Reading only
     the bound looks like a near-failure on a run with real headroom; reading only
     the likely figure is how it came to claim 5.0x."""
-    text = (REPO_ROOT / ".claude" / "commands" / "rehearsal.md").read_text()
+    text = _REHEARSAL_COMMAND.read_text()
     lowered = text.lower()
     assert "upper bound" in lowered and "likely" in lowered

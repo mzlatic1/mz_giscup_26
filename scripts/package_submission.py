@@ -78,8 +78,9 @@ def main(argv: list[str] | None = None) -> int:
         count = len(zf.namelist())
     print(f"\nbundle       : {zip_path}")
     print(f"size         : {zip_path.stat().st_size / 1024:.1f} KiB, {count} files")
-    print("\nBefore uploading, check the official page for the submission link --")
-    print("it was not published as of 2026-08-08.")
+    print("\nUpload to EasyChair: https://easychair.org/conferences/?conf=giscup2026")
+    print("(published 2026-08-15; an account is required. This line said the link was")
+    print("unpublished until then.) Break-glass: alowe@esri.com, ashashidharan@esri.com")
     return 0
 
 
