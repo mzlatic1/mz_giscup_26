@@ -49,6 +49,16 @@ class Audit:
             self.failures.append(label)
         return ok
 
+    def note(self, label: str) -> None:
+        """Record something worth reading that must not move the verdict.
+
+        Distinct from a failed `check`: a note never blocks submission. Used where a
+        heuristic is inapplicable to the dataset at hand and an exact check already
+        covers the same hazard.
+        """
+        print(f"  [NOTE] {label}")
+        self.notes.append(label)
+
 
 def parse_blocks(text: str) -> list[tuple[float, int, str, str, int]]:
     """Return (tau, k, points_line, claims_line, first_line_number) per block.
@@ -184,11 +194,6 @@ def main(argv: list[str] | None = None) -> int:
         for tok in re.findall(r"-?\d+\.?\d*", pts_line):
             if SIX_DECIMAL.match(tok):
                 rounded.append((tau, k, tok))
-    audit.check(
-        not rounded,
-        "no coordinate looks six-decimal rounded",
-        f"{len(rounded)} suspicious" if rounded else "",
-    )
 
     print("\nDATASET-DEPENDENT CHECKS")
     buildings, info = load_buildings(args.input)
@@ -204,6 +209,43 @@ def main(argv: list[str] | None = None) -> int:
                 off_boundary += 1
     audit.check(off_boundary == 0, f"every antenna within eps={args.eps:g} of a boundary",
                 f"{off_boundary} off-boundary")
+
+    # The rounding heuristic is verdict-relevant only when the SOURCE is high precision.
+    #
+    # It guards one hazard: that we truncated a coordinate and moved an antenna off its
+    # boundary. On the March sample, where 98% of ordinates carry 8-11 decimals, a short
+    # token could only have come from us, so it was a sound proxy. The 2026-08-15
+    # competition extract is stored at millimetre precision -- 89% of ordinates have
+    # exactly 3 decimals -- so an antenna sitting exactly on a source vertex emits a
+    # short token through no fault of ours (`%g` also strips trailing zeros). There the
+    # proxy cannot separate our rounding from theirs and fires on correct output.
+    #
+    # `off_boundary` above measures the actual hazard exactly, at eps=1e-7, which is
+    # 10,000x tighter than the official 1e-3 bar. When the source is coarse we let that
+    # direct check carry the verdict and report the heuristic as a note. Leaving it as a
+    # hard failure would print "AUDIT FAILED -- do not submit" on a correct submission,
+    # and a real overclaim found in the same run would hide behind a failure already
+    # written off. Found by the 2026-08-15 downstream dry-run, before the real artifact.
+    coarse_source = sum(
+        1
+        for b in buildings[:2000]
+        for xy in b.polygon.exterior.coords[:-1]
+        for tok in (format(xy[0], ".17g"), format(xy[1], ".17g"))
+        if SIX_DECIMAL.match(tok)
+    )
+    if coarse_source:
+        audit.note(
+            "six-decimal heuristic not applicable -- the SOURCE dataset is coarse "
+            f"({coarse_source:,} short-form ordinates in the first 2,000 buildings); "
+            f"{len(rounded):,} emitted token(s) match it. Boundary legality is the real "
+            "test and is checked exactly above."
+        )
+    else:
+        audit.check(
+            not rounded,
+            "no coordinate looks six-decimal rounded",
+            f"{len(rounded)} suspicious" if rounded else "",
+        )
 
     unknown = 0
     for tau, k, _, claims_line, ln in blocks:
@@ -245,6 +287,10 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  blocks       : {len(blocks)}")
     print(f"  total claims : {total_claims}")
     print(f"  overclaims   : {total_bad}")
+    if audit.notes:
+        print(f"  notes        : {len(audit.notes)} (do not affect the verdict)")
+        for n in audit.notes:
+            print(f"    - {n}")
     if audit.failures:
         print(f"\nAUDIT FAILED -- {len(audit.failures)} check(s):")
         for f in audit.failures:
