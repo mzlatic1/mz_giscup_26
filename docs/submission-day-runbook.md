@@ -9,6 +9,10 @@ it is clerical. Every step below is here because something went wrong at it duri
 
 Read `CLAUDE.md` first for the non-negotiable output constraints. This page assumes them.
 
+**`docs/release-minute-commands.md` is the copy-paste companion** — the same sequence with every
+flag filled in and no prose. Use it to *run* the day; use this page to understand it, and whenever
+something does not look right.
+
 ## The whole day at a glance
 
 Verified 2026-08-10. Every parameter here is a closed decision — **do not re-open one under time
