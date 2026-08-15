@@ -13,10 +13,95 @@ Read `CLAUDE.md` first for the non-negotiable output constraints. This page assu
 flag filled in and no prose. Use it to *run* the day; use this page to understand it, and whenever
 something does not look right.
 
+## ⏰ THE CUTOVER SCHEDULE — real clock times, written 2026-08-15 10:50 PDT
+
+**Deadline: 2026-08-16 16:00 UTC = 09:00 PDT.** The solve launched **2026-08-15 09:22 PDT**.
+
+Until 2026-08-15 this page carried no clock times at all — only "Deadline 2026-08-16". There was no
+named moment at which you stop waiting for a running solve and ship what you have. **That decision,
+made at 04:00 under fatigue with no pre-agreed trigger, is how a one-shot submission gets missed.**
+The times below exist so the decision is arithmetic, not judgement.
+
+### Backward from the deadline
+
+Target: **upload complete by 08:00 PDT**, a deliberate 1 h buffer against the 09:00 hard stop.
+
+| by (PDT, Aug 16) | must have happened | budget |
+|---|---|---|
+| 08:00 | **uploaded to EasyChair** | 30 min |
+| 07:15 | bundle built and eyeballed (27 lines, 9 headers, no blank separators) | 15 min |
+| 05:45 | official evaluator **finished** | 90 min |
+| 04:45 | `audit_submission.py` **finished** | 60 min |
+| 04:00 | `k=9` best-of re-run finished (see below) | 45 min |
+| **03:30** | **DROP-DEAD: a usable nine-block file must exist** | 30 min slack |
+
+**03:30 PDT is the number to remember.** It is 18 h 08 m after launch, against a 12–16 h projection —
+2 to 6 hours of slack. If the solve is still running at 03:30, it has already lost; stop it and take
+the cutover path below.
+
+### Checkpoints before then
+
+| when | check | what a bad reading means |
+|---|---|---|
+| **14:15 PDT Aug 15** | `.json` sidecar in `outputs/cache/` | Matrix build was projected ~4.6 h (i.e. done ~14:00). Still absent ⇒ the projection is wrong; re-project from measured elapsed before doing anything else. |
+| **~18:00 PDT Aug 15** | blocks in `outputs/final.txt.partial` | Re-project the finish from *measured* per-block times. This replaces the 12–16 h extrapolation with data. |
+| **01:00 PDT Aug 16** | blocks done vs. remaining | **Go/no-go.** If the measured rate does not reach nine blocks by 03:30, decide the cutover now, while rested enough to think. |
+| **03:30 PDT Aug 16** | — | Execute the cutover. No further deliberation. |
+
+### The cutover path — proven end-to-end 2026-08-15, do not improvise it
+
+There is a cliff here that is not obvious: **`packaging.inspect_solution` refuses any file that is
+not exactly nine blocks** (`EXPECTED_BLOCKS = 9`). Six good blocks and no time left is therefore
+indistinguishable from nothing at all — the packager rejects the file. Since scoring is per
+subproblem, six real blocks plus three throwaways scores six blocks' worth; submitting nothing
+scores zero. **`scripts/emergency_filler_blocks.py` closes that gap:**
+
+```bash
+python scripts/emergency_filler_blocks.py \
+    --input "$DS" --partial outputs/final.txt.partial \
+    --taus $TAUS --ks $KS --output outputs/final_filled.txt
+```
+
+Filler blocks are exactly `k` antennas taken **verbatim from source boundary vertices** with an
+**empty claims line** — structurally legal, score 0, and incapable of overclaiming. Pre-existing
+blocks are copied byte for byte; only the `(tau, k)` header is re-emitted, and it carries no
+precision to lose. Verified on the real competition dataset 2026-08-15: 0 → 9 and 6 → 9 both
+produced 27 lines in 8.2 s, the six pre-existing blocks came back `cmp`-identical, and
+`audit_submission.py` returned **AUDIT PASSED, 0 off-boundary of 1,626 antennas, rc 0** in 8.3 s.
+
+**Still audit and evaluate the filled file.** Filling fixes structure, not correctness.
+
+### Where the step-5 estimate is wrong
+
+The table below budgets **~10 min** for the audit. That figure is from the March sample, and the
+2026-08-15 competition-scale dry-run that appeared to confirm it ran against a solution with **empty
+claim lines** — it measured parsing, not verification. Real claims are the cost. Applying the
+measured `0.090 s/building/1000-antennas` constant, a single `k=484` block claiming ~20k buildings is
+~15 min on its own. **Budget 60 min for the audit; treat anything past 90 min as a signal, not
+impatience.** The schedule above already uses 60.
+
+The evaluator's ~45 min is likewise a March figure. Its runtime is dominated by *failed* claims
+(~320 ms per antenna-claim pair, early-exit on success), so a clean audit implies a fast evaluator —
+and **an evaluator that crawls is itself the overclaim alarm.** Budgeted at 90 min above.
+
+### Closed decisions carried into this schedule
+
+- **EasyChair login and submission form confirmed reachable by Marko, 2026-08-15.** The upload path
+  is not an unknown.
+- **`k=9` best-of is approved** (Marko, 2026-08-15). `near-tau`'s quantile schedule was fitted at
+  `k=500`; the real grid includes `k=9`, a 55x extrapolation that is flagged everywhere and has never
+  been measured. After the main solve, re-run the three `k=9` blocks with `--objective baseline`
+  against the cached matrix and keep whichever verifies more buildings **per block**. This is
+  selection between two finished, audited results — the same per-block best-of that produced the
+  March artifact — **not** parameter tuning on the day. Approved for `k=9` only; `k=49` and `k=484`
+  ship `near-tau` untouched.
+- **Matrix-build speedups are off the table** (Marko, 2026-08-15) and were already measured out.
+
 ## The whole day at a glance
 
 Verified 2026-08-10. Every parameter here is a closed decision — **do not re-open one under time
 pressure.** Timings are for a March-sized extract (12,860 buildings); scale them by §3's sizing.
+**Steps 5 and 6 are re-budgeted upward in the cutover schedule above — use those numbers.**
 
 | # | step | command | time |
 |---|---|---|---|

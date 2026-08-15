@@ -196,3 +196,44 @@ python scripts/assemble_blocks.py \
 Re-solve **only** what is missing. `--near-tau-quantile` maps positionally onto `--taus`, so a
 single-tau re-run takes a single value. Audit the assembled file afterwards — the assembler checks
 structure, not correctness.
+
+## ⏰ If there is no time left to re-solve — DROP-DEAD 03:30 PDT 2026-08-16
+
+Full schedule and reasoning: `docs/submission-day-runbook.md`, top section. The one number to carry:
+**if a usable nine-block file does not exist by 03:30 PDT on 2026-08-16, stop the solve and fill.**
+That leaves 60 min audit + 90 min evaluator + packaging + a 1 h buffer before the 09:00 PDT deadline.
+
+`packaging.inspect_solution` **refuses anything that is not exactly nine blocks**, so a six-block
+partial is unsubmittable as it stands. Scoring is per subproblem — six real blocks plus three
+throwaways scores six blocks' worth; nothing scores zero.
+
+```bash
+python scripts/emergency_filler_blocks.py \
+    --input "$DS" --partial outputs/final.txt.partial \
+    --taus $TAUS --ks $KS --output outputs/final_filled.txt
+
+python scripts/audit_submission.py --input "$DS" --solution outputs/final_filled.txt \
+    --taus $TAUS --ks $KS --exact-radius 400 --confirm-radius 800 --workers 12
+
+python scripts/package_submission.py --solution outputs/final_filled.txt
+```
+
+Proven on the real competition dataset 2026-08-15: 0→9 and 6→9 both in 8.2 s, pre-existing blocks
+`cmp`-identical, audit **PASSED / 0 off-boundary / rc 0**.
+
+## After the solve — the approved `k=9` best-of
+
+Marko approved this on 2026-08-15, for `k=9` **only**. Re-run the three cheap blocks against the
+already-cached matrix and keep the better result per block:
+
+```bash
+giscup solve-all --input "$DS" --id-property "$IDPROP" \
+    --taus $TAUS --ks 9 --objective baseline \
+    --visibility-radius 400 --cache-dir outputs/cache --matrix-workers 8 \
+    --verify-workers 12 --output outputs/k9_baseline.txt
+```
+
+Compare verified claim counts per block against `outputs/final.json`, then assemble the winners with
+`scripts/assemble_blocks.py`. This is selection between two audited results, not tuning: `near-tau`'s
+quantile schedule was fitted at `k=500` and `k=9` is a 55x extrapolation that has never been
+measured. **`k=49` and `k=484` ship `near-tau` untouched.**
