@@ -139,11 +139,46 @@ confirm, 12 workers — **AUDIT PASSED**:
 Log: `scratchpad/audit-rerun.log`. This matches the 2026-08-10 result exactly, so the hardening
 changed no behaviour on the default grid.
 
-**The full nine-block comparison was still running when this was written** — started 00:21 PDT,
-projected 1.5–3 h. Results and any disagreement land in the section below before 08:00.
+**Full nine blocks — EXACT AGREEMENT, all 42,728 claims verified.** Completed 01:02 PDT, **41 min**
+wall clock for 4,650 antennas and 42,728 claims at March size.
 
-> **RESULT: pending.** If this line still reads "pending" at 08:00, the run did not finish; check
-> `/tmp/.../scratchpad/bestof-nine.log` and the `bestof-nine.json` summary beside it.
+| block | tau, k | our claims | official verified | diff | failed | unknown | min |
+|---|---|---|---|---|---|---|---|
+| 1 | 0.25, 50 | 1,659 | **1,659** | 0 | 0 | 0 | 0.5 |
+| 2 | 0.25, 500 | 9,349 | **9,349** | 0 | 0 | 0 | 4.7 |
+| 3 | 0.25, 1000 | 12,279 | **12,279** | 0 | 0 | 0 | 8.5 |
+| 4 | 0.5, 50 | 269 | **269** | 0 | 0 | 0 | 0.3 |
+| 5 | 0.5, 500 | 4,247 | **4,247** | 0 | 0 | 0 | 4.5 |
+| 6 | 0.5, 1000 | 8,063 | **8,063** | 0 | 0 | 0 | 13.1 |
+| 7 | 0.75, 50 | 148 | **148** | 0 | 0 | 0 | 0.2 |
+| 8 | 0.75, 500 | 2,222 | **2,222** | 0 | 0 | 0 | 2.9 |
+| 9 | 0.75, 1000 | 4,492 | **4,492** | 0 | 0 | 0 | 6.4 |
+| | **total** | **42,728** | **42,728** | **0** | **0** | **0** | **40.9** |
+
+**The organisers' own scorer verifies every single claim we make.** Zero overclaims under the
+official predicate, zero unknown IDs, and every block's antenna list accepted. Our audit and the
+real scorer agree exactly, on all nine blocks, on the artifact we would have shipped.
+
+That is the outcome this whole exercise was for. It does **not** predict rank — scoring is relative
+— but it removes predicate risk entirely: whatever we score, it will not be lost to claiming
+buildings the evaluator disagrees about.
+
+**Budget ~45 min for this step on the day**, not the hour the runbook allows. Cost concentrates in
+the high-`k`, high-claim blocks (block 6 alone is 13.1 min).
+
+### Two findings worth keeping
+
+**`ANTENNA_SNAPPED` fires at ULP scale and is meaningless.** 59 of 4,650 antennas across the nine
+blocks, at distances of **1.1e-10 to 1.1e-9 m** — sub-nanometre, which at these coordinates is one
+to two ULP. Confirms the reading above: these are interpolated edge points differing from their own
+projection in the last bits, not antennas placed off the boundary.
+
+**Building 9448 — the hole-bearing one — is claimed in three blocks and verified in all three.**
+This empirically closes the task #11 assumption. We computed its coverage against *our* hole-bearing
+copy, where the denominator includes the hole perimeter and coverage is therefore **underestimated**;
+the evaluator scored it against *their* de-holed copy. The recorded prediction was that the error
+runs in the safe direction — "it can only forfeit a claim, never produce an overclaim". It did not
+even forfeit the claim. Confirmed rather than merely argued.
 
 ---
 

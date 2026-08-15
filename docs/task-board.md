@@ -114,6 +114,16 @@ six `ui-smoke` fixtures (via its own vendored suite, 73/73) and the full-sample 
 documented score of `1`. This retires the standing assumption that local validation cannot see the
 official predicate — it now can. It still cannot see *rank*, because scoring is relative.
 
+**Result on the March artifact: exact agreement, all nine blocks.** 42,728 of 42,728 claims
+verified, 0 failed, 0 unknown IDs, 41 min wall clock. The organisers' own scorer confirms every
+claim we make. Per-block table in `docs/session-state.md`.
+
+Two things fell out of it. `ANTENNA_SNAPPED` fires at **1.1e-10–1.1e-9 m** (one to two ULP) on 59
+of 4,650 antennas — the flag triggers on any non-bit-identical displacement, so it is not a
+proximity complaint and should be ignored. And **building 9448, the hole-bearing one, is claimed in
+three blocks and verified in all three** — confirming the #11 prediction that an inflated coverage
+denominator errs in the safe direction, and showing it did not even forfeit the claim.
+
 ## Feasibility — the 2026-08-07 figure was wrong; this supersedes it
 
 The old header here claimed **PASS at 3.18 h / 6.3x headroom**, and the later re-run claimed

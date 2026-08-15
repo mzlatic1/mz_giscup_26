@@ -240,4 +240,10 @@ behaviour is still what the code does:
   `exterior_edges`. Coverage for that building is therefore **underestimated**. That is the safe
   direction — it can only forfeit a claim, never produce an overclaim that invalidates a block.
   Cost is bounded by the number of hole-bearing polygons (one, in the sample).
+
+  **Confirmed empirically 2026-08-15, and it did not even cost the claim.** Building 9448 is claimed
+  in three blocks of `outputs/nine_bestof_400.txt`. We computed its coverage against our
+  hole-bearing copy (inflated denominator, so an underestimate); the official evaluator scored it
+  against its de-holed copy. **All three claims verified.** The assumption was right about the
+  direction and conservative about the cost.
 - Avoid relying on hole-boundary antenna placement unless official clarification supports it.

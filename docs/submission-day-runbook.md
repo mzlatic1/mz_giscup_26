@@ -329,9 +329,18 @@ reading `evaluation-engine.ts` on 2026-08-15:
   continues. So an ID-field mistake shows up here as a quietly enormous score drop, not a crash.
   That is the same failure §2's stderr check exists to catch, one step earlier.
 
-**Rehearsed 2026-08-15 on the March artifact** (`outputs/nine_bestof_400.txt`, 42,728 claims),
-against the organisers' own copy of the sample: see `docs/session-state.md` for the per-block
-comparison.
+**Rehearsed 2026-08-15 on the March artifact** (`outputs/nine_bestof_400.txt`, 4,650 antennas,
+42,728 claims), against the organisers' own copy of the sample: **exact agreement on all nine
+blocks — 42,728 of 42,728 verified, 0 failed, 0 unknown IDs**, in **41 min** wall clock. Per-block
+table in `docs/session-state.md`.
+
+**Budget ~45 min at March size.** Cost concentrates in the high-`k`, high-claim blocks — block 6
+`(0.5, 1000)` alone took 13.1 min while the three `k=50` blocks together took under a minute. Scale
+by claims x k, not by block count.
+
+Expect a scatter of **`ANTENNA_SNAPPED`** warnings — 59 of 4,650 antennas, at 1.1e-10 to 1.1e-9 m.
+That is one to two ULP at these coordinates. The flag fires on any displacement that is not
+bit-identical, so it is not a proximity complaint. **Ignore it.**
 
 ## 7. Package and submit
 
