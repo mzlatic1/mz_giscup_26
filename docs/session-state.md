@@ -25,6 +25,17 @@ output      outputs/final.txt  + outputs/final.json
 partial     outputs/final.txt.partial    (rewritten after every block, deleted on success)
 ```
 
+A background Monitor (task `blmeqhgce`) watches the log for block completions, the partial
+appearing, and crash/OOM signatures. **It may not survive a `/clear` or a session restart** — if in
+doubt, check the process directly with `ps -o etime= -p 86851` and `tail outputs/solve.log` rather
+than assuming silence means "still building".
+
+## ⚠️ MARKO'S STANDING REQUEST: PING HIM WHEN THE SOLVE FINISHES
+
+He cleared context at ~09:47 PDT 2026-08-15 and is away from the terminal. He asked to be notified
+**when the solve finishes**, and separately **when the submission is ready to upload** — he does the
+EasyChair upload himself. Do not wait for him to ask.
+
 If `ps -p 86851` is empty, the solve ended — check the log tail and whether `outputs/final.txt`
 exists before assuming failure. The exact command is in `docs/release-minute-commands.md` §4 with
 the real parameters already substituted.
