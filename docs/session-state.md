@@ -1,5 +1,49 @@
 # Current Session State
 
+## ⏸️ STANDBY — 2026-08-15 14:12 PDT. A SHELL WAKES YOU, NOT MARKO.
+
+**Marko ran `/compact` here and is not going to prompt you.** Background task `by7gndy8r` fires at
+**14:15 PDT** and prints `RESUME NOW` plus a full status dump. **That notification is the go
+signal.** Until it lands, do nothing.
+
+Verified this session, so do not re-learn it: **background Bash (`run_in_background`) survives a
+`/compact`; a `Monitor` does not.** The solve-exit watcher (pid 91823, `until ! kill -0 86862`) and
+the resume shell both survive. **The `solve.log` Monitor dies on the compact — re-arm it first thing
+on resume.**
+
+### Solve state at standby
+
+pid **86862**, launched 09:22 PDT, **4 h 48 m elapsed**, all eight workers (86894–86901) at 99.9%,
+39.3 GB `.bits` written to within the same second as the check. Wrapper shell is 86851 — not the
+solver.
+
+**⚠️ The 14:15 checkpoint already reads BAD.** The matrix build was projected ~4.6 h (done ~14:00).
+At 14:10 there is still **no `.json` sidecar** and **no `outputs/final.txt.partial`** — the build is
+past projection with block 1 not yet started. Nothing is wrong (workers pinned, file being written,
+and ~4.6 h was an *extrapolation*, never a measurement), but **the projection is now known to be
+optimistic and must be re-derived from measured elapsed before it is trusted for anything.**
+
+### Do this on resume, in order
+
+1. **Re-arm the `solve.log` Monitor** (wide filter: progress + `Traceback|Error|FAILED|Killed|OOM`).
+2. **Re-project the finish** the moment the sidecar appears — measured build time replaces the dead
+   ~4.6 h figure, and the 12–16 h whole-run projection depends on it.
+3. **Rehearse crash recovery against the real `final.txt.partial`** once block 1 lands (synthetic
+   path already passes; this only confirms the real file's formatting).
+
+**DROP-DEAD is 03:30 PDT 2026-08-16** — see the cutover schedule at the top of
+`docs/submission-day-runbook.md`. Deadline 09:00 PDT. `scripts/emergency_filler_blocks.py` is
+built, tested on the real dataset, and is the path if nine blocks do not exist by then.
+
+On completion: audit (**budget 60 min**, expect `notes: 1`) → official evaluator at
+`/home/markolinux/projects/gis-cup-2026-evaluator` (**budget 90 min**, already installed and green —
+do not re-clone) → approved **`k=9`-only** best-of vs `--objective baseline` → package → **ping
+Marko, who uploads to EasyChair himself** (login and form already confirmed reachable).
+
+Tree is clean and pushed through `86ec754`.
+
+---
+
 Operational state so the next session starts without rereading history. Say **"start session"** and
 `/startup` handles the rest.
 
