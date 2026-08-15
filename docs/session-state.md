@@ -115,8 +115,29 @@ good number become a reason to stop checking, or a bad one a reason to re-tune a
 | 7 | 0.75, 50 | 148 | **148** | 0 | 0 |
 
 All 50 antennas valid in every block — **our boundary placement passes the official 1 mm test.**
-One signal: `ANTENNA_SNAPPED` ×2 in block 7, meaning two antennas sat marginally off the boundary
-and were snapped onto it. Accepted, not rejected, and therefore harmless.
+
+**`ANTENNA_SNAPPED` ×2 in block 7 is benign, and worth understanding rather than worrying about.**
+The validator sets that flag whenever the nearest point on the segment is not *bit-identical* to the
+submitted coordinate — `coordinatesEqual` is strict `===`, so it fires on any nonzero displacement,
+however small. It is not a proximity complaint. Two of fifty antennas in that block are interpolated
+edge points that differ from their own projection in the last bits; the other 48 sit bit-exactly on
+vertices. Our own audit measures the same 50 antennas at **0 off-boundary at eps=1e-7**, four orders
+tighter than the official 1 mm bar. Nothing to act on.
+
+## Our own audit, re-run tonight against the modified script
+
+`scripts/audit_submission.py` grew `--taus`/`--ks` tonight, so it was re-run on real data rather than
+trusted to unit tests. `outputs/nine_bestof_400.txt` against the March sample, 400 m screen / 800 m
+confirm, 12 workers — **AUDIT PASSED**:
+
+- 9 blocks, no duplicated `(tau, k)`, all nine combinations present *(now reported from the derived
+  grid: "9 blocks present", "the 9 official (tau, k) combinations")*
+- exactly `k` points counted in every block; no coordinate looks six-decimal rounded
+- **0 off-boundary at eps=1e-7, 0 unknown IDs**
+- **all 42,728 claims hold exactly — 0 overclaims**
+
+Log: `scratchpad/audit-rerun.log`. This matches the 2026-08-10 result exactly, so the hardening
+changed no behaviour on the default grid.
 
 **The full nine-block comparison was still running when this was written** — started 00:21 PDT,
 projected 1.5–3 h. Results and any disagreement land in the section below before 08:00.
