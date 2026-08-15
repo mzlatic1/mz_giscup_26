@@ -271,9 +271,13 @@ on the cached-matrix path. The error names both remedies.
 **On the March sample lever A lost exactly one block, `(0.5, 1000)`, at every quantile tested**
 (baseline 8,063 vs 7,891 at q=50 and 7,903 at q=100). The shipped artifact therefore takes baseline
 for that one block. **Do not assume the same block loses on the August extract** — if the window
-allows, re-solve the k=1000 blocks with `--objective baseline` and keep whichever wins per block,
-assembling with `scripts/assemble_blocks.py`. If it does not allow, ship lever A everywhere; it
-wins eight of nine.
+allows, re-solve the cheap blocks with `--objective baseline` and keep whichever wins per block,
+merging with **`scripts/pick_blocks.py`** — *not* `assemble_blocks.py`, which refuses a duplicated
+`(tau, k)` by design and so cannot perform a best-of merge at all (#31). If the window does not
+allow, ship lever A everywhere; it wins eight of nine.
+
+**On the August extract this was approved for `k=9` only** — the three cheap blocks. See
+`docs/release-minute-commands.md`, "After the solve", for the exact two commands.
 
 Notes that cost hours if forgotten:
 

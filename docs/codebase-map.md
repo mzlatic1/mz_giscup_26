@@ -121,6 +121,9 @@ scripts/matrix_progress.py         # read progress of an IN-FLIGHT matrix build 
                                    #   dead signals; probes the zero/nonzero frontier instead)
 scripts/audit_submission.py        # mechanical audit of a nine-block file (two-stage, parallel)
 scripts/assemble_blocks.py         # recover a nine-block file from partials / separate runs
+                                   #   (REFUSES a duplicated (tau,k) -- overlap means ambiguity)
+scripts/pick_blocks.py             # choose between two COMPLETE solutions per subproblem, where the
+                                   #   overlap is deliberate (the k=9 best-of); report, then merge
 scripts/package_submission.py      # build and verify the submission bundle
 scripts/official_evaluator/        # headless driver for the ORGANISERS' scorer (see its README)
 scripts/size_candidate_prune.py    # #9 sizing: quality cost of pruning the candidate pool

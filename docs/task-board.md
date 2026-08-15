@@ -112,6 +112,37 @@ Scrub the live-runbook absolute paths (see above). That is the whole remaining l
 
 ## Closed 2026-08-15 (release day, after the dataset published)
 
+### 31 — The approved `k=9` best-of had no tool that could actually perform its merge  (FIXED 2026-08-15)
+
+Marko approved a `k=9`-only best-of: solve the three cheap blocks again with `--objective baseline`
+against the cached matrix, keep the better result per block. Both runbooks said to "assemble the
+winners with `scripts/assemble_blocks.py`". **That command cannot run.**
+
+`assemble_blocks` raises on a duplicated `(tau, k)` — *"two solutions for one subproblem means
+picking a winner arbitrarily, so nothing is assembled"*. Correct for crash recovery, where overlap
+means ambiguity. But the best-of creates overlap **deliberately**: `final.txt` holds all nine blocks
+including the three `k=9`, and `k9_baseline.txt` holds three `k=9` blocks — colliding on exactly the
+subproblems under comparison. The tool would refuse, at ~01:00, on the only step of submission night
+where a choice is actually being made, leaving hand-editing the file that decides the competition as
+the remaining option.
+
+`scripts/pick_blocks.py` closes it. Report mode (the default) prints claimed-ID counts per
+subproblem for both files and **writes nothing**; merge mode takes `--take-alt TAU,K ...` and emits
+the full grid, chosen blocks copied **byte for byte**. Nothing is inferred from the counts — a
+higher claim count is not automatically a better block, since claims are only worth what an audit
+says, so the operator names the winners and the tool refuses to guess. It also refuses an incomplete
+`--base`, a `--take-alt` the challenger lacks, blocks outside the grid, and any block whose
+coordinate count disagrees with its own `k`.
+
+Proven against real archived solver output, not synthetic blocks: run over
+`nine_leverA_400_full.txt` vs `nine_bestof_400.txt` it independently reproduces the known #17
+result — lever A ties on eight blocks and loses `(0.5, 1000)` by 172 claims, which is precisely why
+the shipped artifact takes baseline for that one block.
+
+Seven tests (`tests/test_pick_blocks.py`), suite now **375 passed**. One of them documents a trap
+found while writing it: splitting a coordinate list on `", "` also splits each pair between x and y,
+so a "truncated" block built that way still has nine `(` and slips past `_count_points`.
+
 ### 30 — The matrix build had no readable progress signal, and the finish estimate was an extrapolation  (FIXED 2026-08-15 14:16)
 
 At 14:15 the solve was 4 h 54 m in against a **projected ~4.6 h matrix build**, with no `.json`

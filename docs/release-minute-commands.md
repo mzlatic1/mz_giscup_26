@@ -257,7 +257,24 @@ giscup solve-all --input "$DS" --id-property "$IDPROP" \
     --verify-workers 12 --output outputs/k9_baseline.txt
 ```
 
-Compare verified claim counts per block against `outputs/final.json`, then assemble the winners with
-`scripts/assemble_blocks.py`. This is selection between two audited results, not tuning: `near-tau`'s
+Then compare and merge with `scripts/pick_blocks.py`. **Not `assemble_blocks.py`** — it *refuses* a
+duplicated `(tau, k)` on purpose, and both files hold all three `k=9` blocks, so it would reject this
+merge outright:
+
+```bash
+# 1. Report. Writes nothing.
+python scripts/pick_blocks.py --base outputs/final.txt --alt outputs/k9_baseline.txt \
+    --taus $TAUS --ks $KS
+
+# 2. Merge, naming the winners explicitly (only k=9 subproblems are eligible).
+python scripts/pick_blocks.py --base outputs/final.txt --alt outputs/k9_baseline.txt \
+    --taus $TAUS --ks $KS --take-alt 0.32,9 0.49,9 0.68,9 \
+    --output outputs/final_bestof.txt
+```
+
+Claim counts are a comparison, not a verdict — **audit both files first**; an overclaim costs more
+than the points it chases. Then audit `final_bestof.txt` again before packaging.
+
+This is selection between two audited results, not tuning: `near-tau`'s
 quantile schedule was fitted at `k=500` and `k=9` is a 55x extrapolation that has never been
 measured. **`k=49` and `k=484` ship `near-tau` untouched.**
