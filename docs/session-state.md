@@ -356,7 +356,15 @@ conda activate mz-giscup-26          # Python 3.11; required for all work
 **Host: 16 cores, 24 GB RAM.** NumPy 2.4.6 (`np.bitwise_count` needs >=2.0), Shapely 2.1.2,
 SciPy 1.17.1. **`ruff` and `mypy` are NOT installed** — `pip install -e .[dev]` if lint is needed.
 
-## Validation status — actually run 2026-08-10, end of session
+## Validation status
+
+**Re-run 2026-08-15, overnight:** `pytest -q` -> **365 passed**, `compileall` clean, the
+nine-block artifact re-audited (0 overclaims of 42,728), and the packaging path rebuilt and its
+shipped tests run inside the extracted bundle (363 passed, 2 skipped, 0 failed).
+
+The 2026-08-10 run below is kept for its gate figures, which have not been re-measured since.
+
+### Validation status — actually run 2026-08-10, end of session
 
 ```bash
 python -m pytest -q                         # 356 passed  (365 as of 2026-08-15)
@@ -432,8 +440,9 @@ never be silently reused.
 obtained 2026-08-08). Every documented statistic matches exactly: 12,860 buildings, 78,727 exterior
 vertices, 858,973.22 m perimeter, 1 hole-bearing polygon, EPSG:32611.
 
-**Test data does not exist until 2026-08-15.** Every solution-quality figure in this repository is
-fitted on the March sample; August is a different extract.
+**The test dataset publishes 2026-08-15 16:00 UTC / 09:00 PDT — today.** Until it is on disk,
+every solution-quality figure in this repository is fitted on the March sample; August is a
+different extract. *(This line read "test data does not exist until 2026-08-15" until that date.)*
 
 `outputs/synthetic_full.geojson` (regenerable via `scripts/make_synthetic_dataset.py`) is fine for
 feasibility rehearsals but has no real street topology and omits the large-building tail.
