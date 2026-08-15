@@ -5,8 +5,16 @@
 The 14:15 resume shell (`by7gndy8r`) fired and standby is over. Monitors re-armed; the matrix build
 is past its old (wrong) projection but is provably progressing.
 
-Verified this session, so do not re-learn it: **background Bash (`run_in_background`) survives a
-`/compact`; a `Monitor` does not.** Re-arm Monitors after every compact.
+**Background Bash (`run_in_background`) survives a `/compact`** — the solve-exit watcher (pid 91823,
+started 09:56) came through one alive. **Re-arm Monitors after a compact**, because the handles are
+lost from this side.
+
+*Corrected 14:30:* an earlier version of this block claimed it was **verified** that a Monitor does
+not survive a compact. It is not verified. The `tail -F` processes of the 09:56 and 10:31 Monitors
+were still alive at 14:26, so the processes plainly do survive; whether the harness still routes
+their events is **untested**, because `solve.log` has not changed since 09:21:55 and there has never
+been an event to route. Re-arm anyway — but do not rely on a pre-compact Monitor being dead, and
+expect **duplicate notifications** on four solve.log tails once block 1 writes.
 
 ### How to measure matrix-build progress on a live run — USE THIS, do not guess
 
@@ -22,7 +30,12 @@ Script: `scratchpad/matrix_progress.py` (read-only, drops the pages it reads so 
 build's cache).
 
 **Measured 14:16 PDT: 201/320 windows nonzero = 62.8%** — chunks 0–15 DONE, 16–23 partial (eight in
-flight, one per worker, exactly the expected shape), 24–31 untouched.
+flight, one per worker, exactly the expected shape), 24–31 untouched. **14:27: 65.3%.**
+
+Two independent rates now agree, which is the point of taking a second reading: averaged from
+launch, 65.3% over 305 min = 0.214 pp/min → 467 min total → **~17:09**. Incrementally, 2.5 pp over
+11 min = 0.227 pp/min → **~17:00**. Call it **17:00–17:15**, and note the incremental rate is not
+decaying — there is no sign of the build slowing as the file outgrows RAM.
 
 ### The re-projection (replaces the dead ~4.6 h build figure and the ~12–16 h whole-run figure)
 
