@@ -74,7 +74,7 @@ nine-block run takes ~2.85 h at `--verify-workers 12`, the cached matrix has exi
 
 ## Current validation status
 
-Run 2026-08-10 in the `mz-giscup-26` Conda environment. Full detail in `docs/session-state.md`.
+Re-run 2026-08-15 in the `mz-giscup-26` Conda environment. Full detail in `docs/session-state.md`.
 
 ```bash
 python -m compileall -q src tests scripts   # OK
@@ -88,6 +88,9 @@ python scripts/rehearse.py --input data/GIS-cup-sample-dataset.geojson \
 had been costing `baseline` while the solver ships `near-tau`. Nothing got slower; ~1.77 h of lever
 A verification was not being counted. Still a comfortable PASS.
 
+**The submission candidate was scored by the organisers' own evaluator on 2026-08-15: 42,728 of
+42,728 claims verified, exact agreement on all nine blocks.** See `scripts/official_evaluator/`.
+
 Three nine-block artifacts exist and **all three audit clean, 0 overclaims**:
 `outputs/nine_verifypar_400.txt` (baseline, 39,120 claims), `outputs/nine_leverA_400_full.txt`
 (lever A, 42,556), and **`outputs/nine_bestof_400.txt` (per-block best-of, 42,728 — the submission
@@ -100,7 +103,8 @@ paragraph previously said `data/` was empty — false since 2026-08-08.)*
 
 The synthetic stand-in from `scripts/make_synthetic_dataset.py` still exists and is still fine for
 feasibility rehearsals, but it has no real street topology and omits the large-building tail.
-**Never use it for solution-quality claims.** Test data does not exist until 2026-08-15.
+**Never use it for solution-quality claims.** **The test dataset publishes 2026-08-15 16:00 UTC /
+09:00 PDT** — today. Until it is on disk, every solution-quality figure here is March-sample only.
 
 ## Fast command reference
 
