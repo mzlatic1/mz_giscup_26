@@ -15,6 +15,32 @@ Last updated: **2026-08-10**.
 > objective **`near-tau`**, `--matrix-workers` **8**, `--verify-workers` **12**,
 > `--candidate-stride` **1**. Do not re-open any of these under time pressure.
 
+## Open — AFTER submission
+
+### 21 — Clean up the repository for public viewing  (ADDED 2026-08-15)
+
+**Marko made the GitHub repo public on 2026-08-15.** Do this **after** the submission is in — it is
+housekeeping, and nothing in it may be allowed to compete with the deadline.
+
+Scope to review when picking it up:
+
+- **Docs are written as an internal operational log**, not as a public README. `docs/task-board.md`
+  is 1,300+ lines of decision history with blunt self-assessments; `docs/session-state.md` and
+  `docs/startup-brief.md` carry "this claim used to be FALSE" annotations. All of it is honest and
+  much of it is genuinely interesting, but decide deliberately what a public reader should meet
+  first.
+- **`README.md` is archival and stale** — it is explicitly excluded from the startup read set. A
+  public repo's README is its front door; this one is not currently serving that role.
+- **Check for anything personal or environment-specific**: absolute paths under
+  `/home/markolinux/...`, the OneDrive scratch path, machine specs, and the contact emails for the
+  organisers quoted in `session-state.md` and `competition-reference.md`.
+- **Confirm nothing ignored is actually committed**: datasets, `outputs/`, visibility caches,
+  environments. `data/` and `outputs/` are git-ignored — verify that held.
+- Consider whether `CLAUDE.md` and `.claude/` should stay public. They are useful provenance and
+  arguably the most interesting artifact in the repo, but they were written for an audience of one.
+
+**Not a blocker for anything. Do not start it before the submission is uploaded.**
+
 ## Feasibility — the 2026-08-07 figure was wrong; this supersedes it
 
 The old header here claimed **PASS at 3.18 h / 6.3x headroom**, and the later re-run claimed
