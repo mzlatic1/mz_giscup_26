@@ -20,7 +20,7 @@ pressure.** Timings are for a March-sized extract (12,860 buildings); scale them
 
 | # | step | command | time |
 |---|---|---|---|
-| 0 | environment, green tests | `pytest -q` -> **365 passed** | 5 min |
+| 0 | environment, green tests | `pytest -q` -> **368 passed** | 5 min |
 | 1 | **read `competition-parameters.txt`** | — | 5 min |
 | 2 | **inspect before solving** | `giscup inspect` (capture **stderr**) | 5 min |
 | 3 | size the run | `scripts/rehearse.py --cores 16 --measured-radius 400` | 10 min |
@@ -46,7 +46,7 @@ upload path run out the clock.
 ```bash
 conda activate mz-giscup-26
 cd /home/markolinux/projects/sigspatial_26
-python -m pytest -q                    # must be green before you touch the real data -- 365 passed
+python -m pytest -q                    # must be green before you touch the real data -- 368 passed
 nproc; free -g; df -h .                # 16 cores, 24 GB, and the matrix needs ~2.6 GB free
 ```
 

@@ -25,10 +25,20 @@ output      outputs/final.txt  + outputs/final.json
 partial     outputs/final.txt.partial    (rewritten after every block, deleted on success)
 ```
 
-A background Monitor (task `blmeqhgce`) watches the log for block completions, the partial
-appearing, and crash/OOM signatures. **It may not survive a `/clear` or a session restart** — if in
-doubt, check the process directly with `ps -o etime= -p 86851` and `tail outputs/solve.log` rather
-than assuming silence means "still building".
+A background Monitor watches the log for block completions, the partial appearing, and crash/OOM
+signatures. **It does not survive a `/clear`** — this was confirmed, not feared: the original watcher
+(`blmeqhgce`) was gone when the 09:56 session resumed, and the solve had been running unobserved.
+**Re-arm it after every clear**, and never read silence as "still building":
+
+```
+Monitor  b2lg2sd8q   tail -F outputs/solve.log, filtered for progress + crash signatures
+Bash bg  bxn6a8zey   until-loop on `kill -0 86862`; fires once when the solve exits, and reports
+                     whether outputs/final.txt exists
+```
+
+If in doubt, check directly: `ps -o etime= -p 86862` and `tail outputs/solve.log`. **Note the PID:
+the block below says 86851, which is the wrapper shell; the actual `giscup solve-all` process is
+86862** and its eight matrix workers are 86894–86901.
 
 ## ⚠️ MARKO'S STANDING REQUEST: PING HIM WHEN THE SOLVE FINISHES
 
@@ -165,6 +175,32 @@ Do not start the evaluator on an unaudited file.
    extrapolated). The candidate-count prediction was exact, which is mild evidence for the rest.
 4. When the solve finishes: audit → official evaluator (**all nine blocks**, Marko's call) →
    regenerate the bundle → **notify Marko, who will do the upload himself.**
+
+## Session log — 2026-08-15 09:56–10:10 PDT (during the matrix build)
+
+**Solve status at 10:08 PDT: healthy, 47 min elapsed, still in the matrix build.** All eight workers
+at 99.9% CPU, the 39.3 GB `.bits` file being written continuously, **no `.json` sidecar yet** — that
+sidecar is the completion marker, so its absence means "building", not "stalled". The `.bits` file
+showing its full 39.3 GB size from minute one is `np.memmap` **preallocating**, not progress. Nothing
+has been written to `outputs/solve.log` past the block-1 setup line, which is expected: the matrix
+build is silent until it completes.
+
+**Pushed with Marko's explicit approval:** `bdc0d43..ab7a21b`, the four commits that were local.
+`origin/main` is current as of 09:58 PDT.
+
+**Task #21 (public-repo cleanup) was brought forward** on Marko's instruction, to use the build
+window. It found that `packaging.SOURCE_FILES` ships `README.md` and `CLAUDE.md` **into the
+submission bundle** and `SOURCE_TREES` ships all of `docs/` — so this was never post-submission
+housekeeping. `README.md` rewritten 1,629 -> 257 lines; see task #21 for the full record of what was
+changed, what was deliberately left alone, and the three decisions reserved for Marko (`.claude/`
+visibility, `LICENSE`, `data/README.md`).
+
+**No file under `src/`, `scripts/`, or `tests/` was touched.** Docs only, deliberately, with a solve
+in flight and a bundle to regenerate from this tree.
+
+**#28 found and fixed: the documented test count was stale in two live runbooks.** The suite reads
+**368 passed in 20.9 s**; five documents said 365, including step 0 of the submission-day path.
+Corrected in the forward-looking documents, left alone in the dated historical records.
 
 ---
 
@@ -354,7 +390,7 @@ does not have to think about anything except executing.
 # 1. environment + green tests (5 min)
 conda activate mz-giscup-26
 cd /home/markolinux/projects/sigspatial_26
-python -m pytest -q                    # must read 365 passed
+python -m pytest -q                    # said "must read 365 passed" when written; it is 368 since `de03785` (#28)
 
 # 2. put the downloaded extract in data/ -- NEVER overwrite it
 

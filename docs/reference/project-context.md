@@ -3,7 +3,6 @@
 ## Repository Identity
 
 - Repository name: `mz_giscup_26`
-- Local root: `/home/markolinux/projects/sigspatial_26`
 - GitHub remote: `https://github.com/mzlatic1/mz_giscup_26.git`
 - Primary language: Python 3.11+
 - Project type: geospatial computational geometry / optimization solver
@@ -11,9 +10,9 @@
 
 ## Scratch and External Context
 
-- `/mnt/c/Users/marko/OneDrive/Documents/SIGSPATIAL_2026` is the project scratch folder.
-- Refer to that path as the **OneDrive Parent Folder**.
-- Treat OneDrive Parent Folder contents as competition notes, scratch outputs, datasets, packaging workspace, or transfer material.
+- An out-of-repository scratch folder holds competition notes, scratch outputs, datasets, packaging
+  workspace, and transfer material. Its location is environment-specific and is set in the operator's
+  local instructions rather than here.
 - The original implementation brief is preserved in `docs/original_implementation_brief.md`.
 - Routine sessions should prefer the compact docs in `docs/` before reading the large README or original brief.
 - The compact `/docs` layer is maintained under the contract in `docs/context-maintenance.md`.
@@ -37,10 +36,17 @@ The final structure is expected to contain 9 independent subproblems from all co
 
 ## High-Level Engineering Priorities
 
+This was the **original** priority ordering, written at project start and kept for provenance. Items
+1–4 and 6 were built as described. Items 5 and 7 were not, and the difference is deliberate — see
+`docs/codebase-map.md` for the authoritative implementation state.
+
 1. Correct geometry and official-format output.
 2. Robust line-of-sight visibility with boundary degeneracy tests.
 3. Scalable approximate coverage using weighted boundary samples.
 4. Candidate generation and pruning.
-5. Greedy/lazy-greedy optimization.
+5. Greedy/lazy-greedy optimization. — **Only `greedy` was implemented.** `lazy-greedy`,
+   `stochastic-greedy`, and `hybrid` were removed rather than left as dead configuration options;
+   unimplemented modes raise instead of silently falling back.
 6. Diagnostics and reproducibility.
-7. Local search, adaptive refinement, and multi-start tuning.
+7. Local search, adaptive refinement, and multi-start tuning. — **Not implemented.** Effort went to
+   the objective function (`near-tau` vs `baseline`) and to proving full-scale feasibility instead.

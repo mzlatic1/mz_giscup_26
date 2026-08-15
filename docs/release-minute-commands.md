@@ -34,7 +34,7 @@ Measured facts about this extract, all confirmed 2026-08-15 (see `docs/session-s
 ## 0 — environment (5 min)
 
 ```bash
-python -m pytest -q                       # expect: 365 passed
+python -m pytest -q                       # expect: 368 passed
 nproc; free -g; df -h .                   # expect: 16 cores, ~21 GB available, 841 GB free
 ```
 

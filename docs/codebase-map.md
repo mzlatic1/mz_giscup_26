@@ -34,6 +34,7 @@ src/giscup/
 ```text
 tests/test_antenna_placement.py  # emitted antennas never inside a footprint (#15)
 tests/test_assemble_blocks.py    # nine-block recovery from partials; exact-k, duplicate, gap
+tests/test_audit_coarse_source.py  # the six-decimal heuristic degrades to a NOTE on coarse data (#26)
 tests/test_audit_two_stage.py    # screen/confirm radii, parallel==serial, empty final claims
 tests/test_boundary_jitter.py    # THE invariant: a boundary point is visible from its boundary
 tests/test_candidate_prune.py    # #9 per-building stride: identity control, row re-indexing
@@ -65,7 +66,12 @@ tests/test_visibility.py
 tests/test_visibility_strategy.py  # official predicate, degeneracies, relate default
 ```
 
-Current latest result: **`365 passed`** in Conda env `mz-giscup-26` (2026-08-15), 31 files.
+Current latest result: **`368 passed`** in Conda env `mz-giscup-26` (2026-08-15, 20.9 s), 32 files.
+*(365 -> 368 on 2026-08-15: three cases in `test_audit_coarse_source.py` covering the coarse-precision
+`[NOTE]` path from #26. The `365 passed` / `31 files` figures stood in five documents after that
+commit landed and were corrected on 2026-08-15 by actually running the suite — including in two
+**live** runbooks, where an operator following step 0 would have read 368 against an expected 365 and
+had to decide, under time pressure, whether the tree was broken.)*
 *(350 -> 356 on 2026-08-10: six cases in `test_verify_workers_default.py` pinning the gate and the
 solver to a shared `gate_model.DEFAULT_OBJECTIVE`, after they were found to disagree — the gate
 costed `baseline` while the solver ran `near-tau`.)*

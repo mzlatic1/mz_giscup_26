@@ -24,31 +24,94 @@ Last updated: **2026-08-15** (release day).
 
 ## Open — AFTER submission
 
-### 21 — Clean up the repository for public viewing  (ADDED 2026-08-15)
+### 21 — Clean up the repository for public viewing  (ADDED 2026-08-15; PARTIALLY DONE 2026-08-15)
 
-**Marko made the GitHub repo public on 2026-08-15.** Do this **after** the submission is in — it is
-housekeeping, and nothing in it may be allowed to compete with the deadline.
+**Marko made the GitHub repo public on 2026-08-15.** The original note said to do this only after the
+submission was in. **Marko re-decided on 2026-08-15**, during the ~4.6 h matrix build, when the
+machine was busy and the operator was not. A survey during that window found the reason the original
+sequencing was wrong: **`packaging.SOURCE_FILES` ships `README.md` and `CLAUDE.md` into the
+submission bundle, and `SOURCE_TREES` ships all of `docs/`.** Repository presentation and what the
+judges read are the same artifact, so this was never purely post-submission housekeeping.
 
-Scope to review when picking it up:
+**Constraint honoured throughout: no edits to `src/`, `scripts/`, or `tests/` while a solve is in
+flight.** Docs and repo hygiene only.
 
-- **Docs are written as an internal operational log**, not as a public README. `docs/task-board.md`
-  is 1,300+ lines of decision history with blunt self-assessments; `docs/session-state.md` and
-  `docs/startup-brief.md` carry "this claim used to be FALSE" annotations. All of it is honest and
-  much of it is genuinely interesting, but decide deliberately what a public reader should meet
-  first.
-- **`README.md` is archival and stale** — it is explicitly excluded from the startup read set. A
-  public repo's README is its front door; this one is not currently serving that role.
-- **Check for anything personal or environment-specific**: absolute paths under
-  `/home/markolinux/...`, the OneDrive scratch path, machine specs, and the contact emails for the
-  organisers quoted in `session-state.md` and `competition-reference.md`.
-- **Confirm nothing ignored is actually committed**: datasets, `outputs/`, visibility caches,
-  environments. `data/` and `outputs/` are git-ignored — verify that held.
-- Consider whether `CLAUDE.md` and `.claude/` should stay public. They are useful provenance and
-  arguably the most interesting artifact in the repo, but they were written for an audience of one.
+#### Done 2026-08-15
 
-**Not a blocker for anything. Do not start it before the submission is uploaded.**
+- **`README.md` rewritten**, 1,629 -> 257 lines. Lines 210–1629 of the old file were a verbatim
+  inlined duplicate of `docs/original_implementation_brief.md`, which ships in the bundle anyway; the
+  first 209 still described the repo as *"This initial commit establishes the professional project
+  scaffold."* It is now a front door: problem statement, approach, the correctness posture, install
+  and usage, the official-evaluator result, and the scale table. No test asserts README content
+  (checked), and the bundle generates its own `INSTRUCTIONS.md` (`packaging.py:153`), so the
+  competition's compile-and-run requirement never depended on this file.
+- **The "internal operational log" question is decided, not deferred.** `docs/task-board.md` and
+  `docs/session-state.md` stay exactly as they are, and the new README says why in as many words:
+  the reasoning behind a rejected option is more useful than the conclusion, and several conclusions
+  here were reversed by measurement. Deleting the record to look tidier would remove the most
+  useful thing in the repository.
+- **Git hygiene verified clean.** No datasets, no `outputs/`, no `.bits` caches, no environments are
+  tracked. `data/` tracks only `README.md`, `.gitkeep`, and the 210-byte published
+  `competition-parameters.txt`.
+- **`docs/reference/project-context.md`** — absolute local root and the OneDrive scratch path
+  removed; its "High-Level Engineering Priorities" list was **claiming lazy-greedy and multi-start
+  tuning as project direction**, which violates the honesty rule in `CLAUDE.md`. Items 5 and 7 are
+  now annotated with what was actually built.
+- **The test count was wrong in five documents.** See #28 below.
+
+#### Deliberately NOT done, and why
+
+- **Absolute paths in `docs/release-minute-commands.md` (4) and `docs/submission-day-runbook.md`
+  (1) are LEFT ALONE.** These are live operational commands for *today* — the official-evaluator
+  invocation takes absolute paths. Editing a command an operator will paste at hour ~14, to make it
+  prettier, is exactly the wrong trade. **Scrub these only after the submission is uploaded.**
+- **`.claude/settings.json` paths are LEFT ALONE.** They are functional permission rules, including
+  the `deny` guard on `data/**`. Cosmetic edits there can disable a safety rule.
+- **Organiser emails left in place.** They are published organiser contacts, and one occurrence is in
+  `scripts/package_submission.py:83` — shipped code, not to be touched mid-solve.
+- **`data/README.md` not updated.** The `data/**` deny rule blocked the write, correctly. The edit is
+  cosmetic (it still points at the OneDrive scratch folder by name and lists only the March sample).
+  **Needs Marko's approval to bypass the guard, or a one-line manual edit.** Not worth circumventing
+  a deny rule for.
+- **Whether `CLAUDE.md` and `.claude/` stay public is Marko's call and was not made unilaterally.**
+  Both currently ship to the judges as well. The argument for keeping them is that they are the most
+  interesting provenance in the repo; the argument against is that they were written for an audience
+  of one and are blunt about failures.
+- **`LICENSE` still reads "no open-source license has been selected."** On a now-public repo that is
+  a real decision (it defaults to all-rights-reserved, which is legally fine but probably not what a
+  public repo wants). **Marko's call.**
+
+#### Residual, post-submission
+
+Scrub the live-runbook absolute paths; decide the `.claude/` and `LICENSE` questions; optionally fix
+`data/README.md`.
 
 ## Closed 2026-08-15 (release day, after the dataset published)
+
+### 28 — The documented test count was stale in two LIVE runbooks  (FOUND AND FIXED 2026-08-15)
+
+Found during #21's cleanup pass, by running `pytest -q` instead of trusting the documentation.
+
+**The suite reads `368 passed` (20.9 s). Five documents said `365`.** Commit `de03785` added three
+cases in `tests/test_audit_coarse_source.py` and said so in its own message; nothing propagated the
+number outward. `docs/codebase-map.md` additionally said `31 files` against an actual 32, and never
+listed the new file.
+
+**Why this is a defect and not a typo.** Two of the five are step 0 of the live submission-day path —
+`docs/release-minute-commands.md` says *"expect: 365 passed"* and `docs/submission-day-runbook.md`
+gates on *"must be green before you touch the real data -- 365 passed."* An operator running that
+step today reads **368 against an expected 365** and has to decide, under deadline pressure, whether
+the tree is broken or the doc is stale. That is a manufactured decision at the worst possible moment,
+and it is the same failure mode as #26: a check that cries wolf teaches the operator to wave checks
+through.
+
+Corrected in `CLAUDE.md`, `docs/codebase-map.md`, `docs/startup-brief.md` (2 places),
+`docs/release-minute-commands.md`, and `docs/submission-day-runbook.md` (2 places). **Dated
+historical records in `docs/session-state.md` and `docs/task-board.md` were deliberately left at
+365** — they are records of what a run reported on a date, not forward-looking expectations.
+
+**Generalisable:** a number that appears in a runbook as an expectation is a *test*, and it goes
+stale silently. The suite takes 21 seconds. Run it rather than quoting it.
 
 ### 26 — The six-decimal heuristic fails a correct submission on the competition dataset  (FOUND AND FIXED 2026-08-15)
 

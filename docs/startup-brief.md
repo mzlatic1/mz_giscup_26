@@ -78,7 +78,7 @@ Re-run 2026-08-15 in the `mz-giscup-26` Conda environment. Full detail in `docs/
 
 ```bash
 python -m compileall -q src tests scripts   # OK
-python -m pytest -q                         # 365 passed
+python -m pytest -q                         # 368 passed
 giscup inspect --input data/GIS-cup-sample-dataset.geojson   # OK, EPSG:32611 preserved
 python scripts/rehearse.py --input data/GIS-cup-sample-dataset.geojson \
     --cores 16 --measured-radius 400 --verify-workers 12   # PASS, 8.14 h bound / 2.5x
@@ -110,7 +110,7 @@ feasibility rehearsals, but it has no real street topology and omits the large-b
 
 ```bash
 conda activate mz-giscup-26
-python -m pytest -q                 # 365 passed (2026-08-15)
+python -m pytest -q                 # 368 passed (2026-08-15)
 giscup inspect --input data/GIS-cup-sample-dataset.geojson
 
 # feasibility gate -- ALWAYS pass --verify-workers; serial puts the bound at 1.0x
