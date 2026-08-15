@@ -9,12 +9,20 @@ is past its old (wrong) projection but is provably progressing.
 started 09:56) came through one alive. **Re-arm Monitors after a compact**, because the handles are
 lost from this side.
 
-*Corrected 14:30:* an earlier version of this block claimed it was **verified** that a Monitor does
-not survive a compact. It is not verified. The `tail -F` processes of the 09:56 and 10:31 Monitors
-were still alive at 14:26, so the processes plainly do survive; whether the harness still routes
-their events is **untested**, because `solve.log` has not changed since 09:21:55 and there has never
-been an event to route. Re-arm anyway — but do not rely on a pre-compact Monitor being dead, and
-expect **duplicate notifications** on four solve.log tails once block 1 writes.
+*Corrected 14:30, then SETTLED 14:33:* an earlier version of this block claimed it was **verified**
+that a Monitor does not survive a compact. **That was wrong in both halves.** A pre-compact Monitor
+survives *and still routes events* — when the two stale ones (`b2lg2sd8q`, `bhi3r30v0`) were killed
+at 14:33 they both delivered termination notifications to this session. The only thing actually lost
+across a compact is the **handle**: you cannot `TaskStop` a Monitor you no longer hold, which is why
+stopping one means killing its `tail` process instead.
+
+Read this the right way round: silence from a Monitor is not evidence it is dead. `solve.log` had
+not been written since 09:21:55, so there was simply nothing to emit, and that absence was
+mis-read as death.
+
+Housekeeping done at 14:33: four Monitors were tailing `solve.log` and would have delivered block 1
+three times over. Killed pids 91818 and 96427. Solver verified intact immediately after (86862 plus
+all eight workers at 99.9%).
 
 ### How to measure matrix-build progress on a live run — USE THIS, do not guess
 
@@ -64,6 +72,17 @@ practice, not just in theory.
 1. ~~Re-arm the `solve.log` Monitor~~ — done, task `b8i8kb4q1` (persistent, wide failure filter).
 2. ~~Re-project the finish~~ — done, above. A second Monitor (`bmrqkd9kx`) prints matrix % every
    10 min and announces the sidecar, so the projection self-corrects.
+
+**What is watching this run, as of 14:33** — three things, and nothing else:
+
+| what | pid | role |
+|---|---|---|
+| solve-exit watcher (background Bash) | `91823` | fires when 86862 dies, however it dies |
+| Monitor `b8i8kb4q1` | `109446` | `solve.log`, wide failure filter — the only tail left |
+| Monitor `bmrqkd9kx` | `109584` | matrix % every 10 min; announces the `.json` sidecar |
+
+The matrix probe's `sleep` child gets a **new pid every cycle**, so check the loop shell `109584`
+for liveness, not the sleep.
 3. **Rehearse crash recovery against the real `final.txt.partial`** — still pending, and cannot run
    until block 1 lands (~17:30). The synthetic path already passes; this only confirms the real
    file's formatting.
