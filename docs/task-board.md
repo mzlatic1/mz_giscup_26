@@ -3,17 +3,24 @@
 Durable task list. `/startup` reads this and recreates the in-session task list from it.
 Keep it current: when a task is finished, move it to **Done** with the date and the evidence.
 
-Last updated: **2026-08-10**.
+Last updated: **2026-08-15** (release day).
 
 > ## ⚠️ ONE TASK REMAINS: execute submission day.
 >
-> **Test data 2026-08-15, deadline 2026-08-16.** As of 2026-08-10 there are **no open decisions**,
-> **nothing blocked on Marko**, and **nothing blocked on machine time**. Every section below is
-> closed history kept for its reasoning.
+> **Dataset publishes 2026-08-15 16:00 UTC / 09:00 PDT. Deadline 2026-08-16 16:00 UTC.** There are
+> **no open decisions**, **nothing blocked on Marko**, and **nothing blocked on machine time**.
+> Every section below is closed history kept for its reasoning.
 >
-> **Go to `docs/submission-day-runbook.md` and follow it.** Settled parameters: radius **400 m**,
-> objective **`near-tau`**, `--matrix-workers` **8**, `--verify-workers` **12**,
-> `--candidate-stride` **1**. Do not re-open any of these under time pressure.
+> **Run from `docs/release-minute-commands.md`; read `docs/submission-day-runbook.md`.** Settled
+> parameters: radius **400 m**, objective **`near-tau`**, `--matrix-workers` **8**,
+> `--verify-workers` **12**, `--candidate-stride` **1**. Do not re-open any of these under time
+> pressure.
+>
+> **Four things changed on 2026-08-15 that the board did not previously know:**
+> submissions go to **EasyChair**; the ID field is **`properties.id`**; the dataset ships a
+> **`competition-parameters.txt`** that outranks the assumed `(tau, k)` grid; and the **official
+> evaluator is source-available and runs locally** (`scripts/official_evaluator/`). The official
+> boundary tolerance is **1 mm**, not the `1e-7` this repo assumed — ours stays tighter.
 
 ## Open — AFTER submission
 
@@ -40,6 +47,72 @@ Scope to review when picking it up:
   arguably the most interesting artifact in the repo, but they were written for an audience of one.
 
 **Not a blocker for anything. Do not start it before the submission is uploaded.**
+
+## Closed 2026-08-15 (overnight, before the release minute)
+
+### 22 — The (tau, k) grid was hardcoded in three places  (FOUND AND FIXED 2026-08-15)
+
+Discovered while reading the official page on release day: the dataset ships a companion
+`competition-parameters.txt`, so the nine subproblems are **published data**, not a constant. Three
+hardcodes assumed otherwise, and two of them would have failed on the day:
+
+| location | damage if the published grid differs |
+|---|---|
+| `giscup.assemble.REQUIRED_SUBPROBLEMS` | **Blocks crash recovery** — the library took a `required=` override but `scripts/assemble_blocks.py` never exposed it, so a partial run would refuse to assemble with "missing 9 of 9". |
+| `scripts/audit_submission.py` `EXPECTED_TAUS`/`EXPECTED_KS` | **Fails a correct submission**, rc 1, at the last gate before upload. It also counted nine blocks literally. |
+| `giscup.packaging.EXPECTED_BLOCKS = 9` | None — a count survives a different grid of the same size. **Left alone.** |
+
+Fixed by `giscup.assemble.subproblem_grid(taus, ks)`, with `--taus`/`--ks` on both scripts. Solver
+core needed no change: `solver.py` validates only `0 < tau <= 1` and `k > 0`, and
+`optimize.default_near_tau_quantile` is a function of tau. Evidence: `tests/test_parameter_grid.py`
+(9 cases), 365 passed, and `assemble_blocks.py` round-trips `outputs/nine_bestof_400.txt`
+byte-for-byte. Commit `fecc816`.
+
+### 23 — The runbook's ID stop-condition read a nonexistent field  (FOUND AND FIXED 2026-08-15)
+
+The runbook said "if `DatasetInfo.id_fallback_used` is true in diagnostics, stop". **That field is
+not in the JSON.** `diagnostics.dataset_summary` emits `path, crs, feature_count, geometry_types,
+id_property, bounds, holes_count, area, perimeter, exterior_vertices`, and its `id_property` is only
+an echo of the argument. The fallback warns on **stderr** (`io.py:15-23`) and nowhere else — so the
+documented check would have passed silently on precisely the failure it exists to catch, and every
+claim would have referenced a nonexistent building while passing every structural check.
+
+Fixed in documentation, not in code: the runbook now pipes stderr and treats absence of the warning
+as the test. Changing the diagnostics schema the day before submission is the worse trade. Commit
+`5c264f0`.
+
+### 24 — A stale runbook warning had become actively wrong  (FIXED 2026-08-15)
+
+§2 said in bold that `solve-all` and `rehearse.py` disagree on their `--objective` default and that
+the mismatch was live. It was fixed on 2026-08-10 — both read `gate_model.DEFAULT_OBJECTIVE`
+(`near-tau`), pinned by `tests/test_verify_workers_default.py`. A warning that is no longer true
+costs attention at the one moment attention is scarce. Commit `5c264f0`.
+
+### 11 — Holes: SETTLED WITH EVIDENCE 2026-08-15
+
+The long-standing conflict — the official page says "will not have holes", our sample has one on
+building 9448 — is resolved, and **the page was right**. The official evaluator's loader rejects
+hole-bearing polygons outright:
+
+```
+DatasetValidationError: Building "9448" must contain exactly one ring and no holes.
+{ code: 'HOLES_NOT_ALLOWED', featureIndex: 9447, buildingId: '9448' }
+```
+
+The organisers ship the *same* sample with that hole removed (the two files differ by 216 bytes), so
+our copy is the outlier. **Consequence:** `holes_count > 0` on the August extract is now a
+stop-and-escalate in the runbook, because it would mean the published dataset cannot be scored by
+the organisers' own tooling. Our defensive handling stays — it is stricter than the official
+predicate, so it can only forfeit a claim, never create an overclaim.
+
+### 25 — Official evaluator harness built and validated  (DONE 2026-08-15)
+
+`github.com/alowe/gis-cup-2026-evaluator` (MIT) **is** the scorer, and it runs headless under vitest
+— browser-delivered, not browser-bound. `scripts/official_evaluator/` holds the driver, its config,
+and a README. Validated before use against every documented expected result the evaluator ships: the
+six `ui-smoke` fixtures (via its own vendored suite, 73/73) and the full-sample submission's
+documented score of `1`. This retires the standing assumption that local validation cannot see the
+official predicate — it now can. It still cannot see *rank*, because scoring is relative.
 
 ## Feasibility — the 2026-08-07 figure was wrong; this supersedes it
 
