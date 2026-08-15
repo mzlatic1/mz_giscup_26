@@ -297,6 +297,12 @@ strongest pre-submission signal that exists, and it is the one step this page ne
 
 See `scripts/official_evaluator/README.md` for setup and the exact commands.
 
+**The clone already exists and is green — `/home/markolinux/projects/gis-cup-2026-evaluator`**
+(evaluator commit `9af12a5`, `node_modules` installed, both driver files in place, `pnpm test` = 73
+passed, verified 2026-08-15 10:37 PDT). Do not re-clone or re-install today; setup is not on the
+critical path, and re-running it would be. Note the paths below are **relative to this repo**, so
+pass them as absolute paths when running from inside the clone.
+
 ```bash
 # in the evaluator clone, with the driver copied into benchmarks/
 SCORE_DATASET=data/<the-new-file>.geojson \

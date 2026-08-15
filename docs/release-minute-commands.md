@@ -144,8 +144,21 @@ Must report: every block present, exactly `k` coordinates counted per block, 0 o
 
 Setup and full detail: `scripts/official_evaluator/README.md`.
 
+**The clone is already built, installed, and green — do NOT re-clone or re-`pnpm install` today.**
+
+```text
+/home/markolinux/projects/gis-cup-2026-evaluator     # evaluator commit 9af12a5, node_modules present,
+                                                    # both driver files already copied in
+```
+
+Verified 2026-08-15 10:37 PDT: `pnpm test` -> **73 passed in ~2 s**. It was moved here from a session
+scratchpad under `/tmp`, which would not have survived a WSL restart. Two traps if you ever do rebuild
+it: the installed pnpm is **10.15.1** while `package.json` pins `packageManager: pnpm@11.16.0` (fine
+only because `node_modules` already exists), and a fresh `git clone` gets whatever is current rather
+than `9af12a5`, the commit that shipped the competition dataset.
+
 ```bash
-cd <evaluator-clone>
+cd /home/markolinux/projects/gis-cup-2026-evaluator
 SCORE_DATASET=/home/markolinux/projects/sigspatial_26/$DS \
 SCORE_SOLUTION=/home/markolinux/projects/sigspatial_26/outputs/final.txt \
 SCORE_SUMMARY=/home/markolinux/projects/sigspatial_26/outputs/official-score.json \
