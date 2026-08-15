@@ -48,6 +48,49 @@ Scope to review when picking it up:
 
 **Not a blocker for anything. Do not start it before the submission is uploaded.**
 
+## Closed 2026-08-15 (release day, after the dataset published)
+
+### 26 — The six-decimal heuristic fails a correct submission on the competition dataset  (FOUND AND FIXED 2026-08-15)
+
+Found by the downstream dry-run (#27), before the real artifact existed.
+
+`audit_submission.py` flags any emitted ordinate matching `^-?\d+\.\d{1,6}$`, on the theory that we
+rounded it. That was sound on the March sample, where ~98% of source ordinates carry 8–11 decimals,
+so a short token could only have come from us. **The competition extract is stored at millimetre
+precision** — 89.4% of ordinates have exactly 3 decimals — so an antenna sitting on a source vertex
+emits a short token legitimately, and `%g` strips trailing zeros besides. On a provably legal file it
+flagged 591 tokens and exited 1.
+
+The hazard it proxies for — a truncated coordinate leaving its boundary — is measured *exactly* by
+`is_on_any_boundary(p, eps=1e-7)`, 10,000x tighter than the official 1e-3 bar. When a proxy and a
+direct measurement of the same hazard disagree, the direct one wins. The heuristic now stays a hard
+failure where it discriminates and becomes a `[NOTE]` where it cannot; `Audit.note()` was added so a
+note can never move the verdict.
+
+**Why this mattered more than a cosmetic false alarm:** the audit is the last gate before upload, and
+a spurious "AUDIT FAILED — do not submit" is one a tired operator learns to wave through — at which
+point a *real* overclaim found in the same run hides behind a failure already written off.
+
+Overclaim detection verified unchanged by negative control, not assumed: a solution claiming 5
+unreachable buildings per block was still caught, all 45, rc 1, on the real 50,000-building extract.
+Tests 365 → 368. Commit `de03785`.
+
+### 27 — Downstream dry-run at competition scale  (DONE 2026-08-15)
+
+The audit / recovery / packaging / evaluator chain had never been run against the real grid or a
+50,000-building dataset; its first real execution would have been at hour ~14 with the actual
+artifact and no time to diagnose anything. Run instead on a throwaway solution (exactly `k` legal
+antennas from source vertices, empty claims) plus an overclaiming negative control. Found #26.
+
+Results and the measured evaluator cost model are in `docs/session-state.md`. Two facts worth
+carrying forward:
+
+- **Crash recovery without `--taus/--ks` refuses a correct set of nine blocks** ("missing 9 of 9",
+  naming the *assumed* grid). That is #22's fix demonstrated on real data rather than argued.
+- **The official evaluator early-exits once a claim clears tau**, so its runtime is dominated by
+  *failed* claims — ~320 ms per antenna-claim pair in the worst case, linear in `k`. Run our own
+  ~10 s audit first; an evaluator that crawls *is* the overclaim alarm.
+
 ## Closed 2026-08-15 (overnight, before the release minute)
 
 ### 22 — The (tau, k) grid was hardcoded in three places  (FOUND AND FIXED 2026-08-15)

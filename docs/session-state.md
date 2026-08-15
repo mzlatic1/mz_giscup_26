@@ -100,14 +100,60 @@ verification is the least-constrained leg and was ~82% of a March run.
   re-fitting on the day is the trap the runbook forbids.
 - EasyChair access confirmed by Marko, form reachable.
 
+## Downstream dry-run — DONE 09:42 PDT, and it paid for itself
+
+Every downstream tool was run at competition scale against the real grid on a throwaway solution
+(exactly `k` legal antennas taken from source vertices, empty claim lines), plus a deliberately
+overclaiming negative control. **Nothing downstream is now being executed for the first time when
+the real artifact lands.**
+
+| tool | result |
+|---|---|
+| `audit_submission.py` (clean) | **PASS**, rc 0 — after the fix below |
+| `audit_submission.py` (bogus) | **all 45 bogus claims caught**, rc 1 — not vacuous at 50k scale |
+| `assemble_blocks.py` recovery | 6+3 blocks reassembled, **byte-identical**, rc 0 |
+| recovery *without* `--taus/--ks` | refuses correct blocks: *"missing 9 of 9"* — the hardening's value, demonstrated |
+| `package_submission.py` | 9 blocks, 1,626 antennas, 341.7 KiB, rc 0 |
+| bundle's own tests | **366 passed, 2 skipped, 0 failed** |
+| official evaluator | 9 blocks parsed, **0 invalid antennas, 0 warnings**, `vertexCount` 306,833 matches |
+
+### The defect it caught: the six-decimal heuristic fails a correct submission here
+
+**The competition dataset is stored at millimetre precision** — 89.4% of ordinates have exactly 3
+decimals, 99.6% have ≤3. The March sample was 8–11 decimals. An antenna on a source vertex therefore
+emits a short token through no fault of ours (and `%g` strips trailing zeros besides), so the audit's
+`^-?\d+\.\d{1,6}$` guard flagged 591 tokens of a provably legal file and exited 1.
+
+Fixed in `de03785`: the heuristic stays a hard failure on a high-precision source and becomes a
+`[NOTE]` on a coarse one, because the hazard it proxies for is measured *exactly* by the
+`eps=1e-7` boundary check. **Expect `notes: 1` on the real audit — that is correct, not a warning
+sign.** Overclaim detection is unchanged and was proven by negative control. Tests 365 → 368.
+
+### Official-evaluator cost model — measured, and counter-intuitive
+
+| block | k | claims | time | per antenna-claim pair |
+|---|---|---|---|---|
+| 1 | 9 | 5 | 14.3 s | 318 ms |
+| 2 | 49 | 5 | 79.3 s | 324 ms |
+
+Linear in `k`, ~320 ms per pair — which cannot be reconciled with March's 41 min for 42,728 claims
+until you notice **the evaluator early-exits the moment a claim clears tau**. A claim that verifies
+stops after a few antennas; a claim that *fails* must exhaust all `k`. The control's claims were all
+unreachable, so it hit the worst case every time.
+
+**Consequence: evaluator runtime is dominated by failed claims.** Run our own audit (~10 s) first —
+if it is clean the evaluator will be fast, and if the evaluator instead crawls, that *is* the alarm.
+Do not start the evaluator on an unaudited file.
+
 ## What remains
 
-1. Downstream dry-run on a synthetic solution — audit, official evaluator, packaging — so their
-   first real execution is not at hour 14. **In progress.**
-2. Crash-recovery rehearsal against a real `final.txt.partial` once block 1 lands.
-3. Re-project the finish time from the measured matrix-build duration.
-4. When the solve finishes: audit → official evaluator (all nine) → regenerate bundle → notify Marko
-   for upload. **Marko asked to be notified when the submission is ready.**
+1. ~~Downstream dry-run~~ — done, above.
+2. Re-run the crash-recovery rehearsal against a **real** `final.txt.partial` once block 1 lands.
+   The synthetic rehearsal passed; this only confirms the real file's formatting.
+3. Re-project the finish time from the measured matrix-build duration (the 4.6 h figure is still
+   extrapolated). The candidate-count prediction was exact, which is mild evidence for the rest.
+4. When the solve finishes: audit → official evaluator (**all nine blocks**, Marko's call) →
+   regenerate the bundle → **notify Marko, who will do the upload himself.**
 
 ---
 
