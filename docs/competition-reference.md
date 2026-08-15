@@ -10,11 +10,49 @@ statement all match this file verbatim. Two operational facts recorded from that
 
 - *"Participants will have 24 hours to run their programs and submit their results for each of the
   nine combinations."* — the window is 24 h, and it is per-submission, not per-subproblem.
-- **The submission link is still unpublished:** *"The webpage will be updated closer to the
-  competition time to include a link to submit."* Fallback contacts: `alowe@esri.com`,
-  `ashashidharan@esri.com`.
-- **The building ID field name is still absent from the page.** It cannot be resolved before the
-  extract lands — run `giscup inspect` on the day. See the `--id-property` note below.
+
+**Re-checked again 2026-08-15 (release day). Three things that were open are now closed, and one
+new artifact appeared:**
+
+- **The submission link is published: EasyChair**,
+  `https://easychair.org/conferences/?conf=giscup2026`. An account is required. The archive may be
+  `.zip`, `.tgz`, `.tar`, or `.gz` and holds the solution text file plus a source folder with
+  build/run instructions. *(Was "still unpublished" until today.)* Break-glass contacts remain
+  `alowe@esri.com`, `ashashidharan@esri.com`.
+- **The building ID field is named: `properties.id`, required unique.** *(Was "absent from the
+  page".)* This does **not** retire `giscup inspect` on the day — the page naming a field is not the
+  same as the extract carrying it, and the silent row-index fallback is still the failure that would
+  make every claim reference a nonexistent building. Confirm against the file.
+- **The dataset ships a companion `competition-parameters.txt`.** The taus and ks are therefore
+  *published data*, not a documented constant. See "Final subproblems" below.
+- **The official evaluator is source-available**, MIT: `https://github.com/alowe/gis-cup-2026-evaluator`.
+  See the section below — this is a genuine change in what can be known before submitting.
+
+## The official evaluator — added 2026-08-15
+
+`https://github.com/alowe/gis-cup-2026-evaluator` (MIT) **is** the scorer. It sits between tier 1
+and tier 2 of CLAUDE.md's source-of-truth order: it is more specific than the page's prose and it is
+the thing that actually assigns the score, so where it and our reading of the rules disagree, **it
+wins**. Where it and the *page* disagree, the page is still the specification and the gap is worth
+escalating rather than silently coding to.
+
+It runs headless under vitest — see `scripts/official_evaluator/README.md`. Facts confirmed by
+reading the source on 2026-08-15, each of which contradicted or sharpened something in this repo:
+
+| fact | source | our previous belief |
+|---|---|---|
+| Boundary tolerance is **`0.001` m**; within it an antenna is **snapped and accepted** | `constants.ts` `SPATIAL_TOLERANCE_METERS` | `1e-8`–`1e-7`, and assumed to be a *rejection* threshold |
+| Beyond 1 mm: `ANTENNA_OFF_BOUNDARY`, visibility lost, **still counts against `k`** | `submission-validator.ts` | unknown |
+| **Only claimed buildings are evaluated** | `evaluation-engine.ts` `initializeEvaluationState` | assumed all buildings were checked |
+| Antennas past `k` are **truncated, first-`k` wins**, no backfill | `solution-parser.ts` `antennas.slice(0, k)` | unknown |
+| Unknown claimed IDs are a **warning**, excluded, not fatal | `submission-validator.ts` `resolveClaims` | assumed fatal |
+| Duplicate antennas **count toward `k`** but reuse visibility | `submission-validator.ts` | unknown |
+| The loader **rejects hole-bearing polygons outright** | `dataset-loader.ts` `HOLES_NOT_ALLOWED` | we preserved holes as obstacles |
+| Verification is `visibleLengthMeters >= tau * perimeterMeters` | `evaluation-engine.ts:277` | matches ours |
+| Building IDs are canonicalised as `String(input).trim()` | `dataset-loader.ts` | matches ours |
+
+The **implication of the 1 mm tolerance is that our eps is fine and should not be relaxed**: passing
+at `1e-7` implies passing at `1e-3`. Do not loosen a tolerance to match a looser official bar.
 
 ## Event
 
@@ -69,6 +107,13 @@ Sample-page values are examples only:
 - `tau`: `0.25`, `0.5`, `0.75`
 - `k`: `50`, `500`, `1000`
 
+**The real values arrive in `competition-parameters.txt`, shipped with the dataset** (confirmed
+2026-08-15). Read it before solving; it outranks the values above. Since 2026-08-15 nothing
+downstream hardcodes them — `giscup.assemble.subproblem_grid(taus, ks)` is the single source, and
+`solve-all`, `scripts/audit_submission.py`, and `scripts/assemble_blocks.py` all take `--taus`/`--ks`.
+Lever A's quantile schedule is a function of tau (`optimize.default_near_tau_quantile`) and adapts
+on its own.
+
 ## Submission format
 
 For each subproblem, output exactly three lines:
@@ -114,12 +159,20 @@ Verified clean on the real nine-block run: exactly `k` points per block, zero du
 antennas, zero claimed IDs absent from the dataset, no CRLF, no tabs, no trailing spaces,
 no non-ASCII bytes.
 
-**Building IDs come from the `--id-property` field, default `id`.** If that field is
-absent, IDs fall back to the row index — legitimate for a dataset with no ID field,
-catastrophic otherwise, because every claim would be wrong while the output still passes
-every structural check. Since 2026-08-08 this warns and sets
-`DatasetInfo.id_fallback_used`, surfaced in diagnostics. **Run `giscup inspect` on the
-August dataset before solving** and confirm the ID field name.
+**Building IDs come from the `--id-property` field, default `id`** — and the official page named
+`properties.id` on 2026-08-15, so the default is very likely right. If that field is absent, IDs
+fall back to the row index — legitimate for a dataset with no ID field, catastrophic otherwise,
+because every claim would be wrong while the output still passes every structural check. The
+official evaluator would report this as a pile of `UNKNOWN_BUILDING_ID` warnings and a near-zero
+score, **not** as an error.
+
+**The fallback is visible on stderr only.** *(Corrected 2026-08-15.)* This section previously said
+it "sets `DatasetInfo.id_fallback_used`, surfaced in diagnostics". The flag exists on the dataclass,
+but `diagnostics.dataset_summary` does not emit it — the JSON carries `path, crs, feature_count,
+geometry_types, id_property, bounds, holes_count, area, perimeter, exterior_vertices`, and its
+`id_property` is only an echo of the argument. The real signal is a `UserWarning` from `io.py:15-23`.
+**Run `giscup inspect` on the August dataset before solving, and capture stderr** — absence of that
+warning is the test.
 
 ## Precision
 
@@ -154,7 +207,27 @@ will not have holes."** Coverage is **"the ratio of the length of visible segmen
 to the total perimeter of b."**
 
 The preserved sample inspection reports one hole-containing polygon (id 9448), so the sources
-disagree. Resolved 2026-08-07 (task #11):
+disagreed.
+
+**Settled by evidence 2026-08-15: the page is right and our copy of the sample is the outlier.**
+The official evaluator's loader rejects hole-bearing polygons outright. Feeding it
+`data/GIS-cup-sample-dataset.geojson` produces:
+
+```
+DatasetValidationError: Building "9448" must contain exactly one ring and no holes.
+{ code: 'HOLES_NOT_ALLOWED', featureIndex: 9447, buildingId: '9448' }
+```
+
+The evaluator ships its own copy of the same sample with that hole removed — the two files differ by
+216 bytes. So "the polygons will not have holes" is not aspirational prose; it is enforced by the
+scorer, and a hole-bearing dataset is one the organisers' own tooling cannot load.
+
+**Operational consequence:** `holes_count > 0` on the August extract is a **stop-and-escalate**, not
+a note. It would mean the published dataset cannot be scored, which is an upstream problem, not one
+to fix locally by stripping rings. See the runbook §2.
+
+The 2026-08-07 reasoning below is retained because its conclusions still hold and its defensive
+behaviour is still what the code does:
 
 - **On official data the question is moot.** With no interior rings, `polygon.length` (all rings,
   what `sampling.py` uses) and exterior-only perimeter are the same number. The two readings can

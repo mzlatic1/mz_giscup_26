@@ -60,11 +60,12 @@ tests/test_validate.py
 tests/test_validate_scaling.py   # BoundaryIndex + culled scan equivalence
 tests/test_verify.py             # two-sided band selection, recover/drop
 tests/test_verify_workers_default.py  # gate and solver agree on the worker default
+tests/test_parameter_grid.py      # the (tau, k) grid is an argument, not a hardcode
 tests/test_visibility.py
 tests/test_visibility_strategy.py  # official predicate, degeneracies, relate default
 ```
 
-Current latest result: **`356 passed`** in Conda env `mz-giscup-26` (2026-08-10), 30 files.
+Current latest result: **`365 passed`** in Conda env `mz-giscup-26` (2026-08-15), 31 files.
 *(350 -> 356 on 2026-08-10: six cases in `test_verify_workers_default.py` pinning the gate and the
 solver to a shared `gate_model.DEFAULT_OBJECTIVE`, after they were found to disagree — the gate
 costed `baseline` while the solver ran `near-tau`.)*
@@ -108,6 +109,7 @@ scripts/build_matrix.py            # build/reuse the visibility matrix at full s
 scripts/audit_submission.py        # mechanical audit of a nine-block file (two-stage, parallel)
 scripts/assemble_blocks.py         # recover a nine-block file from partials / separate runs
 scripts/package_submission.py      # build and verify the submission bundle
+scripts/official_evaluator/        # headless driver for the ORGANISERS' scorer (see its README)
 scripts/size_candidate_prune.py    # #9 sizing: quality cost of pruning the candidate pool
 scripts/sweep_near_tau.py          # lever A quantile sweep (IN-SAMPLE — see task board)
 ```
@@ -279,6 +281,18 @@ Visibility strategy: **`relate` only** — the exact official predicate. `negati
   a **final block that legitimately claims nothing** parsed as truncated. It would have failed a
   valid submission in `scripts/audit_submission.py`, the last gate before submitting. Fixed in
   both parsers.
+- **The `(tau, k)` grid is no longer hardcoded** (2026-08-15). The dataset ships
+  `competition-parameters.txt`, so the nine subproblems are published data. `assemble.py` grew
+  `subproblem_grid(taus, ks)`; `scripts/assemble_blocks.py` and `scripts/audit_submission.py` grew
+  `--taus`/`--ks`. Before this, a differing grid would have blocked crash recovery *and* failed a
+  correct submission at the last gate. `packaging.py`'s `EXPECTED_BLOCKS = 9` is left alone: a count
+  survives a different grid of the same size.
+- **`giscup inspect` does not report the ID fallback in its JSON** — `DatasetInfo.id_fallback_used`
+  exists on the dataclass but `diagnostics.dataset_summary` never emits it, and the JSON's
+  `id_property` is only an echo of the argument. The warning goes to **stderr** (`io.py:15-23`).
+  The runbook said to read the JSON field until 2026-08-15. Not fixed in code — the runbook now
+  says to capture stderr — because changing the diagnostics schema the day before submission is a
+  worse trade than documenting it.
 
 ## Safe development checks
 

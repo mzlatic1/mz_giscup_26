@@ -12,24 +12,28 @@ Read `CLAUDE.md` first for the non-negotiable output constraints. This page assu
 ## The whole day at a glance
 
 Verified 2026-08-10. Every parameter here is a closed decision — **do not re-open one under time
-pressure.** Timings are for a March-sized extract (12,860 buildings); scale them by §2's sizing.
+pressure.** Timings are for a March-sized extract (12,860 buildings); scale them by §3's sizing.
 
 | # | step | command | time |
 |---|---|---|---|
-| 0 | environment, green tests | `pytest -q` -> **356 passed** | 5 min |
-| 1 | **inspect before solving** | `giscup inspect` | 5 min |
-| 2 | size the run | `scripts/rehearse.py --objective near-tau` | 10 min |
-| 3 | solve nine blocks | `giscup solve-all` (radius **400**, matrix-workers **8**, verify-workers **12**) | **~5 h** |
-| 4 | audit | `scripts/audit_submission.py --exact-radius 400 --confirm-radius 800` | ~10 min |
-| 5 | package + submit | `scripts/package_submission.py` | 15 min |
+| 0 | environment, green tests | `pytest -q` -> **365 passed** | 5 min |
+| 1 | **read `competition-parameters.txt`** | — | 5 min |
+| 2 | **inspect before solving** | `giscup inspect` (capture **stderr**) | 5 min |
+| 3 | size the run | `scripts/rehearse.py --cores 16 --measured-radius 400` | 10 min |
+| 4 | solve nine blocks | `giscup solve-all` (radius **400**, matrix-workers **8**, verify-workers **12**) | **~5 h** |
+| 5 | audit | `scripts/audit_submission.py --exact-radius 400 --confirm-radius 800` | ~10 min |
+| 6 | **official evaluator** | `scripts/official_evaluator/` | ~1 h |
+| 7 | package + submit | `scripts/package_submission.py` -> EasyChair | 15 min |
 
-**Budget ~6 h of a 24 h window.** The gate's upper bound is 8.14 h at 2.5x headroom (re-read
-2026-08-10). If sizing says materially worse, go to §6 — do not start improvising.
+**Budget ~7 h of a 24 h window.** The gate's upper bound is 8.14 h at 2.5x headroom (re-read
+2026-08-10). If sizing says materially worse, go to §8 — do not start improvising.
 
-**Submission link:** unpublished as of 2026-08-10; the page says it appears "closer to the
-competition time". If it is still absent when the bundle is ready, email **Aaron Lowe**
-(`alowe@esri.com`) or **Ashwin Shashidharan** (`ashashidharan@esri.com`). Do not let a missing link
-run out the clock — have the zip built and ask early.
+**Submission link — resolved 2026-08-15.** Submissions go to **EasyChair**:
+`https://easychair.org/conferences/?conf=giscup2026`. An EasyChair account is required; Marko has
+one. *(This section said "unpublished" until 2026-08-15.)* Break-glass only, if EasyChair is
+unreachable: email **Aaron Lowe** (`alowe@esri.com`) or **Ashwin Shashidharan**
+(`ashashidharan@esri.com`) — build the bundle first and ask early rather than letting a missing
+upload path run out the clock.
 
 ---
 
@@ -38,7 +42,7 @@ run out the clock — have the zip built and ask early.
 ```bash
 conda activate mz-giscup-26
 cd /home/markolinux/projects/sigspatial_26
-python -m pytest -q                    # must be green before you touch the real data
+python -m pytest -q                    # must be green before you touch the real data -- 365 passed
 nproc; free -g; df -h .                # 16 cores, 24 GB, and the matrix needs ~2.6 GB free
 ```
 
@@ -49,37 +53,87 @@ Put the downloaded dataset under `data/`. **Never overwrite it.** `.claude/setti
 `Write`/`Edit` on `data/**`, but that guard does not cover shell redirects, `cp`, or an
 `--output data/...` flag.
 
-## 1. Inspect the extract FIRST — do not skip this (5 min)
+## 1. Read `competition-parameters.txt` BEFORE anything else (5 min)
+
+The dataset download ships a companion parameters file. **It outranks every assumption in this
+repository** — CLAUDE.md's source-of-truth order puts dataset inspection above repository docs.
+
+Reconcile what it says against the assumed grid, `0.25/0.5/0.75` x `50/500/1000`. If it disagrees,
+**the file wins**, and you pass the published values through to every step:
 
 ```bash
-giscup inspect --input data/<the-new-file>.geojson
+giscup solve-all       --taus <published> --ks <published> ...
+scripts/audit_submission.py --taus <published> --ks <published> ...
+scripts/assemble_blocks.py  --taus <published> --ks <published> ...   # recovery path only
 ```
+
+Those three flags exist because the values were **hardcoded until 2026-08-15**. The audit would
+have printed FAIL and exited 1 on a *correct* submission, and `assemble_blocks.py` would have
+refused to recover a crashed run with "missing 9 of 9". Both are now arguments
+(`giscup.assemble.subproblem_grid`), defaulting to the assumed nine.
+
+Nothing in the solver core needs changing for a different grid: `solver.py` validates only
+`0 < tau <= 1` and `k > 0`, and lever A's quantile schedule is a *function of tau*
+(`optimize.default_near_tau_quantile`), so it adapts on its own.
+
+## 2. Inspect the extract — do not skip this (5 min)
+
+```bash
+giscup inspect --input data/<the-new-file>.geojson 2>&1 | tee outputs/inspect.log
+```
+
+**Capture stderr.** *(Corrected 2026-08-15.)* This page used to say "if `DatasetInfo.id_fallback_used`
+is true in diagnostics, stop" — **that field does not exist in the JSON.** `diagnostics.dataset_summary`
+emits `path, crs, feature_count, geometry_types, id_property, bounds, holes_count, area, perimeter,
+exterior_vertices` and nothing else, and its `id_property` is only an echo of what you typed. The
+fallback announces itself as a **`UserWarning` on stderr** (`io.py:15-23`) and nowhere else. Absence
+of that warning is the actual test — which you cannot see if stderr is discarded.
 
 Check, and write the answers down:
 
-| Question | Why it matters | Rehearsal finding |
+| Question | Why it matters | Finding |
 |---|---|---|
-| What is the **ID property** called? | `io.py` silently falls back to the row index when the field is missing. Every claim would then reference a nonexistent building **while passing every structural check**. | Found 2026-08-08. Pass `--id-property <name>` if it is not `id`. |
+| What is the **ID property** called? | `io.py` silently falls back to the row index when the field is missing. Every claim would then reference a nonexistent building **while passing every structural check**. | The official page names `properties.id`, required unique (confirmed 2026-08-15). Pass `--id-property <name>` if it is not `id`. **Watch stderr, not the JSON.** |
 | What is the **CRS**? | Tolerances are absolute in CRS units. The sample is EPSG:32611. | Do not assume; the code inspects, but you should too. |
-| How many **buildings**, and total perimeter? | Drives every runtime projection below. The sample has 12,860. | If materially larger than 12,860, see §6. |
-| Any **holes**? | The official page says no; the March sample had one. | Holes are preserved and included as obstacles. |
+| How many **buildings**, and total perimeter? | Drives every runtime projection below. The sample has 12,860. | If materially larger than 12,860, see §8. |
+| Any **holes**? | **STOP AND ESCALATE if `holes_count > 0`.** | See below — this changed meaning on 2026-08-15. |
 | Coordinate **magnitudes**? | At ~3.7e6 one ULP is ~5e-10 m. Everything about tolerance depends on this. | If magnitudes differ wildly from UTM 11N, stop and think. |
 
-If `DatasetInfo.id_fallback_used` is true in diagnostics, **stop and fix the flag** before solving.
+**Holes are now a stop condition, not a note.** This page used to say "holes are preserved and
+included as obstacles" and leave it there. Tested against the official evaluator on 2026-08-15: its
+loader **hard-rejects** a hole-bearing dataset —
 
-## 2. Size the run before committing to it (10 min)
+```
+DatasetValidationError: Building "9448" must contain exactly one ring and no holes.
+{ code: 'HOLES_NOT_ALLOWED', featureIndex: 9447, buildingId: '9448' }
+```
+
+— and that is our March sample, on building 9448. The organisers' own copy of the sample is the
+same file with that hole removed (the two differ by 216 bytes). So if the August extract reports
+`holes_count > 0`, the official scorer **cannot load the file the organisers published**, which
+means something is wrong upstream. Escalate; do not quietly strip the hole and proceed, and do not
+assume our obstacle handling is the thing that needs to change. Our solver treating a hole as an
+obstacle is *stricter* than the official predicate, not looser.
+
+## 3. Size the run before committing to it (10 min)
 
 ```bash
 python scripts/rehearse.py --input data/<the-new-file>.geojson \
-    --budget-hours 20 --cores 16 --measured-radius 400 --verify-workers 12 \
-    --objective near-tau          # MUST be passed: see the warning below
+    --budget-hours 20 --cores 16 --measured-radius 400 --verify-workers 12
 ```
 
-**`--objective near-tau` is not optional, because the two defaults disagree.** `solve-all` defaults
-to **`near-tau`** (lever A, since #15), but `rehearse.py --objective` still defaults to
-**`baseline`**. So the *unmodified* gate command costs a run you are not going to make, and it errs
-in the dangerous direction — baseline is the cheaper constant, so the gate reads optimistic.
-Verified against the code 2026-08-10; treat the mismatch as live until a test pins the two together.
+**`--cores` and `--measured-radius` are the load-bearing flags here, and both default badly.**
+`--cores` defaults to **1**, so omitting it sizes a serial day and the gate reads catastrophic;
+`--measured-radius` defaults to **`None`**, which drops you onto the legacy analytic model instead
+of the measured one. Pass both, every time.
+
+**`--objective` no longer needs passing** — *(corrected 2026-08-15)*. This page previously said in
+bold that `--objective near-tau` "is not optional, because the two defaults disagree", and that the
+mismatch should be treated as live. **That was fixed on 2026-08-10 and the warning is now wrong.**
+Both `giscup solve-all` and `scripts/rehearse.py` read `gate_model.DEFAULT_OBJECTIVE`, which is
+`near-tau`, pinned by `tests/test_verify_workers_default.py`. Passing it explicitly is still fine
+and still recommended for the log — it is simply no longer load-bearing. The reasoning below stands
+on its own if you ever cost a *baseline* day.
 
 Read **both** numbers it prints — upper bound and likely. The bound sets the verdict; the likely
 figure is what to plan around. On the March sample at 400 m, costed at the objective we actually
@@ -101,12 +155,12 @@ deliberate, and it is the same defect twice: the verification constant belongs t
 lies. An unrecognised objective is refused rather than defaulted, because baseline is the cheapest
 constant in the module and would be the worst possible fallback.
 
-## 3. Solve (the long step — budget ~5–7 h at March-sample size)
+## 4. Solve (the long step — budget ~5–7 h at March-sample size)
 
 ```bash
 time giscup solve-all \
     --input data/<the-new-file>.geojson \
-    --id-property <from step 1> \
+    --id-property <from step 2> \
     --taus 0.25 0.5 0.75 --ks 50 500 1000 \
     --visibility-radius 400 \
     --cache-dir outputs/cache --matrix-workers 8 \
@@ -136,6 +190,9 @@ Notes that cost hours if forgotten:
 
 - **`--verify-workers`** now defaults to `min(cores, 12)`, but pass it explicitly so the log
   records what ran. Serial verification costs ~12 h of the window.
+- **`--matrix-workers` defaults to `1`.** Unlike `--verify-workers`, it has no host-aware default,
+  so omitting it runs a ~13-hour single-threaded matrix build and nothing warns you. Passing it is
+  load-bearing.
 - **The matrix build cannot come from cache.** It is keyed on the dataset, so the new extract
   rebuilds from scratch — ~100 min at 400 m on the March sample. This is the largest single line.
   **Use `--matrix-workers 8`, not 12.** Measured as a matched pair 2026-08-10: 99.6 min at 8 workers
@@ -164,12 +221,13 @@ Notes that cost hours if forgotten:
 - Progress prints per subproblem with an ETA weighted by antennas placed. It is pessimistic early
   and converges to <1% by block 7.
 
-## 4. Audit before you believe it (~9 min at 12 workers; ~46 min serial)
+## 5. Audit before you believe it (~9 min at 12 workers; ~46 min serial)
 
 ```bash
 python scripts/audit_submission.py --input data/<the-new-file>.geojson \
     --solution outputs/final.txt \
     --exact-radius 400 --confirm-radius 800 --workers 12
+    # add --taus/--ks if competition-parameters.txt named a different grid (§1)
 ```
 
 **Pass both radii explicitly anyway, so the log records what ran.** The command above is now
@@ -214,13 +272,64 @@ Must report: 9 blocks, exactly `k` coordinates **counted** per block, 0 off-boun
 eps=1e-7, 0 unknown IDs, **0 overclaims**. The March baseline passed with 0 overclaims of
 39,120 claims; the five audited lever A blocks passed with 0 overclaims of 27,803.
 
+**Our eps is `1e-7`; the official bar is `0.001` m.** Confirmed by reading the evaluator on
+2026-08-15 (`SPATIAL_TOLERANCE_METERS = 0.001`). Anything within 1 mm of a boundary is **snapped
+onto it and accepted**, not rejected; beyond that it is dropped with `ANTENNA_OFF_BOUNDARY` and its
+visibility is lost while it still counts against `k`. Our tolerance is four orders of magnitude
+tighter, so passing our audit implies passing theirs — keep it tight and do not relax it to match.
+
 **Confirm at the verification radius or wider — never tighter.** Auditing a 400 m solve and
 *confirming* at 400 m produced 25 false failures and zero real ones; the worst read 0.1853 at
 400 m and 0.5000 at 800 m. A tighter confirm is not conservatism, it is a guaranteed
 false-positive generator. This applies to `--confirm-radius`; the *screen* is deliberately tight,
 because a tight screen over-flags and the confirm stage then clears the false alarms.
 
-## 5. Package and submit
+## 6. Score it with the official evaluator (~1 h — new 2026-08-15)
+
+The organisers publish the scorer: **`github.com/alowe/gis-cup-2026-evaluator`**, MIT licensed. It
+is a browser app, but it is browser-*delivered*, not browser-*bound* — the scoring core is plain
+TypeScript over `@arcgis/core` and `rbush`, and it runs headless under vitest. This is the
+strongest pre-submission signal that exists, and it is the one step this page never had.
+
+See `scripts/official_evaluator/README.md` for setup and the exact commands.
+
+```bash
+# in the evaluator clone, with the driver copied into benchmarks/
+SCORE_DATASET=data/<the-new-file>.geojson \
+SCORE_SOLUTION=outputs/final.txt \
+SCORE_SUMMARY=outputs/official-score.json \
+pnpm exec vitest run --config vitest.score.config.ts --reporter=verbose
+```
+
+**It must run under vitest, not bare node.** `src/core/constants.ts` opens with a bare
+`import packageMetadata from "../../package.json"`, which needs the Vite transform.
+
+**Start it the moment the solve finishes** and run the cheap `k=50` blocks first (`SCORE_BLOCKS=1,4,7`)
+so a disagreement surfaces in a minute rather than an hour.
+
+What the comparison means:
+
+- **Agreement with our audit** → the strongest confirmation available. Proceed.
+- **They verify fewer than we claim** → we overclaim under the official predicate. This is the
+  failure mode that silently costs score, and the only cheap way to see it.
+- **They verify more** → we left claims on the table. Record it; **do not re-tune under time
+  pressure.**
+
+Two properties of the official engine worth knowing before you read its output, both confirmed by
+reading `evaluation-engine.ts` on 2026-08-15:
+
+- **Only *claimed* buildings are ever evaluated** (`initializeEvaluationState` iterates
+  `claims.uniqueKnownIds`). Buildings you do not claim are never checked. Overclaiming is the only
+  way to lose points; underclaiming is silently free.
+- **Unknown claimed IDs are a warning, not a fatal error** — they are excluded and evaluation
+  continues. So an ID-field mistake shows up here as a quietly enormous score drop, not a crash.
+  That is the same failure §2's stderr check exists to catch, one step earlier.
+
+**Rehearsed 2026-08-15 on the March artifact** (`outputs/nine_bestof_400.txt`, 42,728 claims),
+against the organisers' own copy of the sample: see `docs/session-state.md` for the per-block
+comparison.
+
+## 7. Package and submit
 
 ```bash
 python scripts/package_submission.py --solution outputs/final.txt
@@ -247,11 +356,15 @@ folder that has your source code, along with instructions for compiling and runn
 separators, exactly `k` coordinates counted in each block, and a third line present in every block
 even if empty.
 
-**Submitting.** Use the link on the official page. If it still has not been published, email the
-organisers (`alowe@esri.com`, `ashashidharan@esri.com`) — build the bundle first and ask early
-rather than discovering at hour 23 that there is nowhere to put it.
+**Submitting — EasyChair** (`https://easychair.org/conferences/?conf=giscup2026`), confirmed live
+2026-08-15. An account is required. The archive may be `.zip`, `.tgz`, `.tar`, or `.gz`, and must
+contain the solution text file plus a source folder with build/run instructions — exactly the shape
+`package_submission.py` emits. Log in and confirm the submission form is reachable **before** the
+bundle is ready; five minutes early beats discovering an access problem at hour 23. If EasyChair is
+unreachable, email the organisers (`alowe@esri.com`, `ashashidharan@esri.com`) with the bundle
+already built.
 
-## 6. If the extract is much bigger than 12,860 buildings
+## 8. If the extract is much bigger than 12,860 buildings
 
 Cost is roughly linear in buildings for verification and in candidates for the matrix build and
 greedy. **Both time-buying levers were measured on 2026-08-09 and ranked. Neither is free — spend
@@ -263,7 +376,7 @@ them in this order, and only as far as you must.**
 | 2 | 300 m cull | `--visibility-radius 300` | ~0.8 h | **~0.79 subproblems** |
 
 **Both are OFF by default and that is a decision, not an oversight** (#9 re-decided 2026-08-10, #20
-closed 2026-08-09). Do not reach for either unless step 2's sizing says the window is genuinely
+closed 2026-08-09). Do not reach for either unless §3's sizing says the window is genuinely
 threatened. Spending a certain score cost against a contingency that has not materialised is the
 failure this table exists to prevent.
 
@@ -297,7 +410,7 @@ failure this table exists to prevent.
 claim count. Three separate levers were mis-sized on 2026-08-09 by pooling — the pooled figure
 hides the small-count blocks, which is exactly where relative scoring lives.
 
-## 7. What NOT to do on the day
+## 9. What NOT to do on the day
 
 - Do not round coordinates. `format(x, ".17g")`, always.
 - Do not reproject, snap, or normalize the output.
@@ -307,3 +420,10 @@ hides the small-count blocks, which is exactly where relative scoring lives.
   different extract, and a tuned parameter that does not transfer is worse than no parameter.
 - Do not trust local validation as a score estimate. It is a rejection framework. It can tell you
   something is broken; it cannot tell you what you will score.
+
+  **This survives the official evaluator, and is worth being precise about** *(2026-08-15)*. Running
+  the organisers' own scorer (§6) removes the *predicate* risk: it tells you exactly which of your
+  claims they will verify, which local validation could only approximate. It tells you nothing about
+  **rank**. Scoring is relative — `team score / best submitted score` — so a number from §6 is a
+  count of verified buildings, never a placing. Do not let a good count become a reason to stop
+  checking, or a bad one become a reason to re-tune at hour 20.

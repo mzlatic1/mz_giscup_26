@@ -78,7 +78,7 @@ Run 2026-08-10 in the `mz-giscup-26` Conda environment. Full detail in `docs/ses
 
 ```bash
 python -m compileall -q src tests scripts   # OK
-python -m pytest -q                         # 356 passed
+python -m pytest -q                         # 365 passed
 giscup inspect --input data/GIS-cup-sample-dataset.geojson   # OK, EPSG:32611 preserved
 python scripts/rehearse.py --input data/GIS-cup-sample-dataset.geojson \
     --cores 16 --measured-radius 400 --verify-workers 12   # PASS, 8.14 h bound / 2.5x
@@ -106,7 +106,7 @@ feasibility rehearsals, but it has no real street topology and omits the large-b
 
 ```bash
 conda activate mz-giscup-26
-python -m pytest -q                 # 356 passed (2026-08-10)
+python -m pytest -q                 # 365 passed (2026-08-15)
 giscup inspect --input data/GIS-cup-sample-dataset.geojson
 
 # feasibility gate -- ALWAYS pass --verify-workers; serial puts the bound at 1.0x
@@ -160,10 +160,13 @@ submission day.**
 
 1. **Read `docs/submission-day-runbook.md` first**, before touching the extract, and follow it top
    to bottom rather than improvising from memory.
-2. **Run `giscup inspect` before solving anything.** The `--id-property` fallback would make every
-   claim reference a nonexistent building while passing every structural check, and the official
-   page has never named the ID field.
-3. **Get the submission link** — still unpublished as of 2026-08-10. Email fallbacks are in
+2. **Run `giscup inspect` before solving anything, capturing stderr.** The `--id-property` fallback
+   would make every claim reference a nonexistent building while passing every structural check.
+   The official page named the field `properties.id` on 2026-08-15 *(it previously named none)*, so
+   the default is probably right — but the page naming a field is not the extract carrying it, and
+   the fallback warns on **stderr only**, not in the diagnostics JSON.
+3. **Submit via EasyChair** (`https://easychair.org/conferences/?conf=giscup2026`), published
+   2026-08-15; an account is required. Email fallbacks are in
    `docs/session-state.md`.
 4. **Regenerate the bundle from the August solution.** The zip on disk is a March-sample bundle
    whose `source/` predates `3f381bb`. Do not ship it.

@@ -20,8 +20,13 @@ When facts conflict, resolve in this order. Never let a lower tier override a hi
 
 These are scored. Getting one wrong invalidates a submission block.
 
-- Output **exactly** `k` antenna points per subproblem. Not fewer, not more.
+- Output **exactly** `k` antenna points per subproblem. Not fewer, not more. Extra points are
+  **truncated to the first `k`**, not rejected — and an invalid early point is not backfilled.
 - Every antenna must lie on a building boundary (`polygon.boundary.distance(pt) <= eps`, eps `1e-8`–`1e-7`).
+  **The official bar is looser: `0.001` m** (evaluator `SPATIAL_TOLERANCE_METERS`, read 2026-08-15).
+  Within 1 mm an antenna is *snapped onto the boundary and accepted*; beyond it, dropped while still
+  counting against `k`. **Keep our eps tight** — passing at `1e-7` implies passing at `1e-3`, and
+  relaxing to match buys nothing.
 - Visibility is blocked **only** by a segment intersecting a building *interior*. Tangency,
   vertex contact, and boundary-only contact do **not** block.
 - Building coverage = visible boundary length / total perimeter. Serviced when `>= tau`.
@@ -29,6 +34,15 @@ These are scored. Getting one wrong invalidates a submission block.
   snap, or normalize final output.
 - Output is three lines per subproblem: `(tau, k)`, coordinate list, claimed serviced IDs.
   The third line may be empty but must still exist.
+
+- The `(tau, k)` grid is **published data**, not a constant: the dataset ships
+  `competition-parameters.txt`. Nothing hardcodes the nine — `giscup.assemble.subproblem_grid` is
+  the single source and every entry point takes `--taus`/`--ks`.
+
+**The official evaluator is source-available and runnable here**: `github.com/alowe/gis-cup-2026-evaluator`
+(MIT). It runs headless under vitest — `scripts/official_evaluator/README.md`. Where it disagrees
+with our reading of the rules, it wins; it is what assigns the score. Its loader **rejects
+hole-bearing polygons** (`HOLES_NOT_ALLOWED`), and it evaluates **only the buildings you claim**.
 
 Full detail: `docs/reference/geometry-and-scoring-rules.md`, `docs/competition-reference.md`.
 
@@ -51,7 +65,11 @@ Full detail: `docs/reference/geometry-and-scoring-rules.md`, `docs/competition-r
 - Preserve CRS explicitly. Do **not** assume EPSG:4326 — the sample is EPSG:32611 (UTM 11N),
   but code must inspect the source data rather than hardcode.
 - Preserve holes in loaded geometries and include them in obstacle geometry, even though the
-  official page says footprints have none. The sample contains one hole-bearing polygon.
+  official page says footprints have none. Our copy of the sample contains one hole-bearing polygon
+  (9448). **The official loader rejects such a dataset outright** (`HOLES_NOT_ALLOWED`, confirmed
+  2026-08-15) and the organisers ship a de-holed copy of that same sample — so on the day,
+  `holes_count > 0` is a stop-and-escalate, not a note. Keep the defensive handling: it is stricter
+  than the official predicate, so it can only forfeit a claim, never create an overclaim.
 - Never overwrite source data. Derived output goes under `outputs/` or a named scratch path.
   `.claude/settings.json` denies `Write`/`Edit` on `data/**`, but that guard covers only those two
   tools — a shell redirect, `cp`, or a `--output data/...` flag can still write there. Treat the
@@ -136,7 +154,7 @@ startup reads. Run `/rehearsal` if solver code changed since the last gate run.
 
 ```bash
 conda activate mz-giscup-26
-python -m pytest -q                 # 356 passing as of 2026-08-10
+python -m pytest -q                 # 365 passing as of 2026-08-15
 python -m compileall src tests scripts
 giscup inspect --input <geojson>          # RUN THIS FIRST on the day -- confirms the ID field
 giscup solve-one  --input <geojson> --tau <float> --k <int> --output <txt> [--diagnostics <json>]
