@@ -1,10 +1,54 @@
 # Current Session State
 
-## ▶️ MATRIX DONE 16:37, BLOCKS RUNNING — 2026-08-15 16:49 PDT
+## ▶️ 8 OF 9 BLOCKS DONE — BLOCK 9 RUNNING — handoff written 2026-08-15 23:55 PDT
 
-**Matrix build finished at 16:37 after 26,117 s = 7.26 h.** Block 1 `(0.32, 9)` is done and claimed
-**324** buildings (330 pre-verify, verifier corrected +9/−15). Block 2 `(0.32, 49)` is in flight.
-`outputs/final.txt.partial` exists and is real.
+**Written immediately before a `/compact`, so a cold resume needs nothing but this block.**
+
+**Nothing needs a decision. Both open questions were closed by Marko at 23:50 (see DECISION 1 and 2
+below). Do not re-open them.**
+
+| | |
+|---|---|
+| solve | **pid 86862**, launched 09:21:46, healthy, `nohup`'d and init-owned |
+| now running | **block 9 `(0.68, 484)`**, started 23:54:28 (elapsed 872.7 min) |
+| projected finish | **~03:12 PDT 2026-08-16** — 484 passes at ~24 s + ~3.5 min verify |
+| partial | `outputs/final.txt.partial`, **24 lines = 8 complete blocks**, real |
+| watchdog | **pid 156278**, init-owned, heartbeat every 5 min → `outputs/solve-watchdog.log` |
+| git | clean, **fully pushed** through `7304505` |
+| deadline | **09:00 PDT 2026-08-16**; drop-dead 03:30 as amended below |
+
+### The eight completed blocks
+
+| block | (tau, k) | wall | claimed |
+|---|---|---|---|
+| 1 | (0.32, 9) | 438.5 min *(includes the 7.26 h matrix build)* | 324 |
+| 2 | (0.32, 49) | 14.7 min | 1,560 |
+| 3 | (0.32, 484) | 178.8 min | 10,345 |
+| 4 | (0.49, 9) | 4.3 min | 133 |
+| 5 | (0.49, 49) | 20.9 min | 659 |
+| 6 | (0.49, 484) | 191.3 min | 5,781 |
+| 7 | (0.68, 9) | 4.3 min | 15 |
+| 8 | (0.68, 49) | 19.7 min | 139 |
+| | | **total so far** | **18,956** |
+
+Block 9 should land near **~1,800 claims** (claim ratios per `k`: at `k=9` 324→133→15, at `k=49`
+1,560→659→139, at `k=484` 10,345→5,781→?). Expect **~20,700 total** — the number the ~50 min
+official-evaluator projection rests on.
+
+### FIRST ACTIONS ON RESUME — in this order
+
+1. `date` and `tail -3 outputs/solve-watchdog.log`. A **stale** heartbeat means the *watchdog* died;
+   a **fresh** one with static progress means the *solve* stalled; fresh and advancing is healthy.
+2. `ps -o pid=,etime=,stat= -p 86862`. Empty means the solve ended — check for `outputs/final.txt`
+   before assuming failure.
+3. **Re-arm the harness monitors, which a compact kills** (the watchdog and the solve do not die —
+   both are init-owned). Nothing is lost while they are missing: the watchdog records completion to
+   disk regardless.
+4. If the solve is finished, run **THE RUN-OUT SEQUENCE** below. Its order was corrected at 23:45 —
+   the merge comes **before** the audit and the evaluator, never after.
+
+**Matrix build finished 16:37 after 26,117 s = 7.26 h**, and is cached — the `k=9` best-of re-solve
+reuses it and costs ~11 min, not another build.
 
 ### Official evaluator — smoke-tested on REAL output, and its cost model measured
 
