@@ -121,9 +121,29 @@ rule
 log "run-out armed; waiting on solve pid $SOLVE_PID"
 note "WAITING   on solve pid $SOLVE_PID (started $(stamp))"
 
-while kill -0 "$SOLVE_PID" 2>/dev/null; do sleep 60; done
+# HARD CUTOFF — Marko 2026-08-16 00:35, moving the drop-dead from 04:15 to 05:30.
+# If the solve is still running then, it is killed and block 9 is filled from the partial.
+# Projected finish is ~03:06, so this has ~2h24m of slack and should never fire. It exists so
+# that a stalled solve cannot consume the audit and evaluator budget: killing at 05:30 leaves
+# ~60 min audit + ~50 min evaluator, landing ~07:20, still ahead of an 08:00 wake-up.
+HARD_CUTOFF="${HARD_CUTOFF:-05:30}"
+CUTOFF_EPOCH=$(date -d "today $HARD_CUTOFF" +%s)
+log "hard cutoff armed for $HARD_CUTOFF (epoch $CUTOFF_EPOCH)"
 
-log "solve pid $SOLVE_PID has exited"
+while kill -0 "$SOLVE_PID" 2>/dev/null; do
+    if [ "$(date +%s)" -ge "$CUTOFF_EPOCH" ]; then
+        note "CUTOFF    *** $HARD_CUTOFF reached, solve still running — stopping pid $SOLVE_PID ***"
+        log "sending TERM to $SOLVE_PID"
+        kill "$SOLVE_PID" 2>/dev/null
+        sleep 30
+        kill -0 "$SOLVE_PID" 2>/dev/null && { log "TERM ignored; sending KILL"; kill -9 "$SOLVE_PID" 2>/dev/null; }
+        sleep 5
+        break
+    fi
+    sleep 60
+done
+
+log "solve pid $SOLVE_PID is no longer running"
 rule
 sleep 20   # let the solver flush final.txt / final.json
 
@@ -201,26 +221,46 @@ fi
 
 # --------------------------------------------------------------- stage 4: audit what we ship
 # Audit the MERGED file, not a predecessor of it (decided 2026-08-15 23:45).
-AUDIT_TARGET="${BESTOF:-$BASE}"
-log "auditing $AUDIT_TARGET"
-if [ "$DRY_RUN" = "1" ]; then
-    AUDIT_OK=0
-    note "DRYRUN    skipped audit"
-elif python scripts/audit_submission.py --input "$DS" --solution "$AUDIT_TARGET" \
+run_audit() {   # run_audit <file>; rc 0 == passed
+    log "auditing $1"
+    python scripts/audit_submission.py --input "$DS" --solution "$1" \
         --taus $TAUS --ks $KS --exact-radius 400 --confirm-radius 800 \
-        --workers 12 >> "$LOG" 2>&1; then
+        --workers 12 >> "$LOG" 2>&1
+}
+
+# Never START a ~60 min audit so late that it cannot finish before an 08:00 wake-up.
+AUDIT_LATEST=$(date -d "today 06:45" +%s)
+
+AUDIT_OK=0
+AUDIT_TARGET="${BESTOF:-$BASE}"
+
+if [ "$DRY_RUN" = "1" ]; then
+    note "DRYRUN    skipped audit"
+elif run_audit "$AUDIT_TARGET"; then
     AUDIT_OK=1
     note "AUDIT     PASSED (rc 0) on $(basename "$AUDIT_TARGET")"
+    package_as "$AUDIT_TARGET" "AUDITED (preferred)"
 else
-    AUDIT_OK=0
-    note "AUDIT     *** FAILED *** on $(basename "$AUDIT_TARGET") — see log; safe fallback retained"
-fi
-
-# ------------------------------------------------- stage 5: promote the audited file, if good
-if [ "$AUDIT_OK" -eq 1 ] && [ -n "$BESTOF" ]; then
-    package_as "$BESTOF" "AUDITED best-of (preferred)"
-elif [ "$AUDIT_OK" -eq 1 ]; then
-    package_as "$BASE" "AUDITED as-solved"
+    note "AUDIT     *** FAILED *** on $(basename "$AUDIT_TARGET")"
+    # Marko 2026-08-16 00:35: on failure, retry WITHOUT the k=9 best-of, then re-audit;
+    # keep "ship unaudited final.txt" as the backup if that fails too.
+    #
+    # Dropping all three k=9 swaps yields exactly `final.txt`, so the retry target IS the base
+    # file — no re-merge is needed, and nothing has to guess which k=9 block was at fault.
+    if [ -n "$BESTOF" ] && [ "$(date +%s)" -lt "$AUDIT_LATEST" ]; then
+        note "RETRY     re-auditing $(basename "$BASE") with the k=9 best-of dropped"
+        if run_audit "$BASE"; then
+            AUDIT_OK=1
+            note "AUDIT     PASSED on $(basename "$BASE") — k=9 best-of abandoned, ~470 claims given up"
+            package_as "$BASE" "AUDITED, k=9 best-of dropped"
+        else
+            note "AUDIT     *** FAILED on $(basename "$BASE") TOO *** — shipping unaudited (approved backup)"
+            package_as "$BASE" "UNAUDITED — both audits failed, REVIEW BEFORE UPLOAD"
+        fi
+    else
+        note "RETRY     skipped (no best-of, or past the 06:45 guard) — shipping unaudited"
+        package_as "$BASE" "UNAUDITED — audit failed, REVIEW BEFORE UPLOAD"
+    fi
 fi
 
 # ------------------------------------------------------------ stage 6: official evaluator

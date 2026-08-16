@@ -26,7 +26,8 @@ automated into `scripts/run_out.sh` and detached.
 | | |
 |---|---|
 | solve | **pid 86862**, block 9, measured **23.25 s/pass** → finish **~03:06** |
-| run-out | **pid 173840**, `setsid`+`nohup`, PPID `/init`, waiting on 86862 |
+| run-out | **pid 175195**, `setsid`+`nohup`, PPID `/init`, waiting on 86862 |
+| hard cutoff | **05:30** — if the solve still runs then, it is killed and block 9 is filled |
 | status file | `outputs/RUN-OUT-STATUS.txt` — rewritten after every stage, never stale |
 | full log | `outputs/run-out.log` |
 | watchdog | pid 156278, still running |
@@ -44,6 +45,23 @@ automated into `scripts/run_out.sh` and detached.
 
 `set -e` is deliberately absent: a stage-3 failure must not stop stage 5 from shipping what stage 1
 already proved good. Every failure path leaves a valid zip on disk.
+
+### ✅ TWO DECISIONS BY MARKO, 00:35 — both are implemented, do not re-open
+
+**DECISION 3 — the hard cutoff moves from 04:15 to 05:30.** If pid 86862 is still running at
+05:30, the run-out kills it, fills block 9 from the partial, and audits that. Projected finish is
+~03:06, so this has ~2h24m of slack and should never fire. It exists so a stalled solve cannot eat
+the audit and evaluator budget: killing at 05:30 still leaves ~60 min audit + ~50 min evaluator,
+landing ~07:20, ahead of an 08:00 wake-up.
+
+**DECISION 4 — on audit failure, retry without the `k=9` best-of; ship unaudited only as a
+backup.** The ladder is: audit `final_bestof.txt` → on failure re-audit `final.txt` → on a second
+failure ship `final.txt` unaudited, labelled `REVIEW BEFORE UPLOAD` in the status file.
+
+Worth noting *why the retry needs no re-merge*: dropping all three `k=9` swaps from the merged file
+yields exactly `final.txt`, so the base file **is** the retry target. Nothing has to parse the audit
+output to work out which `k=9` block was at fault. A `06:45` guard stops a second ~60 min audit
+from starting too late to finish.
 
 ### Verified before arming
 
