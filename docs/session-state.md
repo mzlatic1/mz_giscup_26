@@ -342,23 +342,44 @@ filter blank lines when parsing or validating a solution.** Strip at most one tr
 
 ### THE RUN-OUT SEQUENCE — this is the whole remaining job
 
-Solve finishes **~03:00 PDT** (corrected 19:20, 20:30, then settled 21:08 on a clean 22.75 s/pass
-measurement — see "Finish ~03:00 PDT" above). Then, in order, and none of it needs a decision from
-Marko:
+Solve finishes **~03:15 PDT** (corrected 19:20, 20:30, 21:08, then 23:40 once tau 0.68 measured
+~24.5 s/pass — see "Finish" above). Then, in order, and none of it needs a decision from Marko:
 
-1. **Audit** — `scripts/audit_submission.py --input "$DS" --solution outputs/final.txt
-   --taus 0.32 0.49 0.68 --ks 9 49 484 --exact-radius 400 --confirm-radius 800 --workers 12`.
-   Budget **60 min**; expect `notes: 1`. Must read 0 off-boundary, 0 unknown IDs, 0 overclaims.
-2. **Official evaluator**, all nine blocks in ONE process (the 3.2 s dataset load is paid once) at
-   `/home/markolinux/projects/gis-cup-2026-evaluator` — **measured 60–65 min**, already installed
-   and green, **do not re-clone**. Exact command in `docs/release-minute-commands.md` §6.
-3. **`k=9`-only best-of** — re-solve the three `k=9` blocks with `--objective baseline` (~8 min now
-   the matrix is cached), then `scripts/pick_blocks.py` to compare and merge. **Not
-   `assemble_blocks.py`** — it refuses the deliberate overlap (#31). `k=49` and `k=484` ship
-   `near-tau` untouched.
-4. **Package** — `python scripts/package_submission.py --solution <final>`, then eyeball 27 content
-   lines / nine headers / no blank separators.
-5. **Ping Marko, who uploads to EasyChair himself** (login and form already confirmed reachable).
+⚠️ **THE ORDER BELOW WAS WRONG UNTIL 23:45 AND THE FIX MATTERS.** This list previously read
+audit → evaluator → best-of → package, which audits and scores `final.txt` and *then* swaps in the
+`k=9` baseline blocks — so **the blocks actually shipped would never have been checked by either the
+audit or the official scorer.** Overclaiming is the only way to lose points under the official
+predicate (unclaimed buildings are never evaluated), so shipping unverified blocks is precisely the
+wrong exposure. `docs/release-minute-commands.md` ("After the solve") was correct all along and is
+authoritative: *"audit both files first… Then audit `final_bestof.txt` again before packaging."*
+**The merge happens before the verification, never after.**
+
+1. **`k=9`-only best-of re-solve** — the three `k=9` blocks with `--objective baseline` against the
+   cached matrix, **~11 min** (27 passes at ~24.5 s). `k=49` and `k=484` ship `near-tau` untouched.
+   This is selection between two results, not tuning: near-tau's quantile schedule was fitted at
+   `k=500`, and `k=9` is a 55x extrapolation that has never been measured.
+2. **Merge** — `scripts/pick_blocks.py` report, then merge naming the winners explicitly. **Not
+   `assemble_blocks.py`**, which refuses the deliberate overlap (#31). Proven on real data 21:20.
+3. **Audit the merged file** — `scripts/audit_submission.py --input "$DS" --solution
+   outputs/final_bestof.txt --taus 0.32 0.49 0.68 --ks 9 49 484 --exact-radius 400
+   --confirm-radius 800 --workers 12`. Budget **60 min**; expect `notes: 1`. Must read 0
+   off-boundary, 0 unknown IDs, 0 overclaims. **Audit whatever you intend to ship, not a predecessor
+   of it.**
+4. **Official evaluator** on the same merged file, all nine blocks in ONE process (the 3.2 s dataset
+   load is paid once) at `$EVAL` — **projected ~50 min** from the measured 163.3 ms/claim at `k=484`
+   and ~22,400 claims; already installed and green, **do not re-clone**.
+   Exact command in `docs/release-minute-commands.md` §6.
+5. **Package** — `python scripts/package_submission.py --solution outputs/final_bestof.txt`, then
+   eyeball 27 content lines / nine headers / no blank separators.
+6. **Ping Marko, who uploads to EasyChair himself** (login and form already confirmed reachable).
+
+**Cost note:** the authoritative doc also says to audit `final.txt` and `k9_baseline.txt` *before*
+choosing, on the principle that claim counts are a comparison and not a verdict. At ~22,400 claims a
+full audit is ~60 min, so doing that literally means **two or three audits, ~2 h**, against a 60 min
+budget. If time is short, auditing **only the merged file** still covers everything shipped — the
+weaker property is that a `k=9` block would then be chosen on claim count before being audited, and
+a failing audit would mean falling back to `--take-alt` without that block. **Decide this before
+03:00, not during.**
 
 **DROP-DEAD 03:30 PDT** if no usable nine-block file exists: stop the solve and run
 `scripts/emergency_filler_blocks.py` → audit → package. Proven end-to-end today, **including that
