@@ -112,19 +112,38 @@ Scrub the live-runbook absolute paths (see above). That is the whole remaining l
 
 ## Closed 2026-08-15 (release day, after the dataset published)
 
-### 32 — The greedy scan rate was 1.8x optimistic, and `solve.log`'s own ETA is unusable  (MEASURED 2026-08-15 16:49)
+### 32 — The greedy scan rate was wrong twice, and `solve.log`'s own ETA is unusable  (MEASURED 2026-08-15 16:49, RE-MEASURED 19:20)
 
-The whole-run projection rested on **9.6 s per greedy pass**, derived from a 4.09 GB/s
-pages-dropped scan rate. That rate was measured on the **2.6 GB March matrix** — small enough that
-"pages dropped" never reproduced a genuinely cold streaming read of **39.3 GB**.
+**Final answer: 21.4 s per greedy pass.** Getting there took two corrections, and the second one is
+the more interesting failure.
 
-Measured on the real matrix, twice: **block 1 = 17.3 s/pass** (9 passes, individually timestamped),
-**block 2 = 17.6 s/pass** (28 passes). Effective throughput ~2.25 GB/s, not 4.09. Use **17.5 s**.
+**First error — wrong hardware.** The whole-run projection rested on **9.6 s per pass**, derived
+from a 4.09 GB/s pages-dropped scan rate measured on the **2.6 GB March matrix**. That matrix is
+small enough that "pages dropped" never reproduced a genuinely cold streaming read of **39.3 GB**.
 
-Consequence: greedy is **~7.9 h**, not 4.4 h, so the solve lands **~00:30 PDT** rather than 23:00 —
-still ~3 h clear of the 03:30 drop-dead, with the audit → evaluator → best-of → package chain
-fitting well before 09:00. Per-block overhead is negligible: block 1 spent 0.3 min on coverage plus
-verify against 2.3 min of greedy.
+**Second error — right hardware, wrong moment.** The replacement, **17.5 s**, came from block 1
+(17.3 s over 9 passes) and block 2 (17.6 s over 28). Two independent measurements on the real
+matrix, agreeing closely — and still wrong, because both blocks ran *immediately after the matrix
+build finished*, while a large share of the 39.3 GB file was still warm in page cache from having
+just been written. Agreement between two samples drawn under the same distorting condition is not
+corroboration.
+
+**Block 3 is the first block to stream the matrix cold end to end: 21.4 s/pass over 384 passes**,
+effective ~1.84 GB/s. The rate is **flat in `k`** — 21.2 s/pass at pick 384 equals 21.2 s/pass at
+pick 240 — confirming `marginal_gains` is a fixed full-matrix scan independent of the selected set,
+so one constant covers every remaining block and late blocks will not degrade further.
+
+Consequence: greedy is **~9.7 h**, so the solve lands **~02:25 PDT**, not 00:30 and not 23:00. That
+leaves **~1.1 h of slack before the 03:30 drop-dead, down from ~2.7 h**. The deadline itself is not
+at risk — audit → evaluator → best-of → package still finishes ~04:50 against 09:00 — but the
+buffer before the *filler* decision is now thin enough that the estimate must be re-derived from
+`21.4 s x remaining passes`, never guessed. Per-block overhead remains negligible: block 1 spent
+0.3 min on coverage plus verify against 2.3 min of greedy.
+
+**The transferable lesson (CLAUDE.md rule 4, third instance in one day):** it is not enough to
+measure at full scale. You have to measure under the conditions that will hold for the rest of the
+run. A benchmark taken while the cache is warm from a preceding write measures a state that occurs
+exactly once.
 
 **Separately, `solve.log` prints `eta 78799.9 min` (54 days) and it is garbage.** The field divides
 total elapsed by antennas placed, charging the entire 7.26 h matrix build to block 1's nine
@@ -191,12 +210,17 @@ the healthy shape), 24–31 untouched. Build re-projected to **~7.8 h total, don
 
 The whole-run figure was also replaced. `~12–16 h` was a guess; the greedy half is arithmetic:
 `marginal_gains` makes **one full matrix pass per iteration** with no pruning, the matrix is built
-once and reused by all nine blocks, iterations total `3 x (9 + 49 + 484) = 1,626`, and one pass over
-39.27 GB at the measured 4.09 GB/s is ~9.6 s → **~4.4 h of greedy**, whatever the build costs.
-Whole run lands **~23:00–00:00 PDT**, i.e. 3.5–4.5 h of slack before the 03:30 drop-dead.
+once and reused by all nine blocks, and iterations total `3 x (9 + 49 + 484) = 1,626`.
+
+⚠️ **The per-pass constant used here (~9.6 s from 4.09 GB/s → ~4.4 h of greedy, whole run
+~23:00–00:00 PDT) is dead.** It was corrected to 17.5 s the same evening and then to **21.4 s** on
+block 3 — see **#32** for both corrections and the final number. The *structure* of the estimate
+above is sound and is still how to re-derive a finish time; only the constant was wrong.
 
 This is CLAUDE.md rule 4 twice over: the dead ~4.6 h figure was an extrapolation that came in ~70%
 low, and the replacement is only trustworthy because it is a measurement of the run in flight.
+(Rule 4 landed a third time hours later — a *full-scale* measurement can still mislead if it is
+taken under conditions that hold only once. See #32.)
 
 ### 29 — The official evaluator lived only in a dead session's `/tmp` scratchpad  (FOUND AND FIXED 2026-08-15)
 

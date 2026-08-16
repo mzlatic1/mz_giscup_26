@@ -151,16 +151,24 @@ Whole-run cost is arithmetic once the matrix exists: `marginal_gains` makes **on
 greedy iteration** with no pruning, the matrix is built once and reused by all nine blocks, and
 iterations total `3 x (9 + 49 + 484) = 1,626`.
 
-**Use 17.5 s per pass — measured on this matrix, twice** (block 1: 17.3 s over 9 passes; block 2:
-17.6 s over 28). That is **~7.9 h of greedy**. Do *not* use the 9.6 s that the 4.09 GB/s figure
-implies: that rate was measured on the **2.6 GB** March matrix, which is too small to reproduce a
-cold streaming read of 39.3 GB. Effective rate here is ~2.25 GB/s.
+**Use 21.4 s per pass — measured on block 3 over 384 passes.** That is **~9.7 h of greedy**, and it
+puts the nine-block solve at **~02:25 PDT**.
+
+Two earlier figures are wrong and you will find them quoted elsewhere:
+
+- **9.6 s** (from 4.09 GB/s) — measured on the **2.6 GB** March matrix, far too small to reproduce a
+  cold streaming read of 39.3 GB.
+- **17.5 s** (blocks 1 and 2) — measured while the matrix was still **warm in page cache** from
+  having just been written. Block 3 is the first block to stream it cold, and it is 22% slower.
+
+The rate is flat in `k` (21.2 s/pass at pick 384 = 21.2 s/pass at pick 240), so a single constant
+covers every remaining block. Effective throughput ~1.84 GB/s.
 
 ### ⚠️ The `eta` field in `solve.log` is wrong — ignore it
 
 It reads **`eta 78799.9 min`** (54 days) after block 1, because it divides total elapsed by antennas
 placed and so charges the whole 7.26 h matrix build to nine antennas. It shrinks all night and stays
-wrong. Recompute from `17.5 s x remaining passes` instead. **Do not call the drop-dead off this
+wrong. Recompute from `21.4 s x remaining passes` instead. **Do not call the drop-dead off this
 number.**
 
 ## 5 — audit (~10 min at 12 workers)

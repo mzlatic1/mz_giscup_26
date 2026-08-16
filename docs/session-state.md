@@ -35,25 +35,42 @@ independent, so parallelising is available if needed; it is **not** justified on
 It reads **`eta 78799.9 min`** (54 days). It divides total elapsed by antennas placed, so it charges
 the entire 7.26 h matrix build to block 1's nine antennas. It will shrink all night and stay wrong
 the whole time. **At 03:00 this number could trigger an unnecessary drop-dead call.** The real
-figure is below; recompute from `17.5 s x remaining passes`, never from this field.
+figure is below; recompute from `21.4 s x remaining passes`, never from this field.
 
-### The greedy scan rate was 1.8x worse than projected — MEASURED, twice
+### The greedy scan rate — USE 21.4 s/pass. Corrected 19:20 on block 3.
 
-| source | s per greedy pass | effective |
-|---|---|---|
-| projected from the March 2.6 GB matrix | 9.6 | 4.09 GB/s |
-| **block 1, 9 passes** | **17.3** | 2.27 GB/s |
-| **block 2, 28 passes** | **17.6** | 2.23 GB/s |
+| source | s per greedy pass | effective | status |
+|---|---|---|---|
+| projected from the March 2.6 GB matrix | 9.6 | 4.09 GB/s | dead — 2.2x optimistic |
+| block 1, 9 passes | 17.3 | 2.27 GB/s | **warm cache, do not use** |
+| block 2, 28 passes | 17.6 | 2.23 GB/s | **warm cache, do not use** |
+| **block 3, 384 passes** | **21.4** | 1.84 GB/s | **steady state — use this** |
 
 The 4.09 GB/s "pages dropped" figure came off a **2.6 GB** matrix — too small to reproduce a
 genuinely cold streaming read of **39.3 GB**. It was an extrapolation wearing a measurement's
-clothes, which is CLAUDE.md rule 4 for the second time in one afternoon. Use **17.5 s/pass**.
+clothes, which is CLAUDE.md rule 4 for the second time in one afternoon.
 
-**Revised finish: total passes `3 x (9 + 49 + 484)` = 1,626, so the solve lands ~00:30 PDT**
-(2026-08-16), not 23:00. Per-block overhead is negligible — block 1 spent 0.3 min on
-coverage + verify against 2.3 min of greedy. Against the **03:30 drop-dead that is ~3 h of slack**,
-and the downstream chain (audit 60 min → evaluator 90 min → `k=9` best-of ~8 min → package) fits
-well before the 09:00 deadline.
+**Then 17.5 s/pass was wrong too, for a subtler reason.** Blocks 1 and 2 ran *immediately after the
+matrix build*, while a large share of the 39.3 GB file was still warm in page cache from having just
+been written. Block 3 is the first block that streams it cold from end to end, and it measures
+**21.4 s/pass — 22% slower**. Rule 4 a third time: the conditions under which you measure have to be
+the conditions that hold for the rest of the run.
+
+The rate is **flat in `k`**, which is the structurally important part: 21.2 s/pass at pick 384 equals
+21.2 s/pass at pick 240. `marginal_gains` is a fixed full-matrix scan independent of how many
+antennas are already selected, so cost is exactly linear in `k` and the constant above is all you
+need. Do not expect late blocks to slow down further.
+
+**Revised finish: total passes `3 x (9 + 49 + 484)` = 1,626, so the solve lands ~02:25 PDT**
+(2026-08-16) — not 00:30, and not 23:00. Per-block overhead stays negligible (block 1 spent 0.3 min
+on coverage + verify against 2.3 min of greedy). Against the **03:30 drop-dead that is ~1.1 h of
+slack, down from ~2.7 h** — the deadline is not at risk, but the buffer before the *filler* decision
+is now thin enough that the estimate has to be right rather than hopeful. Re-derive it from
+`21.4 s x remaining passes` and nothing else.
+
+The downstream chain still clears comfortably: 02:25 → audit to ~03:25 → evaluator to ~04:30 →
+`k=9` best-of ~04:40 → packaged ~04:50, against the **09:00 deadline**. The best-of re-solve is
+27 passes = **~10 min** at this rate, not 8.
 
 **Background Bash (`run_in_background`) survives a `/compact`** — the solve-exit watcher (pid 91823,
 started 09:56) came through one alive. **Re-arm Monitors after a compact**, because the handles are
@@ -95,23 +112,28 @@ launch, 65.3% over 305 min = 0.214 pp/min → 467 min total → **~17:09**. Incr
 11 min = 0.227 pp/min → **~17:00**. Call it **17:00–17:15**, and note the incremental rate is not
 decaying — there is no sign of the build slowing as the file outgrows RAM.
 
-### The re-projection (replaces the dead ~4.6 h build figure and the ~12–16 h whole-run figure)
+### The 14:16 re-projection — ⚠️ SUPERSEDED, kept only for the reasoning
 
-| stage | basis | estimate |
+**The timings in this table are dead.** The matrix-build row landed (7.26 h, done 16:37); the greedy
+row was 2.2x optimistic and the whole-run row is ~2.5 h early. **Live numbers are in the rate table
+near the top of this file — 21.4 s/pass, finish ~02:25 PDT.** What survives here is the *structure*
+of the estimate, which is still correct and still how you should re-derive it.
+
+| stage | basis | estimate — ALL SUPERSEDED |
 |---|---|---|
-| matrix build | 62.8% at 4 h 54 m → ~468 min total | done **~17:10–17:30 PDT** |
-| greedy, all nine blocks | 1,626 passes x 9.6 s — arithmetic, see below | **~4.4 h** |
-| per-block verify + setup | not yet measured at this size | +1–2 h |
-| **whole run** | | **finishes ~23:00–00:00 PDT** |
+| matrix build | 62.8% at 4 h 54 m → ~468 min total | ~~done ~17:10–17:30 PDT~~ actual 16:37 |
+| greedy, all nine blocks | 1,626 passes x 9.6 s | ~~~4.4 h~~ actual ~9.7 h at 21.4 s |
+| per-block verify + setup | not yet measured at this size | +1–2 h — held up, it is negligible |
+| **whole run** | | ~~finishes ~23:00–00:00 PDT~~ **~02:25** |
 
-The greedy number is not an extrapolation. `marginal_gains` does **one full pass over the matrix per
-iteration** with no candidate pruning, the matrix is built **once** and reused by all nine blocks,
-and total iterations are `3 taus x (9 + 49 + 484) = 1,626`. At the measured pages-dropped scan rate
-of 4.09 GB/s, one pass over 39.27 GB is ~9.6 s. `marginal_gains_masked` (the `near-tau` path) is
-documented as identical cost, so lever A does not change this.
+The reasoning that still holds: `marginal_gains` does **one full pass over the matrix per iteration**
+with no candidate pruning, the matrix is built **once** and reused by all nine blocks, and total
+iterations are `3 taus x (9 + 49 + 484) = 1,626`. `marginal_gains_masked` (the `near-tau` path) is
+identical cost, so lever A does not change this. Only the per-pass constant was ever wrong, and it
+was wrong twice — 9.6 s from a too-small matrix, then 17.5 s from two warm-cache blocks.
 
-**Against the 03:30 drop-dead that is 3.5–4.5 h of slack.** The old ~4.6 h build estimate came in
-~70% low because it was an extrapolation, never a measurement — CLAUDE.md rule 4, again.
+The old ~4.6 h build estimate came in ~70% low because it was an extrapolation, never a
+measurement — CLAUDE.md rule 4, which this file has now logged three separate times in one day.
 
 Health at 14:17, all good: swap **untouched** (24 of 25 GB free — no thrashing), `Dirty` 2.7 MB,
 load 8.2 for eight workers, 13 GB free RAM, 804 GB disk. The 39.3 GB-on-24 GB question is settled in
@@ -163,7 +185,8 @@ built, tested on the real dataset, and is the path if nine blocks do not exist b
 
 ### THE RUN-OUT SEQUENCE — this is the whole remaining job
 
-Solve finishes **~00:30 PDT**. Then, in order, and none of it needs a decision from Marko:
+Solve finishes **~02:25 PDT** (corrected 19:20 — see the rate table above). Then, in order, and
+none of it needs a decision from Marko:
 
 1. **Audit** — `scripts/audit_submission.py --input "$DS" --solution outputs/final.txt
    --taus 0.32 0.49 0.68 --ks 9 49 484 --exact-radius 400 --confirm-radius 800 --workers 12`.
@@ -278,11 +301,18 @@ md5 `cf36adb386b8caf1415cf359d578245b`. CRS **EPSG:32611**, `Polygon` only, bbox
 
 ## The 39.3 GB matrix is NOT a memory problem — measured, not assumed
 
-The machine has 24 GB RAM. Measured scan rates: **cached 4.07 GB/s, pages-dropped 4.09 GB/s**, raw
-disk `dd iflag=direct` 4.2 GB/s. `marginal_gains` scans the memmap sequentially in 4096-row chunks,
-so readahead hides the IO completely and the disk outruns the popcount pipeline. **Bandwidth-bound,
-not residency-bound.** No lever was applied; the settled parameters (400 m, near-tau,
-`--matrix-workers 8`, `--verify-workers 12`, `--candidate-stride 1`) all stand.
+The machine has 24 GB RAM. Scan rates measured **on the 2.6 GB March matrix**: cached 4.07 GB/s,
+pages-dropped 4.09 GB/s, raw disk `dd iflag=direct` 4.2 GB/s. `marginal_gains` scans the memmap
+sequentially in 4096-row chunks, so readahead hides the IO completely and the disk outruns the
+popcount pipeline. **Bandwidth-bound, not residency-bound.** No lever was applied; the settled
+parameters (400 m, near-tau, `--matrix-workers 8`, `--verify-workers 12`, `--candidate-stride 1`)
+all stand.
+
+⚠️ **Do not project runtimes from those GB/s numbers.** The real 39.3 GB matrix streams at
+**~1.84 GB/s** (block 3, 384 passes), less than half the March figure — a 2.6 GB file cannot
+reproduce a cold read of a file 15x larger than RAM. The conclusion of this section still holds
+(memory is not the constraint); only its throughput numbers are unusable for planning. Use
+**21.4 s/pass**.
 
 Do not "fix" this by adding a prune. It is not broken.
 
