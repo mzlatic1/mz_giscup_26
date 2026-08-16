@@ -1,8 +1,73 @@
 # Current Session State
 
-## ✅ SUBMISSION READY — solve done 03:02:48, run-out done 04:10:50, verified 04:15
+## 🏁 SUBMITTED 2026-08-16 — the competition work is COMPLETE
 
-**Upload `outputs/submission/mz_giscup_26_submission_20260816.zip` to EasyChair. Nothing else.**
+**`outputs/submission/mz_giscup_26_submission_20260816.zip` was uploaded to EasyChair by Marko on
+2026-08-16, ahead of the 09:00 PDT / 16:00 UTC deadline.** Nothing is outstanding.
+
+**The next session exists to receive the scores and final results.** There is no solver work
+pending, and none should be started — the artifact is submitted and immutable. See
+"WHAT THE NEXT SESSION IS FOR" at the end of this block.
+
+### Final validation, run at wrap-up 2026-08-16
+
+| check | result |
+|---|---|
+| `python -m pytest -q` | **375 passed in 11.18 s** |
+| `python -m compileall src tests scripts` | OK |
+| Working tree | clean |
+| Processes | none running |
+| Official evaluator on the submitted file | **21,224 / 21,224 verified** |
+
+### What was submitted
+
+Nine blocks, `taus 0.32 0.49 0.68` x `ks 9 49 484`, solved with `near-tau` at a 400 m visibility
+radius. Structure verified from inside the zip: 27 lines, exactly `k` points per block, third line
+present in all nine.
+
+| block | (tau, k) | claims | verified |
+|---|---|---|---|
+| 1 | (0.32, 9) | 324 | 324 |
+| 2 | (0.32, 49) | 1,560 | 1,560 |
+| 3 | (0.32, 484) | 10,345 | 10,345 |
+| 4 | (0.49, 9) | 133 | 133 |
+| 5 | (0.49, 49) | 659 | 659 |
+| 6 | (0.49, 484) | 5,781 | 5,781 |
+| 7 | (0.68, 9) | 15 | 15 |
+| 8 | (0.68, 49) | 139 | 139 |
+| 9 | (0.68, 484) | 2,268 | 2,268 |
+| | | **21,224** | **21,224** |
+
+**0 failed, 0 unknown, 0 duplicate, 0 invalid antennas.** Only 5 `ANTENNA_SNAPPED` warnings, all
+under 1.1e-9 m against a 1 mm official tolerance. Chain of custody: the zip's `solution.txt` is
+byte-identical to `outputs/final.txt`, sha256 `a24271af33ec290b112fe7f42b7844c40be4dd3a8d163622a9245692d6bf1e54`,
+which is the exact file the evaluator scored.
+
+**Local validation is a rejection framework, not a score estimator.** 21,224 verified claims says
+the submission is *valid*, not that it is *competitive*. Scoring is relative to the best submission
+per subproblem and there is no feedback until the organisers publish.
+
+### Timeline of the final night
+
+| time (PDT) | event |
+|---|---|
+| 2026-08-15 09:22 | solve launched |
+| 2026-08-15 16:37 | matrix build done, 7.26 h |
+| 2026-08-16 03:02:48 | nine-block solve finished |
+| 2026-08-16 03:17 | `k=9` best-of failed audit, dropped automatically |
+| 2026-08-16 04:10:50 | run-out finished — audited, scored, packaged |
+| 2026-08-16 ~08:30 | uploaded to EasyChair |
+
+### WHAT THE NEXT SESSION IS FOR
+
+1. **Record the published scores** in `docs/task-board.md` and here. Capture the per-subproblem
+   relative score, not just the total — nine independent ratios is the actual result.
+2. **Compare the outcome against the levers actually pulled**, especially `near-tau` vs `baseline`,
+   which was never measurable locally.
+3. **Do not restart solver work** to chase a score. The submission is closed.
+4. `outputs/` holds **46 GB**, of which `outputs/cache` is 46 GB of visibility matrices. It is
+   git-ignored and safe to delete once the results are recorded — **but ask Marko first**, and note
+   that deleting it makes any re-run cost another 7.26 h matrix build.
 
 **Official evaluator, run on the exact file being shipped: 21,224 / 21,224 verified, 0 failed,
 0 unknown, 0 duplicate, 0 invalid antennas, all nine blocks.** The zip's `solution.txt` is

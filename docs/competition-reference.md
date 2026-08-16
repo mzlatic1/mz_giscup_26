@@ -196,9 +196,14 @@ Total score is the sum across nine subproblems.
 
 - Sample dataset: March 31, 2026
 - Test dataset / competition begins: August 15, 2026
-- Submission deadline: August 16, 2026
-- Final results / invited-paper notifications: September 15, 2026
+- Submission deadline: August 16, 2026 (16:00 UTC / 09:00 PDT) — **✅ SUBMITTED 2026-08-16**
+- **Final results / invited-paper notifications: September 15, 2026** ← the next thing that happens
 - Invited-paper deadline: 11:59 PM AoE, September 30, 2026
+
+**Submitted artifact:** `outputs/submission/mz_giscup_26_submission_20260816.zip`, uploaded to
+EasyChair (`https://easychair.org/conferences/?conf=giscup2026`). Solution sha256
+`a24271af33ec290b112fe7f42b7844c40be4dd3a8d163622a9245692d6bf1e54`, 21,224 claims, all nine blocks,
+verified 21,224/21,224 by the organisers' evaluator before upload.
 
 ## Dataset handling
 

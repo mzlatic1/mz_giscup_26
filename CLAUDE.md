@@ -1,5 +1,16 @@
 # mz_giscup_26 — ACM SIGSPATIAL 2026 GIS Cup
 
+> ## 🏁 SUBMITTED 2026-08-16. THE COMPETITION WORK IS DONE.
+>
+> `outputs/submission/mz_giscup_26_submission_20260816.zip` went to EasyChair ahead of the
+> 16:00 UTC deadline. The organisers' evaluator verified **21,224 / 21,224 claims** on the exact
+> submitted file: 0 failed, 0 unknown, 0 duplicate, 0 invalid antennas.
+>
+> **Only one task is open: record the published scores when they arrive** (`docs/task-board.md`
+> #32; results due **2026-09-15**). Do not start solver work, do not re-run the feasibility gate,
+> and do not act on the "Competition posture" section below as if the deadline were ahead — it is
+> retained because its reasoning is what produced the result, not because work remains.
+
 Antenna-placement solver. Place exactly `k` points on building boundaries to maximize the
 number of buildings whose visible perimeter fraction is `>= tau`.
 
@@ -154,7 +165,7 @@ startup reads. Run `/rehearsal` if solver code changed since the last gate run.
 
 ```bash
 conda activate mz-giscup-26
-python -m pytest -q                 # 375 passing as of 2026-08-15 (368 before `ca55be7`, 365 before `de03785`)
+python -m pytest -q                 # 375 passing, re-verified 2026-08-16 wrap-up in 11.18 s
 python -m compileall src tests scripts
 giscup inspect --input <geojson>          # RUN THIS FIRST on the day -- confirms the ID field
 giscup solve-one  --input <geojson> --tau <float> --k <int> --output <txt> [--diagnostics <json>]

@@ -5,11 +5,32 @@ Keep it current: when a task is finished, move it to **Done** with the date and 
 
 Last updated: **2026-08-15** (release day).
 
-> ## ⚠️ ONE TASK REMAINS: execute submission day.
+> ## 🏁 SUBMITTED 2026-08-16 — every task on this board is CLOSED.
 >
-> **Dataset publishes 2026-08-15 16:00 UTC / 09:00 PDT. Deadline 2026-08-16 16:00 UTC.** There are
-> **no open decisions**, **nothing blocked on Marko**, and **nothing blocked on machine time**.
-> Every section below is closed history kept for its reasoning.
+> `outputs/submission/mz_giscup_26_submission_20260816.zip` was uploaded to EasyChair on
+> 2026-08-16, ahead of the 16:00 UTC deadline. The official evaluator verified **21,224 of 21,224
+> claims** on the exact submitted file: 0 failed, 0 unknown, 0 duplicate, 0 invalid antennas.
+>
+> **The only remaining task is to record the published scores when they arrive** (task #32 below).
+> No solver work should be started — the artifact is submitted and immutable.
+>
+> Everything below is closed history, kept for its reasoning.
+
+## Open — awaiting external input
+
+### 32 — Record the published scores  (ADDED 2026-08-16)
+
+**Blocked on the organisers, not on us.** When results are published:
+
+- Record the **per-subproblem relative score**, not just the total. Scoring is
+  `team score / best submitted score` summed over nine independent subproblems, so nine ratios is
+  the actual result and a single number hides which blocks were competitive.
+- Compare the outcome against the levers actually pulled — above all **`near-tau` vs `baseline`**,
+  which won eight of nine verified blocks locally but was never measurable against other teams.
+- Note what the `k=9` audit failure implies. `--objective baseline` overclaimed at `k=9`
+  (12 and 33 overclaims); if the published scores show `k=9` blocks were weak, that is the lever
+  worth understanding, and it is now known to be broken rather than merely untuned.
+- **Do not restart solver work to chase a score.**
 >
 > **Run from `docs/release-minute-commands.md`; read `docs/submission-day-runbook.md`.** Settled
 > parameters: radius **400 m**, objective **`near-tau`**, `--matrix-workers` **8**,

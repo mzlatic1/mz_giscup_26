@@ -66,7 +66,8 @@ tests/test_visibility.py
 tests/test_visibility_strategy.py  # official predicate, degeneracies, relate default
 ```
 
-Current latest result: **`375 passed`** in Conda env `mz-giscup-26` (2026-08-15, 16.3 s), 33 files.
+Current latest result: **`375 passed`** in Conda env `mz-giscup-26` (2026-08-16 wrap-up, 11.18 s),
+33 files. `python -m compileall src tests scripts` also clean on the same date.
 *(365 -> 368 on 2026-08-15: three cases in `test_audit_coarse_source.py` covering the coarse-precision
 `[NOTE]` path from #26. The `365 passed` / `31 files` figures stood in five documents after that
 commit landed and were corrected on 2026-08-15 by actually running the suite — including in two
@@ -128,6 +129,11 @@ scripts/package_submission.py      # build and verify the submission bundle
 scripts/official_evaluator/        # headless driver for the ORGANISERS' scorer (see its README)
 scripts/size_candidate_prune.py    # #9 sizing: quality cost of pruning the candidate pool
 scripts/sweep_near_tau.py          # lever A quantile sweep (IN-SAMPLE — see task board)
+scripts/emergency_filler_blocks.py # pad a partial up to nine blocks so it is submittable at all
+scripts/solve_watchdog.sh          # detached liveness heartbeat for a long solve (setsid+nohup)
+scripts/run_out.sh                 # UNATTENDED post-solve chain: wait -> safety package -> k=9
+                                   #   best-of -> merge -> audit -> promote if clean -> evaluator.
+                                   #   Used for real on 2026-08-16; see "Submission-night tooling"
 ```
 
 **`data/` now holds the official March sample dataset** (`GIS-cup-sample-dataset.geojson`,
@@ -309,6 +315,30 @@ Visibility strategy: **`relate` only** — the exact official predicate. `negati
   The runbook said to read the JSON field until 2026-08-15. Not fixed in code — the runbook now
   says to capture stderr — because changing the diagnostics schema the day before submission is a
   worse trade than documenting it.
+
+## Submission-night tooling — proven in production 2026-08-16
+
+`scripts/run_out.sh` ran the entire post-solve chain unattended while the operator slept, and
+produced the submitted artifact. Four design points are worth keeping, because each was a real
+failure mode rather than a precaution:
+
+- **Ownership, not backgrounding.** `setsid` + `nohup` so the process is owned by init. On
+  2026-08-15 at 20:10:55 a session rotation killed every harness-owned background job within 4 ms,
+  including a measurement 16 min into a 17 min run. Anything that must outlive a session cannot be
+  owned by one. Same rule as `scripts/solve_watchdog.sh`.
+- **No `set -e`.** A failure in a later stage must not prevent packaging what an earlier stage
+  already proved good. The script packages a **safety bundle before attempting any improvement**
+  and only ever promotes, never demotes. This is what guarantees an uploadable zip at all times.
+- **A plain-text operator interface.** `outputs/RUN-OUT-STATUS.txt`, rewritten after every stage,
+  naming exactly one file to upload. It needs no agent session to read at 08:00.
+- **Never edit a running shell script.** Bash reads scripts lazily by byte offset; editing in place
+  resumes mid-token. The script was killed, edited, verified, and relaunched.
+
+**A `DRY_RUN=1` pass against a dummy pid cost ~90 s and caught three defects invisible to
+inspection**: a missing `--force` that the dry run itself would have triggered, a same-name zip
+clobber that falsified the "previous bundle retained" guarantee, and `pnpm`/`node` resolving only by
+PATH inheritance (nvm is loaded from `~/.bashrc`, which a detached non-interactive shell never
+sources). Exercise unattended automation before trusting it unattended.
 
 ## Safe development checks
 

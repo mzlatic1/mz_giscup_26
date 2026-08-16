@@ -1,5 +1,15 @@
 # Startup Brief — mz_giscup_26
 
+> ## 🏁 SUBMITTED 2026-08-16 — the competition is over for us.
+>
+> `outputs/submission/mz_giscup_26_submission_20260816.zip` went to EasyChair ahead of the
+> 16:00 UTC deadline. The organisers' own evaluator verified **21,224 / 21,224 claims** on the
+> exact submitted file — 0 failed, 0 unknown, 0 duplicate, 0 invalid antennas.
+>
+> **The only open item is recording the published scores** (`docs/task-board.md` #32). Do not start
+> solver work: the artifact is submitted and immutable, and scoring is relative with no feedback
+> until the organisers publish.
+
 Use this as the first project document in future sessions. It compresses the current state, rules, agents, codebase, and next steps.
 
 ## Project identity
@@ -110,7 +120,7 @@ feasibility rehearsals, but it has no real street topology and omits the large-b
 
 ```bash
 conda activate mz-giscup-26
-python -m pytest -q                 # 375 passed (2026-08-15)
+python -m pytest -q                 # 375 passed (re-verified 2026-08-16, 11.18 s)
 giscup inspect --input data/GIS-cup-sample-dataset.geojson
 
 # feasibility gate -- ALWAYS pass --verify-workers; serial puts the bound at 1.0x
