@@ -175,7 +175,14 @@ python scripts/audit_submission.py --input "$DS" \
 Must report: every block present, exactly `k` coordinates counted per block, 0 off-boundary,
 0 unknown IDs, **0 overclaims**. Never confirm tighter than the solve verified.
 
-## 6 — official evaluator (~1 h; start it the moment the solve finishes)
+## 6 — official evaluator (**measured: ~60–65 min for all nine; budget 90 min**)
+
+Cost tracks **claims**, not `claims x k` — measured 2026-08-15 on the live partial: `k=9`/324 claims
+took 18.1 s (55.9 ms/claim), `k=49`/1,560 claims took 113 s (72.4 ms/claim). Per-claim cost rises
+only ~`k^0.16`. Run all nine in **one process** so the 3.2 s dataset load is paid once. Blocks are
+independent, so parallelising by block is available if a run overruns — but it was not needed.
+
+
 
 Setup and full detail: `scripts/official_evaluator/README.md`.
 

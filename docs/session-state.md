@@ -6,6 +6,30 @@
 **324** buildings (330 pre-verify, verifier corrected +9/−15). Block 2 `(0.32, 49)` is in flight.
 `outputs/final.txt.partial` exists and is real.
 
+### Official evaluator — smoke-tested on REAL output, and its cost model measured
+
+Run against the live partial on 2026-08-15. **Our verifier and the official scorer agree exactly.**
+
+| block | k | claims | verified | failed | evaluator time | ms/claim |
+|---|---|---|---|---|---|---|
+| 1 `(0.32, 9)` | 9 | 324 | **324** | **0** | 18.1 s | 55.9 |
+| 2 `(0.32, 49)` | 49 | 1,560 | **1,560** | **0** | 113.0 s | 72.4 |
+
+1,884 of 1,884 claims verified, 0 unknown, 0 duplicate, 0 invalid antennas. Unit suite 73/73 at
+commit `9af12a5`. **The scorer also accepts a file containing filler blocks** — so the drop-dead
+path is evaluator-compatible, which had been assumed and never tested.
+
+**Cost tracks claims, not `claims x k`.** Time grew 6.2x while `k` grew 5.4x and claims grew 4.8x;
+per-claim cost rose only 1.30x across that 5.4x `k` increase (~`k^0.16`). Had it been `claims x k`
+the factor would have been 26x.
+
+Extrapolated, `k=484` at tau 0.32 is ~13,500 claims x ~104 ms ≈ **23 min**, and all nine blocks
+≈ **60–65 min — inside the 90 min budget**. Treat that as provisional: two points cannot pin a
+power law, and a pessimistic reading (20,000 claims at 150 ms) gives ~110 min, which would overrun.
+**Block 3 `(0.32, 484)` is the worst case and lands ~19:17** — measure it directly rather than
+trusting this extrapolation, and only then decide whether to parallelise by block. Blocks are
+independent, so parallelising is available if needed; it is **not** justified on current evidence.
+
 ### ⚠️ THE `eta` IN `solve.log` IS GARBAGE — DO NOT ACT ON IT
 
 It reads **`eta 78799.9 min`** (54 days). It divides total elapsed by antennas placed, so it charges
