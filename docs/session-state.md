@@ -14,21 +14,36 @@ Run against the live partial on 2026-08-15. **Our verifier and the official scor
 |---|---|---|---|---|---|---|
 | 1 `(0.32, 9)` | 9 | 324 | **324** | **0** | 18.1 s | 55.9 |
 | 2 `(0.32, 49)` | 49 | 1,560 | **1,560** | **0** | 113.0 s | 72.4 |
+| **3 `(0.32, 484)`** | 484 | 10,345 | **10,345** | **0** | **1,689 s (28.2 min)** | **163.3** |
 
-1,884 of 1,884 claims verified, 0 unknown, 0 duplicate, 0 invalid antennas. Unit suite 73/73 at
-commit `9af12a5`. **The scorer also accepts a file containing filler blocks** — so the drop-dead
-path is evaluator-compatible, which had been assumed and never tested.
+**12,229 of 12,229 claims verified**, 0 unknown, 0 duplicate, 0 invalid antennas, and on block 3
+**no warnings at all** — not even the benign `ANTENNA_SNAPPED` seen on the March artifact. Unit suite
+73/73 at commit `9af12a5`. **The scorer also accepts a file containing filler blocks** — so the
+drop-dead path is evaluator-compatible, which had been assumed and never tested.
 
-**Cost tracks claims, not `claims x k`.** Time grew 6.2x while `k` grew 5.4x and claims grew 4.8x;
-per-claim cost rose only 1.30x across that 5.4x `k` increase (~`k^0.16`). Had it been `claims x k`
-the factor would have been 26x.
+**Cost tracks claims, not `claims x k`** — that part held. Had it been `claims x k` the factor from
+block 2 to block 3 would have been ~65x; it was 15x.
 
-Extrapolated, `k=484` at tau 0.32 is ~13,500 claims x ~104 ms ≈ **23 min**, and all nine blocks
-≈ **60–65 min — inside the 90 min budget**. Treat that as provisional: two points cannot pin a
-power law, and a pessimistic reading (20,000 claims at 150 ms) gives ~110 min, which would overrun.
-**Block 3 `(0.32, 484)` is the worst case and lands ~19:17** — measure it directly rather than
-trusting this extrapolation, and only then decide whether to parallelise by block. Blocks are
-independent, so parallelising is available if needed; it is **not** justified on current evidence.
+⚠️ **But the `k^0.16` power law fitted on blocks 1–2 was 57% low, and is retired.** It predicted
+~104 ms/claim at `k=484`; the truth is **163.3**. Real scaling across the measured range is
+**`k^0.355`**, more than double the exponent. Two points have zero residual degrees of freedom, so a
+power law through them always looks like a perfect fit while constraining nothing outside their span
+— and `9 → 49` is 5.4x while `49 → 484` is a further 9.9x. **This is CLAUDE.md rule 4 for the fourth
+time in one day.** Do not extrapolate the new exponent either; it is still only three points.
+
+**Nine-block projection from the measured per-`k` rates** (claims estimated from the tau decay):
+
+| blocks | claims | ms/claim | time |
+|---|---|---|---|
+| `k=9` x3 | ~512 | 55.9 | 0.5 min |
+| `k=49` x3 | ~2,496 | 72.4 | 3.0 min |
+| `k=484` x3 | ~16,600 | 163.3+ | ~45–49 min |
+| **all nine** | **~19,600** | | **~50–55 min — inside the 90 min budget** |
+
+**Parallelising by block stays CLOSED**, but note the real reason: not that per-claim cost is low —
+it is 2.3x what the model said — but that the one genuinely expensive block is now *measured*, and
+blocks 6 and 9 carry far fewer claims than block 3 because claims collapse as tau rises. Blocks are
+independent, so parallelising remains available if a run overruns.
 
 ### ⚠️ THE `eta` IN `solve.log` IS GARBAGE — DO NOT ACT ON IT
 
@@ -61,47 +76,68 @@ The rate is **flat in `k`**, which is the structurally important part: 21.2 s/pa
 antennas are already selected, so cost is exactly linear in `k` and the constant above is all you
 need. Do not expect late blocks to slow down further.
 
-**Revised finish: ~02:35 PDT** (2026-08-16) — not 00:30, not 23:00, and not the ~02:25 this file
-carried until 20:30. Re-derived at 20:21 from the **block-6 start** rather than from the original
-1,626-pass total, which is the more honest basis now that six block starts are on the clock: block 6
-`(0.49, 484)` began at elapsed 657.3 min = **20:18 PDT** with **1,026 passes left** (484 + 9 + 49 +
-484). At 21.4 s that is **6.10 h → 02:24**, plus per-block verify overhead of ~4.1 min on each
-`k=484` block and ~1 min across the two small ones → **~02:34**. Call it 02:35.
+⚠️ **The ~02:35 figure this paragraph used to carry is SUPERSEDED — see "Finish ~03:00 PDT" below**,
+re-derived at 21:08 from a clean uncontended measurement. The reasoning here still holds and is the
+method to reuse; only the constant moved (21.4 → 22.75 s/pass).
 
-Per-block overhead stays negligible and is now measured at size, not assumed: block 3 spent 4.1 min
-on coverage + verify against 174.7 min of greedy. Against the **03:30 drop-dead that is ~55 min of
-slack**, down from ~1.1 h and originally ~2.7 h — the deadline is not at risk, but the buffer before
-the *filler* decision is thin enough that the estimate has to be right rather than hopeful.
-Re-derive it from `21.4 s x remaining passes` and nothing else.
+Re-derive the finish from the **most recent block start**, not from the original 1,626-pass total —
+that is the more honest basis once block starts are on the clock. Per-block overhead is measured at
+size, not assumed: block 3 spent **4.1 min** on coverage + verify against 174.7 min of greedy, so
+budget ~4 min per `k=484` block and ~1 min for a small one.
 
-The downstream chain still clears comfortably: 02:35 → audit to ~03:35 → evaluator to ~04:40 →
-`k=9` best-of ~04:50 → packaged ~05:00, against the **09:00 deadline**. The best-of re-solve is
-27 passes = **~10 min** at this rate, not 8.
+The downstream chain clears comfortably from any of these figures: finish → audit +60 min →
+evaluator +~50 min → `k=9` best-of +10 min → packaged, against the **09:00 deadline**. From ~03:00
+that is packaged by **~05:30**. The best-of re-solve is 27 passes = **~10 min** at this rate.
 
-### ⚠️ BLOCK 6 IS RUNNING ~8% SLOW — UNRESOLVED AS OF 20:45, RE-MEASURE BEFORE TRUSTING 02:35
+### BLOCK 6 — RESOLVED 21:08. Not a slowdown. Clean rate 22.75 s/pass, finish ~03:00.
 
-Two heartbeats into block 6 `(0.49, 484)`:
+The earlier "~8% slow, cause unresolved" flag is **closed**. Block 6 `(0.49, 484)`, measured from
+the `+N min` deltas in `solve.log` rather than from heartbeat arrival times:
 
 ```
-[20:35:57] alive | greedy picked 24/484 +  9.8 min
-[20:40:57] alive | greedy picked 48/484 + 19.7 min
+ 24 ->  48 : 24.75 s/pass   contended (evaluator bh6638nw5 running)
+ 48 ->  72 : 25.25 s/pass   contended
+ 72 ->  96 : 23.75 s/pass   contended ~39%
+ 96 -> 120 : 22.75 s/pass   CLEAN  <- the measurement
 ```
 
-That is **24.75 s/pass** on the 24→48 interval and **24.25 s/pass** cumulative, against the 21.66
-s/pass block 3 actually delivered (174.7 min / 484). The official-evaluator measurement `bh6638nw5`
-was running across nearly all of that window, so **contention is confounded into it** — but the
-first interval was only ~40% contended and still read 23.8, and solving the two intervals against a
-linear contention cost lands near **~23.2 s/pass uncontended**.
+**22.75 s/pass sits inside block 3's own observed range**, so there is nothing anomalous to explain.
+Contention cost **~1.9 s/pass**: the evaluator's 28 min cost the solve ~5 min of greedy. Worth it.
 
-**Treat that as a flag, not a number.** It is a two-point extrapolation with a fitted constant,
-which is the exact shape of reasoning that produced two wrong pass rates earlier today (9.6 s from a
-too-small matrix, 17.5 s from warm cache). **The measurement that settles it is one clean interval
-with nothing else on the machine**, and it must be taken before anyone plans against 02:35.
+**The "21.4 s/pass constant" was always a mean, and this is the more useful correction.** Block 3's
+per-interval rates ranged **20.25 → 23.25** around a 21.66 mean — roughly ±7%. Earlier text in this
+file called the rate "flat in `k`", citing 21.2 at pick 384 equalling 21.2 at pick 240; the actual
+intervals there were 22.50 and 21.25. The defensible claim is **no systematic drift with `k`** (block
+3 oscillates: high early, low through the middle, high again late), **±7% noise about the mean** —
+not a constant. That distinction sets the bar for believing any future shift: a single interval at
+24.75 is barely outside the historical range, which is why one sample was never going to settle it.
 
-If ~23.2 holds, 1,026 passes from 20:18 cost 6.61 h → **~03:05 with verify, not 02:35**, and slack
-before the **03:30 drop-dead falls to ~25 min**. That would not change the plan — it would change
-how closely the drop-dead has to be watched, and it would make the k=9 best-of (step 3 of the
-run-out) the first thing to drop if the audit runs long.
+### Finish ~03:00 PDT — re-derived 21:08, and note the one-directional bias
+
+At `120/484 +48.4 min` (21:07:28), **906 passes remain** (364 + 9 + 49 + 484).
+
+| rate basis | remaining greedy | finish (+~10 min verify) |
+|---|---|---|
+| block 3 mean, 21.66 | 5.45 h | ~02:45 |
+| **block 6 clean, 22.75** | **5.73 h** | **~03:01 — use this** |
+
+Use the rate measured on the block actually running, not the faster historical mean. Slack before
+the **03:30 drop-dead is ~30 min**, down from ~55.
+
+**Today's finish estimates have gone 23:00 → 00:30 → 02:25 → 02:35 → ~03:00 — five revisions, every
+one later.** This file already records "timing projections have run optimistic six times and
+pessimistic once"; this is the seventh. When an estimator has a known one-directional bias the fix
+is not only to correct the input, it is to stop treating the central estimate as the plan. Hence the
+slower of two defensible rates above, deliberately.
+
+⚠️ **Unquantified risk, deliberately not modelled: blocks 7–9 are tau 0.68.** The two rates in hand
+are tau 0.32 → 21.66 and tau 0.49 → 22.75, and **493 of the 906 remaining passes are at tau 0.68**.
+That looks like a tau trend, but fitting a trend to two points and extrapolating is exactly what
+produced today's four wrong constants (9.6 s/pass, 17.5 s/pass, the `k^0.16` evaluator model, and
+the original 4.6 h matrix build). Recorded as a risk, not a number. If real, it costs ~10 min more.
+
+**Nothing about the plan changes.** The run-out from ~03:00 lands packaged ~05:30 against the 09:00
+deadline. The narrower drop-dead margin needs watching, not acting on.
 
 ### Blocks completed so far — measured, 5 of 9 as of 20:21 PDT
 
@@ -278,8 +314,9 @@ built, tested on the real dataset, and is the path if nine blocks do not exist b
 
 ### THE RUN-OUT SEQUENCE — this is the whole remaining job
 
-Solve finishes **~02:35 PDT** (corrected 19:20, then again 20:30 — see the rate table above). Then,
-in order, and none of it needs a decision from Marko:
+Solve finishes **~03:00 PDT** (corrected 19:20, 20:30, then settled 21:08 on a clean 22.75 s/pass
+measurement — see "Finish ~03:00 PDT" above). Then, in order, and none of it needs a decision from
+Marko:
 
 1. **Audit** — `scripts/audit_submission.py --input "$DS" --solution outputs/final.txt
    --taus 0.32 0.49 0.68 --ks 9 49 484 --exact-radius 400 --confirm-radius 800 --workers 12`.
