@@ -66,7 +66,7 @@ tests/test_visibility.py
 tests/test_visibility_strategy.py  # official predicate, degeneracies, relate default
 ```
 
-Current latest result: **`368 passed`** in Conda env `mz-giscup-26` (2026-08-15, 20.9 s), 32 files.
+Current latest result: **`375 passed`** in Conda env `mz-giscup-26` (2026-08-15, 16.3 s), 33 files.
 *(365 -> 368 on 2026-08-15: three cases in `test_audit_coarse_source.py` covering the coarse-precision
 `[NOTE]` path from #26. The `365 passed` / `31 files` figures stood in five documents after that
 commit landed and were corrected on 2026-08-15 by actually running the suite — including in two

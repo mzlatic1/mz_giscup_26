@@ -154,7 +154,7 @@ startup reads. Run `/rehearsal` if solver code changed since the last gate run.
 
 ```bash
 conda activate mz-giscup-26
-python -m pytest -q                 # 368 passing as of 2026-08-15 (365 before `de03785`)
+python -m pytest -q                 # 375 passing as of 2026-08-15 (368 before `ca55be7`, 365 before `de03785`)
 python -m compileall src tests scripts
 giscup inspect --input <geojson>          # RUN THIS FIRST on the day -- confirms the ID field
 giscup solve-one  --input <geojson> --tau <float> --k <int> --output <txt> [--diagnostics <json>]
