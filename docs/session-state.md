@@ -95,12 +95,28 @@ this pulls the scoring step comfortably inside its 90 min budget. It is also the
 correctly, not a defect: fewer footprints can clear 68% visible perimeter than can clear 32%, and
 relative scoring means every team faces the same ceiling on the high-tau blocks.
 
-⚠️ ~~**Background Bash (`run_in_background`) survives a `/compact`**~~ — **WRONG, corrected 20:25.**
-The solve-exit watcher (pid 91823) came through *one* compact alive, and that single case was
-generalised into a rule. It did **not** survive the next one, and neither did the one-shot
-`bgi420ztv`, which died having taken no measurement and said nothing about it. See "What is watching
-this run" below. **Re-arm every watcher after a compact and verify with `ps`** — Monitor handles are
-lost from this side regardless, so a document naming a watcher ID is never evidence it is alive.
+⚠️ ~~**Background Bash (`run_in_background`) survives a `/compact`**~~ — **WRONG. Diagnosed 20:35.**
+
+**A session rotation kills every harness-owned background job at once.** At **20:10:55** all three
+watchers were terminated within **4 ms of each other** — `b8i8kb4q1` (log Monitor), `bgi420ztv`
+(block-3 evaluator one-shot) and `bxn6a8zey` (solve-exit watcher, pid 91823). Each output file ends
+in `[killed]`. A new session directory appeared at 20:11 (`282f93b0…` → `5fd9e99a…`), and the log
+tail was **re-created** at 20:18:03 as pid 153941 — so even the one that looked like a survivor was
+a restart. This is deterministic, not flaky: the earlier compact that 91823 came through evidently
+did not rotate the session.
+
+**The solve was never at risk, and the reason is the whole lesson.** pid 86862 has run untouched
+since 09:21:46 because it was launched `nohup env … giscup solve-all … &` — detached, reparented to
+init, logging to a file. It is **not a harness-tracked task**, so no session lifecycle event can
+reach it. The watchers *were* harness tasks, tied to the session that spawned them. Same machine,
+same night, opposite survival properties, and the only difference is ownership.
+
+> **Rule: anything that must outlive a session gets `nohup`'d to a file, not run as a background
+> task.** A harness background job is fine for a 15-minute measurement you are actively watching. It
+> is the wrong tool for an overnight watchdog — which is exactly what `bxn6a8zey` was.
+
+**After any compact or resume: `ps` every watcher this file names and re-arm what is missing.** A
+watcher ID written in a document is never evidence the watcher is running.
 
 *Corrected 14:30, then SETTLED 14:33:* an earlier version of this block claimed it was **verified**
 that a Monitor does not survive a compact. **That was wrong in both halves.** A pre-compact Monitor
@@ -179,20 +195,31 @@ practice, not just in theory.
 | solve-exit watcher (background Bash) | `b6muqoh50` | **re-armed 20:22**; fires when 86862 dies, however it dies |
 | one-shot `bh6638nw5` | — | **re-run 20:25**; block-3 official-evaluator cost measurement |
 
-⚠️ **Background jobs do NOT reliably survive a compact — revise the claim above.** Earlier today a
-background Bash (`91823`) came through one compact alive, and this file recorded that as "background
-Bash survives a `/compact`". After the 20:15 compact **both `91823` and the one-shot `bgi420ztv` were
-gone**, and `bgi420ztv` had produced no output at all — the block-3 evaluator measurement it existed
-to take was never made, and nothing said so. Only the `tail -F` Monitor survived. Cause not
-determined; do not build a theory on one surviving case. **The operational rule is: after every
-compact, `ps` for every watcher this file names and re-arm what is missing.** Do not read a watcher
-ID in a document as evidence the watcher is running.
+⚠️ **All three predecessors were killed at 20:10:55 by a session rotation** — see the diagnosis
+above. Two details are worth keeping.
 
-That failure has a shape worth naming. The surviving tail and the dead exit-watcher fail in opposite
-directions, which is exactly why both exist: a `tail -F` is silent when the process crashes *and*
-silent when it is healthy, so silence is ambiguous. A `kill -0` loop resolves the ambiguity because
-liveness is a positive signal rather than an absence of one. With only the tail alive, "block 6 is
-mid-scan" and "block 6 died forty minutes ago" look identical.
+**`bgi420ztv` had fired correctly and was killed mid-measurement.** Its log reads:
+
+```
+=== block 3 (k=484, the worst case) landed at 19:54:39 ===
+[3/9] done in 178.8 min   claimed 10,345
+=== scoring block 3 with the official evaluator ===
+
+[killed]
+```
+
+It detected block 3 at 19:54:39 and started the evaluator, then died at 20:10:55 — **~16 min into a
+run that takes ~15–18 min**, almost certainly within a minute or two of producing the number. That
+is worse than never firing: the work was done and discarded, and nothing reported the loss. *(An
+earlier version of this file said it "produced no output at all" and that the cause was
+undetermined. Both were wrong — the output was in the previous session's task directory, which is
+where to look after a rotation: `/tmp/claude-*/…/<session-uuid>/tasks/*.output`.)*
+
+**Silence from a tail is ambiguous; silence from a liveness loop is not.** The tail and the
+exit-watcher fail in opposite directions, which is why both exist: a `tail -F` is silent when the
+process crashes *and* silent when it is healthy. A `kill -0` loop resolves that, because liveness is
+a positive signal rather than an absence of one. With only the tail alive, "block 6 is mid-scan" and
+"block 6 died forty minutes ago" look identical.
 
 `bmrqkd9kx` (matrix %) exited on completion, as designed. Three redundant watchers were killed
 during the day: pids 91818 and 96427 (tails) at 14:33, and `blmeqhgce` at 17:00 — that last one was
