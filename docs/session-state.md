@@ -373,17 +373,50 @@ authoritative: *"audit both files first… Then audit `final_bestof.txt` again b
    eyeball 27 content lines / nine headers / no blank separators.
 6. **Ping Marko, who uploads to EasyChair himself** (login and form already confirmed reachable).
 
-**Cost note:** the authoritative doc also says to audit `final.txt` and `k9_baseline.txt` *before*
-choosing, on the principle that claim counts are a comparison and not a verdict. At ~22,400 claims a
-full audit is ~60 min, so doing that literally means **two or three audits, ~2 h**, against a 60 min
-budget. If time is short, auditing **only the merged file** still covers everything shipped — the
-weaker property is that a `k=9` block would then be chosen on claim count before being audited, and
-a failing audit would mean falling back to `--take-alt` without that block. **Decide this before
-03:00, not during.**
+### ✅ DECIDED BY MARKO 23:50 — both of these are closed, do not re-open at 03:00
 
-**DROP-DEAD 03:30 PDT** if no usable nine-block file exists: stop the solve and run
+**DECISION 1 — audit the MERGED FILE ONLY. One audit, ~60 min.**
+
+`docs/release-minute-commands.md` says to audit `final.txt` *and* `k9_baseline.txt` before choosing,
+then the merged file again. At ~22,400 claims each audit is ~60 min, so following that literally is
+**~2 h against a 60 min budget**. Auditing only `final_bestof.txt` covers **100% of what ships**.
+
+What is given up: a `k=9` block gets *chosen* on claim count before being audited. That is cheap to
+recover from — all three `k=9` blocks together hold ~472 claims, so if the audit flags one, re-merge
+without it via `--take-alt` and re-audit. The instruction's *intent* (never pick a winner on
+unverified counts) is preserved; only its expensive literal procedure is dropped, because
+`audit_submission.py` audits a whole nine-block file — the 472 claims you care about ride along with
+22,000 already checked either way.
+
+**DECISION 2 — the 03:30 drop-dead STAYS, but the rule at 03:30 changes.**
+
+> **At 03:30: if block 9 is ≥90% complete, wait until at most 04:15. Otherwise cut over to filler.**
+
+The trigger is *not* being moved — its purpose is to stop a fatigued 04:00 judgement call, and the
+audit is still unmeasured against real claims. What changed is that 03:30 was derived backward from
+budgets set **before anything was measured**:
+
+| step | runbook budget | measured / projected | saved |
+|---|---|---|---|
+| `k=9` best-of | 45 min | **~11 min** | 34 |
+| official evaluator | 90 min | **~50 min** | 40 |
+| audit | 60 min | *still unmeasured* | — |
+| bundle + upload | 45 min | 45 min | — |
+
+Corrected chain from solve-finish **T**: `11 + 1 + 60 + 50 + 15 + 30` = **2 h 47 m**.
+→ **T ≤ 05:13** still hits the 08:00 target; **T ≤ 06:13** still hits the 09:00 hard deadline.
+
+So there is ~2 h of real margin behind 03:30. Taking a zero on block 9 — one of nine
+relatively-scored subproblems — to save time that demonstrably exists would be strictly worse than
+waiting twenty minutes. The rule above keeps the decision arithmetic rather than judgement, which
+was the entire point of having a drop-dead.
+
+**DROP-DEAD 03:30 PDT — as amended by Marko 23:50, see DECISION 2 above.** At 03:30: **if block 9 is
+≥90% complete, wait until at most 04:15**; otherwise stop the solve and run
 `scripts/emergency_filler_blocks.py` → audit → package. Proven end-to-end today, **including that
-the official scorer accepts filler blocks**.
+the official scorer accepts filler blocks**. The chain still clears the 08:00 target from a
+solve-finish as late as 05:13, so a near-complete block 9 is always worth the extra minutes — but
+**04:15 is hard**, and past it the filler path runs without further deliberation.
 
 Tree is clean and pushed through `86ec754`.
 
