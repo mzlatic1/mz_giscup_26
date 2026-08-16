@@ -302,10 +302,25 @@ python scripts/pick_blocks.py --base outputs/final.txt --alt outputs/k9_baseline
     --taus $TAUS --ks $KS
 
 # 2. Merge, naming the winners explicitly (only k=9 subproblems are eligible).
+#    *** DO NOT PASTE THE --take-alt LIST BLIND. READ THE STEP-1 REPORT FIRST. ***
 python scripts/pick_blocks.py --base outputs/final.txt --alt outputs/k9_baseline.txt \
-    --taus $TAUS --ks $KS --take-alt 0.32,9 0.49,9 0.68,9 \
+    --taus $TAUS --ks $KS --take-alt <only the blocks the report shows alt winning> \
     --output outputs/final_bestof.txt
 ```
+
+### ⚠️ RUN 2026-08-16: this merge was ATTEMPTED, FAILED THE AUDIT, and was DROPPED
+
+**The `k=9` best-of is retired as a lever.** `--objective baseline` at `k=9` overclaims —
+`(0.32, 9)` 12 overclaims (worst shortfall 0.2357) and `(0.49, 9)` 33 (worst 0.3986). The shipped
+`final.txt` scored **21,224 / 21,224 verified** with zero failures; the merged file would have been
+**21,211 valid**, worse by 13 claims *before* any overclaim penalty.
+
+**And the `--take-alt` list above used to be hardcoded as `0.32,9 0.49,9 0.68,9`, which was wrong.**
+The step-1 report showed `(0.68, 9)` with **alt = 0 claims against base = 15** and printed
+`base higher` — yet the pre-composed command took alt anyway. A command that names the winners
+*before* the comparison is run defeats the purpose of running it. `pick_blocks.py` is not at fault:
+it reports honestly and refuses to guess. The placeholder above is now deliberately unfillable
+without reading the report.
 
 Claim counts are a comparison, not a verdict — **audit both files first**; an overclaim costs more
 than the points it chases. Then audit `final_bestof.txt` again before packaging.

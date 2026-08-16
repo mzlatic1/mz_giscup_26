@@ -251,7 +251,11 @@ else
         note "RETRY     re-auditing $(basename "$BASE") with the k=9 best-of dropped"
         if run_audit "$BASE"; then
             AUDIT_OK=1
-            note "AUDIT     PASSED on $(basename "$BASE") — k=9 best-of abandoned, ~470 claims given up"
+            # NOT a loss: dropping the best-of keeps the base file's own k=9 blocks. It gives up
+            # only the *potential upside* of the baseline objective, which the audit just showed
+            # was negative anyway. An earlier version of this string said "~470 claims given up",
+            # which was simply wrong and alarming to read at 04:00.
+            note "AUDIT     PASSED on $(basename "$BASE") — k=9 best-of dropped (its blocks overclaimed; no claims lost)"
             package_as "$BASE" "AUDITED, k=9 best-of dropped"
         else
             note "AUDIT     *** FAILED on $(basename "$BASE") TOO *** — shipping unaudited (approved backup)"

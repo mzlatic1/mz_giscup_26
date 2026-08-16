@@ -1,6 +1,71 @@
 # Current Session State
 
-## 🌙 OVERNIGHT UNATTENDED RUN — armed 2026-08-16 00:22 PDT. READ THIS FIRST.
+## ✅ SUBMISSION READY — solve done 03:02:48, run-out done 04:10:50, verified 04:15
+
+**Upload `outputs/submission/mz_giscup_26_submission_20260816.zip` to EasyChair. Nothing else.**
+
+**Official evaluator, run on the exact file being shipped: 21,224 / 21,224 verified, 0 failed,
+0 unknown, 0 duplicate, 0 invalid antennas, all nine blocks.** The zip's `solution.txt` is
+byte-identical to `outputs/final.txt` and its sha256 matches the scored file
+(`a24271af…d6bf1e54`), so the artifact that was scored *is* the artifact being submitted.
+
+| block | (tau, k) | claims | verified |
+|---|---|---|---|
+| 1 | (0.32, 9) | 324 | 324 |
+| 2 | (0.32, 49) | 1,560 | 1,560 |
+| 3 | (0.32, 484) | 10,345 | 10,345 |
+| 4 | (0.49, 9) | 133 | 133 |
+| 5 | (0.49, 49) | 659 | 659 |
+| 6 | (0.49, 484) | 5,781 | 5,781 |
+| 7 | (0.68, 9) | 15 | 15 |
+| 8 | (0.68, 49) | 139 | 139 |
+| 9 | (0.68, 484) | 2,268 | 2,268 |
+| | | **21,224** | **21,224** |
+
+Block 9 finished in 187.9 min with **2,268 claims** — 26% above the ~1,800 projection. The tau
+decay is shallower at large `k` than the `k=9`/`k=49` ratios implied. Sixth extrapolation miss of
+the event, and the first one that missed in the safe direction.
+
+### ⚠️ THE `k=9` BEST-OF WAS TRIED, FAILED THE AUDIT, AND WAS CORRECTLY DROPPED
+
+DECISION 4 is what caught this. `--objective baseline` at `k=9` **overclaims**:
+
+| block | claims | overclaims | worst shortfall |
+|---|---|---|---|
+| (0.32, 9) | 330 | **12** | 0.2357 |
+| (0.49, 9) | 174 | **33** | 0.3986 |
+
+Dropping it **cost nothing and gained 13 valid claims**:
+
+```
+final_bestof.txt : 21,256 claims - 45 overclaims = 21,211 valid
+final.txt        : 21,224 claims -  0 overclaims = 21,224 valid   <-- SHIPPED
+```
+
+`run_out.sh` logged this as "~470 claims given up". **That string was wrong** — dropping the merge
+keeps the base file's own `k=9` blocks, so nothing was surrendered but a negative upside. The
+message is fixed; `outputs/RUN-OUT-STATUS.txt` carries the correction, because the raw line would
+read alarmingly at 08:00.
+
+**This retires the `k=9` best-of as a lever.** It was approved on the theory that near-tau's
+quantile schedule, fitted at `k=500`, might extrapolate badly to `k=9`. It does extrapolate badly —
+just in the opposite direction from the one assumed. Do not re-open it.
+
+### 🐛 DEFECT FOUND: the pre-written `--take-alt` list is unconditional
+
+`docs/release-minute-commands.md` and `run_out.sh` both hardcode
+`--take-alt 0.32,9 0.49,9 0.68,9`, taking **all three** `k=9` blocks from the alternative. But the
+`pick_blocks.py` report explicitly flagged `(0.68, 9)` as `base higher` — **alt had 0 claims against
+base's 15**. The hardcoded list would have shipped the empty block.
+
+It caused no harm here only because the whole merge was discarded on other grounds. The tool is not
+at fault: it reports honestly and refuses to guess, and its own help says *"the operator names the
+winners"*. The defect is that the pre-composed command names winners **before the comparison
+exists**, which defeats the point of running the report. Any future merge must read the report first.
+
+---
+
+## 🌙 OVERNIGHT UNATTENDED RUN — armed 2026-08-16 00:22 PDT (historical record below)
 
 ### AT 08:00, DO EXACTLY THIS
 
