@@ -312,6 +312,34 @@ does that merge; exact commands in `docs/release-minute-commands.md`, "After the
 `docs/submission-day-runbook.md`. Deadline 09:00 PDT. `scripts/emergency_filler_blocks.py` is
 built, tested on the real dataset, and is the path if nine blocks do not exist by then.
 
+### `pick_blocks.py` is now PROVEN ON REAL DATA — 21:20, the last unexercised run-out tool
+
+**It had never been run on a real file.** Written today (`ca55be7`) with 7 unit tests, it postdates
+the 09:42 downstream dry-run that exercised every *other* tool at competition scale — that dry-run
+covered `assemble_blocks.py`, not this. So its first contact with real data would have been at
+**~03:15, inside a 30 min drop-dead margin**. Exactly the pattern this repo has been bitten by:
+*"122 of them passed while a third of the boundary was silently unseeable."*
+
+Tested against the real 9-block file (5 genuine solver blocks + 4 filler), with a synthesised `alt`
+standing in for the `k=9` baseline re-solve. **Zero contention with the solve** — it is pure text
+merging, no matrix, no geometry.
+
+| check | result |
+|---|---|
+| report mode, per-subproblem claim counts | correct on all nine, writes nothing |
+| merge honours `--take-alt 0.49,9 0.68,9` | blocks 4 and 7 from alt, other seven from base |
+| **coordinate lines byte-identical** | **yes, every block** |
+| block 1 coords vs **raw solver output** | **byte-identical through filler + merge** |
+| exactly `k` points | 9/49/484 x3 |
+| line count | **27**, empty claim lines at 18/24/27 |
+| `packaging.inspect_solution` on the result | all nine blocks accepted, `n_points == k` |
+
+⚠️ **Empty claim lines are significant and easy to destroy.** The first verification script here read
+the file with `[l for l in text.split("\n") if l != ""]` and "found" a 24-line file — it had silently
+eaten the three empty claim lines belonging to the filler blocks. `pick_blocks.py` was correct; the
+*checker* was wrong. The spec says the third line may be empty but must still exist, so **never
+filter blank lines when parsing or validating a solution.** Strip at most one trailing newline.
+
 ### THE RUN-OUT SEQUENCE — this is the whole remaining job
 
 Solve finishes **~03:00 PDT** (corrected 19:20, 20:30, then settled 21:08 on a clean 22.75 s/pass
