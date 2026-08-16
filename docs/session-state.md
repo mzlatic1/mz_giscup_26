@@ -78,6 +78,31 @@ The downstream chain still clears comfortably: 02:35 → audit to ~03:35 → eva
 `k=9` best-of ~04:50 → packaged ~05:00, against the **09:00 deadline**. The best-of re-solve is
 27 passes = **~10 min** at this rate, not 8.
 
+### ⚠️ BLOCK 6 IS RUNNING ~8% SLOW — UNRESOLVED AS OF 20:45, RE-MEASURE BEFORE TRUSTING 02:35
+
+Two heartbeats into block 6 `(0.49, 484)`:
+
+```
+[20:35:57] alive | greedy picked 24/484 +  9.8 min
+[20:40:57] alive | greedy picked 48/484 + 19.7 min
+```
+
+That is **24.75 s/pass** on the 24→48 interval and **24.25 s/pass** cumulative, against the 21.66
+s/pass block 3 actually delivered (174.7 min / 484). The official-evaluator measurement `bh6638nw5`
+was running across nearly all of that window, so **contention is confounded into it** — but the
+first interval was only ~40% contended and still read 23.8, and solving the two intervals against a
+linear contention cost lands near **~23.2 s/pass uncontended**.
+
+**Treat that as a flag, not a number.** It is a two-point extrapolation with a fitted constant,
+which is the exact shape of reasoning that produced two wrong pass rates earlier today (9.6 s from a
+too-small matrix, 17.5 s from warm cache). **The measurement that settles it is one clean interval
+with nothing else on the machine**, and it must be taken before anyone plans against 02:35.
+
+If ~23.2 holds, 1,026 passes from 20:18 cost 6.61 h → **~03:05 with verify, not 02:35**, and slack
+before the **03:30 drop-dead falls to ~25 min**. That would not change the plan — it would change
+how closely the drop-dead has to be watched, and it would make the k=9 best-of (step 3 of the
+run-out) the first thing to drop if the audit runs long.
+
 ### Blocks completed so far — measured, 5 of 9 as of 20:21 PDT
 
 | block | (tau, k) | wall | claimed |
