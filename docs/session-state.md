@@ -61,20 +61,46 @@ The rate is **flat in `k`**, which is the structurally important part: 21.2 s/pa
 antennas are already selected, so cost is exactly linear in `k` and the constant above is all you
 need. Do not expect late blocks to slow down further.
 
-**Revised finish: total passes `3 x (9 + 49 + 484)` = 1,626, so the solve lands ~02:25 PDT**
-(2026-08-16) — not 00:30, and not 23:00. Per-block overhead stays negligible (block 1 spent 0.3 min
-on coverage + verify against 2.3 min of greedy). Against the **03:30 drop-dead that is ~1.1 h of
-slack, down from ~2.7 h** — the deadline is not at risk, but the buffer before the *filler* decision
-is now thin enough that the estimate has to be right rather than hopeful. Re-derive it from
-`21.4 s x remaining passes` and nothing else.
+**Revised finish: ~02:35 PDT** (2026-08-16) — not 00:30, not 23:00, and not the ~02:25 this file
+carried until 20:30. Re-derived at 20:21 from the **block-6 start** rather than from the original
+1,626-pass total, which is the more honest basis now that six block starts are on the clock: block 6
+`(0.49, 484)` began at elapsed 657.3 min = **20:18 PDT** with **1,026 passes left** (484 + 9 + 49 +
+484). At 21.4 s that is **6.10 h → 02:24**, plus per-block verify overhead of ~4.1 min on each
+`k=484` block and ~1 min across the two small ones → **~02:34**. Call it 02:35.
 
-The downstream chain still clears comfortably: 02:25 → audit to ~03:25 → evaluator to ~04:30 →
-`k=9` best-of ~04:40 → packaged ~04:50, against the **09:00 deadline**. The best-of re-solve is
+Per-block overhead stays negligible and is now measured at size, not assumed: block 3 spent 4.1 min
+on coverage + verify against 174.7 min of greedy. Against the **03:30 drop-dead that is ~55 min of
+slack**, down from ~1.1 h and originally ~2.7 h — the deadline is not at risk, but the buffer before
+the *filler* decision is thin enough that the estimate has to be right rather than hopeful.
+Re-derive it from `21.4 s x remaining passes` and nothing else.
+
+The downstream chain still clears comfortably: 02:35 → audit to ~03:35 → evaluator to ~04:40 →
+`k=9` best-of ~04:50 → packaged ~05:00, against the **09:00 deadline**. The best-of re-solve is
 27 passes = **~10 min** at this rate, not 8.
 
-**Background Bash (`run_in_background`) survives a `/compact`** — the solve-exit watcher (pid 91823,
-started 09:56) came through one alive. **Re-arm Monitors after a compact**, because the handles are
-lost from this side.
+### Blocks completed so far — measured, 5 of 9 as of 20:21 PDT
+
+| block | (tau, k) | wall | claimed |
+|---|---|---|---|
+| 1 | (0.32, 9) | 438.5 min *(includes the 7.26 h matrix build)* | 324 |
+| 2 | (0.32, 49) | 14.7 min | 1,560 |
+| 3 | (0.32, 484) | 178.8 min | 10,345 |
+| 4 | (0.49, 9) | 4.3 min | 133 |
+| 5 | (0.49, 49) | 20.9 min | 659 |
+
+**Claims fall sharply as tau rises** — 1,560 → 659 at `k=49` (−58%), 324 → 133 at `k=9` (−59%). If
+tau 0.68 continues the trend the nine-block total lands near **~18,000 claims**, well under the
+~25,000 a naive scaling of the tau-0.32 blocks would predict. Since evaluator cost tracks *claims*,
+this pulls the scoring step comfortably inside its 90 min budget. It is also the objective behaving
+correctly, not a defect: fewer footprints can clear 68% visible perimeter than can clear 32%, and
+relative scoring means every team faces the same ceiling on the high-tau blocks.
+
+⚠️ ~~**Background Bash (`run_in_background`) survives a `/compact`**~~ — **WRONG, corrected 20:25.**
+The solve-exit watcher (pid 91823) came through *one* compact alive, and that single case was
+generalised into a rule. It did **not** survive the next one, and neither did the one-shot
+`bgi420ztv`, which died having taken no measurement and said nothing about it. See "What is watching
+this run" below. **Re-arm every watcher after a compact and verify with `ps`** — Monitor handles are
+lost from this side regardless, so a document naming a watcher ID is never evidence it is alive.
 
 *Corrected 14:30, then SETTLED 14:33:* an earlier version of this block claimed it was **verified**
 that a Monitor does not survive a compact. **That was wrong in both halves.** A pre-compact Monitor
@@ -145,13 +171,28 @@ practice, not just in theory.
 2. ~~Re-project the finish~~ — done, above. A second Monitor (`bmrqkd9kx`) prints matrix % every
    10 min and announces the sidecar, so the projection self-corrects.
 
-**What is watching this run, as of 17:05** — three things, and nothing else:
+**What is watching this run, as of 20:25** — re-armed after the 20:15 compact killed two of three:
 
 | what | id / pid | role |
 |---|---|---|
-| solve-exit watcher (background Bash) | `91823` | fires when 86862 dies, however it dies |
-| Monitor `b8i8kb4q1` | `109446` | `solve.log`, wide failure filter — the only log tail |
-| one-shot `bgi420ztv` | — | at block 3 (~19:17): fills, then scores it with the official evaluator |
+| Monitor `b5wmv8kp0` | `153941` | `solve.log`, block boundaries + failure signatures — the only log tail |
+| solve-exit watcher (background Bash) | `b6muqoh50` | **re-armed 20:22**; fires when 86862 dies, however it dies |
+| one-shot `bh6638nw5` | — | **re-run 20:25**; block-3 official-evaluator cost measurement |
+
+⚠️ **Background jobs do NOT reliably survive a compact — revise the claim above.** Earlier today a
+background Bash (`91823`) came through one compact alive, and this file recorded that as "background
+Bash survives a `/compact`". After the 20:15 compact **both `91823` and the one-shot `bgi420ztv` were
+gone**, and `bgi420ztv` had produced no output at all — the block-3 evaluator measurement it existed
+to take was never made, and nothing said so. Only the `tail -F` Monitor survived. Cause not
+determined; do not build a theory on one surviving case. **The operational rule is: after every
+compact, `ps` for every watcher this file names and re-arm what is missing.** Do not read a watcher
+ID in a document as evidence the watcher is running.
+
+That failure has a shape worth naming. The surviving tail and the dead exit-watcher fail in opposite
+directions, which is exactly why both exist: a `tail -F` is silent when the process crashes *and*
+silent when it is healthy, so silence is ambiguous. A `kill -0` loop resolves the ambiguity because
+liveness is a positive signal rather than an absence of one. With only the tail alive, "block 6 is
+mid-scan" and "block 6 died forty minutes ago" look identical.
 
 `bmrqkd9kx` (matrix %) exited on completion, as designed. Three redundant watchers were killed
 during the day: pids 91818 and 96427 (tails) at 14:33, and `blmeqhgce` at 17:00 — that last one was
@@ -185,8 +226,8 @@ built, tested on the real dataset, and is the path if nine blocks do not exist b
 
 ### THE RUN-OUT SEQUENCE — this is the whole remaining job
 
-Solve finishes **~02:25 PDT** (corrected 19:20 — see the rate table above). Then, in order, and
-none of it needs a decision from Marko:
+Solve finishes **~02:35 PDT** (corrected 19:20, then again 20:30 — see the rate table above). Then,
+in order, and none of it needs a decision from Marko:
 
 1. **Audit** — `scripts/audit_submission.py --input "$DS" --solution outputs/final.txt
    --taus 0.32 0.49 0.68 --ks 9 49 484 --exact-radius 400 --confirm-radius 800 --workers 12`.
