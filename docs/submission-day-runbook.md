@@ -130,7 +130,11 @@ upload path run out the clock.
 
 ```bash
 conda activate mz-giscup-26
-cd /home/markolinux/projects/sigspatial_26
+
+export REPO="$HOME/projects/sigspatial_26"          # this repository
+export EVAL="$HOME/projects/gis-cup-2026-evaluator" # the official evaluator clone
+cd "$REPO"
+
 python -m pytest -q                    # must be green before you touch the real data -- 368 passed
 nproc; free -g; df -h .                # 16 cores, 24 GB, and the matrix needs ~2.6 GB free
 ```
@@ -386,7 +390,7 @@ strongest pre-submission signal that exists, and it is the one step this page ne
 
 See `scripts/official_evaluator/README.md` for setup and the exact commands.
 
-**The clone already exists and is green — `/home/markolinux/projects/gis-cup-2026-evaluator`**
+**The clone already exists and is green — `$EVAL` (= `~/projects/gis-cup-2026-evaluator`)**
 (evaluator commit `9af12a5`, `node_modules` installed, both driver files in place, `pnpm test` = 73
 passed, verified 2026-08-15 10:37 PDT). Do not re-clone or re-install today; setup is not on the
 critical path, and re-running it would be. Note the paths below are **relative to this repo**, so

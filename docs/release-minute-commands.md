@@ -14,7 +14,11 @@ so any recovery run must use these exact values or it solves the wrong problem:
 
 ```bash
 conda activate mz-giscup-26
-cd /home/markolinux/projects/sigspatial_26
+
+# Set these two once; every command in this file uses them.
+export REPO="$HOME/projects/sigspatial_26"          # this repository
+export EVAL="$HOME/projects/gis-cup-2026-evaluator" # the official evaluator clone
+cd "$REPO"
 
 export DS=data/GIS-cup-competition-dataset.geojson
 export IDPROP=id                          # CONFIRMED: inspect stderr was empty, no fallback
@@ -197,8 +201,8 @@ Setup and full detail: `scripts/official_evaluator/README.md`.
 **The clone is already built, installed, and green — do NOT re-clone or re-`pnpm install` today.**
 
 ```text
-/home/markolinux/projects/gis-cup-2026-evaluator     # evaluator commit 9af12a5, node_modules present,
-                                                    # both driver files already copied in
+$EVAL   # = ~/projects/gis-cup-2026-evaluator
+        # evaluator commit 9af12a5, node_modules present, both driver files already copied in
 ```
 
 Verified 2026-08-15 10:37 PDT: `pnpm test` -> **73 passed in ~2 s**. It was moved here from a session
@@ -208,10 +212,15 @@ only because `node_modules` already exists), and a fresh `git clone` gets whatev
 than `9af12a5`, the commit that shipped the competition dataset.
 
 ```bash
-cd /home/markolinux/projects/gis-cup-2026-evaluator
-SCORE_DATASET=/home/markolinux/projects/sigspatial_26/$DS \
-SCORE_SOLUTION=/home/markolinux/projects/sigspatial_26/outputs/final.txt \
-SCORE_SUMMARY=/home/markolinux/projects/sigspatial_26/outputs/official-score.json \
+# Self-contained: safe to run in a fresh shell that never sourced the block at the top.
+: "${REPO:=$HOME/projects/sigspatial_26}"
+: "${EVAL:=$HOME/projects/gis-cup-2026-evaluator}"
+: "${DS:=data/GIS-cup-competition-dataset.geojson}"
+
+cd "$EVAL"
+SCORE_DATASET="$REPO/$DS" \
+SCORE_SOLUTION="$REPO/outputs/final.txt" \
+SCORE_SUMMARY="$REPO/outputs/official-score.json" \
 SCORE_BLOCKS=1,4,7 \
 pnpm exec vitest run --config vitest.score.config.ts --reporter=verbose
 ```
