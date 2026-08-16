@@ -123,16 +123,22 @@ practice, not just in theory.
 2. ~~Re-project the finish~~ — done, above. A second Monitor (`bmrqkd9kx`) prints matrix % every
    10 min and announces the sidecar, so the projection self-corrects.
 
-**What is watching this run, as of 14:33** — three things, and nothing else:
+**What is watching this run, as of 17:05** — three things, and nothing else:
 
-| what | pid | role |
+| what | id / pid | role |
 |---|---|---|
 | solve-exit watcher (background Bash) | `91823` | fires when 86862 dies, however it dies |
-| Monitor `b8i8kb4q1` | `109446` | `solve.log`, wide failure filter — the only tail left |
-| Monitor `bmrqkd9kx` | `109584` | matrix % every 10 min; announces the `.json` sidecar |
+| Monitor `b8i8kb4q1` | `109446` | `solve.log`, wide failure filter — the only log tail |
+| one-shot `bgi420ztv` | — | at block 3 (~19:17): fills, then scores it with the official evaluator |
 
-The matrix probe's `sleep` child gets a **new pid every cycle**, so check the loop shell `109584`
-for liveness, not the sleep.
+`bmrqkd9kx` (matrix %) exited on completion, as designed. Three redundant watchers were killed
+during the day: pids 91818 and 96427 (tails) at 14:33, and `blmeqhgce` at 17:00 — that last one was
+a **poll loop (pid 90905), not a tail**, which is why the earlier tail sweep missed it. If a monitor
+seems unkillable, check for a `while`/`sleep` loop, not just `tail -F`.
+
+**A `Monitor` survives a `/compact` and keeps routing events** — proven at 14:33 when two
+pre-compact monitors delivered their own termination notices. Only the *handle* is lost, so you
+cannot `TaskStop` them; kill the underlying process instead.
 3. ~~Rehearse crash recovery against the real `final.txt.partial`~~ — **DONE 16:44, PASSED.** The
    real 1-block partial went to nine blocks in 6.3 s; block 1 came through **byte-for-byte
    identical** (`cmp`), and `inspect_solution` accepts all nine with exact-`k` point counts
@@ -155,10 +161,27 @@ does that merge; exact commands in `docs/release-minute-commands.md`, "After the
 `docs/submission-day-runbook.md`. Deadline 09:00 PDT. `scripts/emergency_filler_blocks.py` is
 built, tested on the real dataset, and is the path if nine blocks do not exist by then.
 
-On completion: audit (**budget 60 min**, expect `notes: 1`) → official evaluator at
-`/home/markolinux/projects/gis-cup-2026-evaluator` (**budget 90 min**, already installed and green —
-do not re-clone) → approved **`k=9`-only** best-of vs `--objective baseline` → package → **ping
-Marko, who uploads to EasyChair himself** (login and form already confirmed reachable).
+### THE RUN-OUT SEQUENCE — this is the whole remaining job
+
+Solve finishes **~00:30 PDT**. Then, in order, and none of it needs a decision from Marko:
+
+1. **Audit** — `scripts/audit_submission.py --input "$DS" --solution outputs/final.txt
+   --taus 0.32 0.49 0.68 --ks 9 49 484 --exact-radius 400 --confirm-radius 800 --workers 12`.
+   Budget **60 min**; expect `notes: 1`. Must read 0 off-boundary, 0 unknown IDs, 0 overclaims.
+2. **Official evaluator**, all nine blocks in ONE process (the 3.2 s dataset load is paid once) at
+   `/home/markolinux/projects/gis-cup-2026-evaluator` — **measured 60–65 min**, already installed
+   and green, **do not re-clone**. Exact command in `docs/release-minute-commands.md` §6.
+3. **`k=9`-only best-of** — re-solve the three `k=9` blocks with `--objective baseline` (~8 min now
+   the matrix is cached), then `scripts/pick_blocks.py` to compare and merge. **Not
+   `assemble_blocks.py`** — it refuses the deliberate overlap (#31). `k=49` and `k=484` ship
+   `near-tau` untouched.
+4. **Package** — `python scripts/package_submission.py --solution <final>`, then eyeball 27 content
+   lines / nine headers / no blank separators.
+5. **Ping Marko, who uploads to EasyChair himself** (login and form already confirmed reachable).
+
+**DROP-DEAD 03:30 PDT** if no usable nine-block file exists: stop the solve and run
+`scripts/emergency_filler_blocks.py` → audit → package. Proven end-to-end today, **including that
+the official scorer accepts filler blocks**.
 
 Tree is clean and pushed through `86ec754`.
 
