@@ -1,5 +1,60 @@
 # Current Session State
 
+## 🌙 OVERNIGHT UNATTENDED RUN — armed 2026-08-16 00:22 PDT. READ THIS FIRST.
+
+### AT 08:00, DO EXACTLY THIS
+
+```bash
+cat /home/markolinux/projects/sigspatial_26/outputs/RUN-OUT-STATUS.txt
+```
+
+It names **one zip file** under `>>> UPLOAD THIS FILE <<<`. Upload that to
+`https://easychair.org/conferences/?conf=giscup2026`. **Nothing else is required**, and it works
+whether or not Claude is running — the status file is plain text on disk.
+
+**A valid submission already exists right now**, before any of tonight's work:
+`outputs/submission/SAFETY_8REAL_PLUS_FILLER.zip` — 8 real blocks + a legal filler block 9, 27
+lines, exact `k` per block, 18,956 claims. If literally everything below fails, upload that.
+
+### Why the work runs overnight instead of in the morning
+
+**Deadline 09:00 PDT. Marko sleeps 01:00, wakes 08:00.** The run-out chain costs ~2h45m and cannot
+start before the solve ends at ~03:06. Starting it at wake-up finishes ~10:45 — nearly two hours
+late. There is no version of this night where the post-solve work happens interactively, so it was
+automated into `scripts/run_out.sh` and detached.
+
+| | |
+|---|---|
+| solve | **pid 86862**, block 9, measured **23.25 s/pass** → finish **~03:06** |
+| run-out | **pid 173840**, `setsid`+`nohup`, PPID `/init`, waiting on 86862 |
+| status file | `outputs/RUN-OUT-STATUS.txt` — rewritten after every stage, never stale |
+| full log | `outputs/run-out.log` |
+| watchdog | pid 156278, still running |
+
+### What the run-out does, in order
+
+1. Waits for pid 86862, then checks `final.txt` is 27 lines (else fills from the partial).
+2. **Packages a safety bundle immediately**, before improving anything, and preserves it as
+   `SAFETY_FALLBACK.zip` — `package_submission.py` names zips by *date*, so a later package
+   overwrites in place and "previous bundle retained" would otherwise be false.
+3. `k=9` best-of re-solve (`--objective baseline`, ~11 min) → merge via `pick_blocks.py --take-alt`.
+4. **Audits the merged file** — audit what ships, not a predecessor of it.
+5. Promotes the merged file to the shipped bundle **only if the audit returns rc 0**.
+6. Runs the official evaluator for the record. It does **not** gate the upload.
+
+`set -e` is deliberately absent: a stage-3 failure must not stop stage 5 from shipping what stage 1
+already proved good. Every failure path leaves a valid zip on disk.
+
+### Verified before arming
+
+Dry-run (`DRY_RUN=1`) exercised the whole control flow against a dummy pid and produced the real
+safety bundle. Three defects were found and fixed by that run: the missing `--force` on the filler
+(the dry run's own `final_filled.txt` would have blocked a real fallback), the same-name zip clobber
+above, and `pnpm`/`node` resolving only by PATH inheritance — pinned explicitly, since the evaluator
+stage runs at ~05:00 with nobody watching.
+
+---
+
 ## ▶️ 8 OF 9 BLOCKS DONE — BLOCK 9 RUNNING — handoff written 2026-08-15 23:55 PDT
 
 **Written immediately before a `/compact`, so a cold resume needs nothing but this block.**
